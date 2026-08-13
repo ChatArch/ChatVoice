@@ -78,9 +78,20 @@ Model cache is written to `playground/model-cache/`, which is ignored by Git.
 - `GET /api/voice-cloning/list`: list server-side voice enrollment ids by prefix.
 - `GET /api/asr/channels`: available ASR channels; default is `funasr-gpu`.
 - `POST /api/asr`: multipart upload with `channel=funasr-gpu|funasr-cpu|stub-local` and `correct=true|false`; returns `raw_text`, `corrected_text`, and a transcript-board event.
-- `WS /ws/asr/stream`: chunked PCM16 ASR stream; returns `demo_event=asr.stream.result` with normalized ASR board events.
+- `WS /ws/asr/stream`: bounded chunked PCM16 ASR stream; returns `demo_event=asr.stream.result` with normalized ASR board events.
 - `WS /ws/realtime`: browser-to-backend Realtime proxy; upstream events are normalized into `demo_event=transcript.delta` for the Realtime board.
 - `POST /api/meeting-notes/polish`: Qwen-compatible chat completion endpoint for transcript polish + realtime summary structure.
+
+### Public ASR stream limits
+
+`/ws/asr/stream` is intentionally bounded for a public demo:
+
+- accepted sample rates are `8000`, `16000`, `24000`, and `48000` Hz;
+- one websocket audio frame is capped at 256 KiB of PCM16 data;
+- one JSON/base64 frame is capped at 384 KiB;
+- one connection can buffer at most 20 seconds and send at most 60 seconds of PCM16 audio;
+- each receive cycle processes at most two ASR chunks and reports backpressure if more decoded audio is queued;
+- per-chunk temporary WAV/upload files under `playground/asr-temp/` are cleaned after each ASR attempt.
 
 ## Verification
 

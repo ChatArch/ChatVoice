@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import binascii
 import hashlib
 import io
 import json
+import logging
 import math
 import os
 import re
@@ -44,6 +46,15 @@ FUNASR_MODEL = os.getenv("FUNASR_MODEL", "iic/SenseVoiceSmall")
 FUNASR_GPU_DEVICE = os.getenv("FUNASR_GPU_DEVICE", "cuda:0")
 DEFAULT_ASR_CHANNEL = os.getenv("DEFAULT_ASR_CHANNEL", "funasr-gpu")
 MEETING_NOTES_MODEL = os.getenv("QWEN_MEETING_NOTES_MODEL", os.getenv("QWEN_CODING_PLAN_MODEL", "qwen3.7-plus"))
+ALLOWED_ASR_STREAM_SAMPLE_RATES = {8000, 16000, 24000, 48000}
+MIN_ASR_STREAM_CHUNK_SECONDS = 0.5
+MAX_ASR_STREAM_CHUNK_SECONDS = 10.0
+MAX_ASR_STREAM_FRAME_BYTES = 256 * 1024
+MAX_ASR_STREAM_JSON_FRAME_BYTES = 384 * 1024
+MAX_ASR_STREAM_BUFFER_SECONDS = 20.0
+MAX_ASR_STREAM_TOTAL_SECONDS = 60.0
+MAX_ASR_STREAM_CHUNKS_PER_RECEIVE = 2
+MAX_ASR_STREAM_CHUNKS_PER_CONNECTION = 80
 ASR_CHANNELS: dict[str, dict[str, Any]] = {
     "funasr-gpu": {
         "label": "FunASR GPU（CUDA PyTorch + SenseVoiceSmall）",
@@ -69,6 +80,7 @@ ASR_CHANNELS: dict[str, dict[str, Any]] = {
 }
 
 app = FastAPI(title="Qwen Token Plan Audio + GPU ASR Demo", version="0.3.0")
+logger = logging.getLogger("qwen_audio_demo")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://127.0.0.1", "http://localhost", "http://127.0.0.1:18087", "http://localhost:18087"],
@@ -369,6 +381,18 @@ def _write_upload_to_temp(audio_bytes: bytes, filename: str) -> Path:
     return path
 
 
+def _cleanup_asr_temp_file(path: Path | None) -> None:
+    if path is None:
+        return
+    try:
+        resolved = path.resolve()
+        temp_root = (PROJECT_ROOT / "playground" / "asr-temp").resolve()
+        if temp_root in resolved.parents or resolved == temp_root:
+            resolved.unlink(missing_ok=True)
+    except Exception:
+        pass
+
+
 def _convert_to_wav_if_needed(path: Path) -> Path:
     if path.suffix.lower() == ".wav":
         return path
@@ -387,11 +411,15 @@ def _convert_to_wav_if_needed(path: Path) -> Path:
 def _stub_asr(audio_bytes: bytes, filename: str) -> dict[str, Any]:
     seconds: float | None = None
     if filename.lower().endswith(".wav"):
+        temp_path: Path | None = None
         try:
-            with wave.open(_write_upload_to_temp(audio_bytes, filename), "rb") as wf:
+            temp_path = _write_upload_to_temp(audio_bytes, filename)
+            with wave.open(str(temp_path), "rb") as wf:
                 seconds = round(wf.getnframes() / float(wf.getframerate()), 3)
         except Exception:
             seconds = None
+        finally:
+            _cleanup_asr_temp_file(temp_path)
     text = "这是本地合同通道：音频已上传，ASR 多渠道页面和公屏链路已打通。"
     return normalize_asr_result("stub-local", text, text, {"engine": "stub", "audio_bytes": len(audio_bytes), "seconds": seconds})
 
@@ -435,54 +463,61 @@ def _funasr_worker_python(device: str) -> Path | None:
 
 def _funasr_asr(audio_bytes: bytes, filename: str, channel: str, device: str) -> dict[str, Any]:
     source_path = _write_upload_to_temp(audio_bytes, filename)
-    wav_path = _convert_to_wav_if_needed(source_path)
-    model_name = FUNASR_MODEL
-    started = time.time()
-    cache_root = PROJECT_ROOT / "playground" / "model-cache"
-    os.environ.setdefault("MODELSCOPE_CACHE", str(cache_root / "modelscope"))
-    os.environ.setdefault("HF_HOME", str(cache_root / "huggingface"))
-    os.environ.setdefault("TRANSFORMERS_CACHE", str(cache_root / "transformers"))
     try:
-        from funasr import AutoModel  # type: ignore
-
-        model = AutoModel(model=model_name, device=device, disable_update=True)
-        result = model.generate(input=str(wav_path), language="zh", use_itn=True)
-        raw_text = _extract_funasr_text(result)
-        meta = {
-            "engine": "funasr",
-            "model": model_name,
-            "device": device,
-            "channel": channel,
-            "elapsed_ms": round((time.time() - started) * 1000),
-        }
-    except Exception as inproc_exc:
-        worker_python = _funasr_worker_python(device)
-        worker = PROJECT_ROOT / "scripts" / "funasr_worker.py"
-        if worker_python is None:
-            raise RuntimeError(
-                f"FunASR {channel} worker is not ready. Create .venv-asr-gpu with CUDA PyTorch/FunASR "
-                f"for funasr-gpu, or choose stub-local for contract smoke. In-process error: {type(inproc_exc).__name__}: {str(inproc_exc)[:200]}"
-            ) from inproc_exc
-        proc = subprocess.run(
-            [str(worker_python), str(worker), str(wav_path), "--model", model_name, "--device", device],
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            timeout=240,
-        )
-        json_lines = [line for line in proc.stdout.splitlines() if line.strip().startswith("{")]
+        wav_path = _convert_to_wav_if_needed(source_path)
+        model_name = FUNASR_MODEL
+        started = time.time()
+        cache_root = PROJECT_ROOT / "playground" / "model-cache"
+        os.environ.setdefault("MODELSCOPE_CACHE", str(cache_root / "modelscope"))
+        os.environ.setdefault("HF_HOME", str(cache_root / "huggingface"))
+        os.environ.setdefault("TRANSFORMERS_CACHE", str(cache_root / "transformers"))
         try:
-            payload = json.loads(json_lines[-1] if json_lines else "{}")
-        except Exception as exc:
-            raise RuntimeError(f"FunASR worker returned non-JSON output: {proc.stdout[:300]} {proc.stderr[:300]}") from exc
-        if proc.returncode != 0 or not payload.get("ok"):
-            raise RuntimeError(f"FunASR worker failed: {payload.get('error_type')}: {payload.get('message')}") from inproc_exc
-        raw_text = str(payload.get("text") or "")
-        meta = dict(payload.get("meta") or {})
-        meta.update({"channel": channel, "device": meta.get("device") or device, "elapsed_ms": meta.get("elapsed_ms") or round((time.time() - started) * 1000)})
-    if not raw_text:
-        raw_text = "（FunASR 未返回可展示文本，可能是静音或音频过短。）"
-    return normalize_asr_result(channel, raw_text, _simple_chinese_correction(raw_text), meta)
+            from funasr import AutoModel  # type: ignore
+
+            model = AutoModel(model=model_name, device=device, disable_update=True)
+            result = model.generate(input=str(wav_path), language="zh", use_itn=True)
+            raw_text = _extract_funasr_text(result)
+            meta = {
+                "engine": "funasr",
+                "model": model_name,
+                "device": device,
+                "channel": channel,
+                "elapsed_ms": round((time.time() - started) * 1000),
+            }
+        except Exception as inproc_exc:
+            worker_python = _funasr_worker_python(device)
+            worker = PROJECT_ROOT / "scripts" / "funasr_worker.py"
+            if worker_python is None:
+                raise RuntimeError(
+                    f"FunASR {channel} worker is not ready. Create .venv-asr-gpu with CUDA PyTorch/FunASR "
+                    f"for funasr-gpu, or choose stub-local for contract smoke. In-process error: {type(inproc_exc).__name__}: {str(inproc_exc)[:200]}"
+                ) from inproc_exc
+            proc = subprocess.run(
+                [str(worker_python), str(worker), str(wav_path), "--model", model_name, "--device", device],
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=240,
+            )
+            json_lines = [line for line in proc.stdout.splitlines() if line.strip().startswith("{")]
+            try:
+                payload = json.loads(json_lines[-1] if json_lines else "{}")
+            except Exception as exc:
+                raise RuntimeError(f"FunASR worker returned non-JSON output: {proc.stdout[:300]} {proc.stderr[:300]}") from exc
+            if proc.returncode != 0 or not payload.get("ok"):
+                raise RuntimeError(f"FunASR worker failed: {payload.get('error_type')}: {payload.get('message')}") from inproc_exc
+            raw_text = str(payload.get("text") or "")
+            meta = dict(payload.get("meta") or {})
+            meta.update({"channel": channel, "device": meta.get("device") or device, "elapsed_ms": meta.get("elapsed_ms") or round((time.time() - started) * 1000)})
+        if not raw_text:
+            raw_text = "（FunASR 未返回可展示文本，可能是静音或音频过短。）"
+        return normalize_asr_result(channel, raw_text, _simple_chinese_correction(raw_text), meta)
+    finally:
+        try:
+            if 'wav_path' in locals() and wav_path != source_path:
+                _cleanup_asr_temp_file(wav_path)
+        finally:
+            _cleanup_asr_temp_file(source_path)
 
 
 def _funasr_cpu_asr(audio_bytes: bytes, filename: str) -> dict[str, Any]:
@@ -524,29 +559,88 @@ def pcm16_to_wav_bytes(pcm_bytes: bytes, sample_rate: int = 16000) -> bytes:
 
 class AsrStreamSession:
     def __init__(self, channel: str = DEFAULT_ASR_CHANNEL, sample_rate: int = 16000, chunk_seconds: float = 4.0) -> None:
-        self.channel = channel or DEFAULT_ASR_CHANNEL
-        self.sample_rate = int(sample_rate or 16000)
-        self.chunk_seconds = max(1.0, min(float(chunk_seconds or 4.0), 15.0))
+        self.channel = self._validate_channel(channel or DEFAULT_ASR_CHANNEL)
+        self.sample_rate = self._validate_sample_rate(16000 if sample_rate is None else sample_rate)
+        self.chunk_seconds = self._validate_chunk_seconds(chunk_seconds)
         self.buffer = bytearray()
         self.chunk_index = 0
+        self.total_pcm_bytes = 0
+
+    @staticmethod
+    def _validate_channel(channel: str) -> str:
+        if channel not in ASR_CHANNELS:
+            raise ValueError("unknown ASR channel; choose funasr-gpu, funasr-cpu, or stub-local")
+        return channel
+
+    @staticmethod
+    def _validate_sample_rate(sample_rate: int) -> int:
+        try:
+            value = int(sample_rate)
+        except Exception as exc:
+            raise ValueError("sample_rate must be one of 8000, 16000, 24000, 48000") from exc
+        if value not in ALLOWED_ASR_STREAM_SAMPLE_RATES:
+            raise ValueError("sample_rate must be one of 8000, 16000, 24000, 48000")
+        return value
+
+    @staticmethod
+    def _validate_chunk_seconds(chunk_seconds: float | int | str | None) -> float:
+        try:
+            value = float(4.0 if chunk_seconds is None else chunk_seconds)
+        except Exception as exc:
+            raise ValueError("chunk_seconds must be a number") from exc
+        if not math.isfinite(value):
+            raise ValueError("chunk_seconds must be finite")
+        return max(MIN_ASR_STREAM_CHUNK_SECONDS, min(value, MAX_ASR_STREAM_CHUNK_SECONDS))
 
     @property
     def chunk_bytes(self) -> int:
         return int(self.sample_rate * self.chunk_seconds * 2)
 
+    @property
+    def max_buffer_bytes(self) -> int:
+        return int(self.sample_rate * MAX_ASR_STREAM_BUFFER_SECONDS * 2)
+
+    @property
+    def max_total_bytes(self) -> int:
+        return int(self.sample_rate * MAX_ASR_STREAM_TOTAL_SECONDS * 2)
+
     def append_pcm16(self, chunk: bytes) -> None:
+        if not isinstance(chunk, (bytes, bytearray)):
+            raise ValueError("audio chunk must be PCM16 bytes")
+        if not chunk:
+            return
+        if len(chunk) > MAX_ASR_STREAM_FRAME_BYTES:
+            raise ValueError(f"audio frame too large for demo; max {MAX_ASR_STREAM_FRAME_BYTES} bytes")
+        if len(chunk) % 2:
+            raise ValueError("audio chunk must contain whole PCM16 samples")
+        if self.total_pcm_bytes + len(chunk) > self.max_total_bytes:
+            raise ValueError(f"stream duration too long for demo; max {MAX_ASR_STREAM_TOTAL_SECONDS:g}s")
+        if len(self.buffer) + len(chunk) > self.max_buffer_bytes:
+            raise ValueError(f"stream buffer too large for demo; max {MAX_ASR_STREAM_BUFFER_SECONDS:g}s buffered")
         self.buffer.extend(chunk)
+        self.total_pcm_bytes += len(chunk)
 
     def append_base64_pcm16(self, audio_b64: str) -> None:
-        self.append_pcm16(base64.b64decode(audio_b64))
+        if len(audio_b64 or "") > MAX_ASR_STREAM_JSON_FRAME_BYTES:
+            raise ValueError(f"base64 audio frame too large for demo; max {MAX_ASR_STREAM_JSON_FRAME_BYTES} chars")
+        try:
+            decoded = base64.b64decode(audio_b64, validate=True)
+        except (binascii.Error, ValueError) as exc:
+            raise ValueError("audio must be strict base64-encoded PCM16") from exc
+        self.append_pcm16(decoded)
 
-    def pop_ready_wavs(self) -> list[tuple[int, bytes]]:
+    def _next_chunk_index(self) -> int:
+        if self.chunk_index >= MAX_ASR_STREAM_CHUNKS_PER_CONNECTION:
+            raise ValueError(f"too many ASR chunks for demo; max {MAX_ASR_STREAM_CHUNKS_PER_CONNECTION}")
+        self.chunk_index += 1
+        return self.chunk_index
+
+    def pop_ready_wavs(self, max_chunks: int = MAX_ASR_STREAM_CHUNKS_PER_RECEIVE) -> list[tuple[int, bytes]]:
         out: list[tuple[int, bytes]] = []
-        while len(self.buffer) >= self.chunk_bytes:
+        while len(self.buffer) >= self.chunk_bytes and len(out) < max(0, int(max_chunks)):
             pcm = bytes(self.buffer[: self.chunk_bytes])
             del self.buffer[: self.chunk_bytes]
-            self.chunk_index += 1
-            out.append((self.chunk_index, pcm16_to_wav_bytes(pcm, self.sample_rate)))
+            out.append((self._next_chunk_index(), pcm16_to_wav_bytes(pcm, self.sample_rate)))
         return out
 
     def commit_wav(self) -> tuple[int, bytes] | None:
@@ -554,8 +648,7 @@ class AsrStreamSession:
             return None
         pcm = bytes(self.buffer)
         self.buffer.clear()
-        self.chunk_index += 1
-        return self.chunk_index, pcm16_to_wav_bytes(pcm, self.sample_rate)
+        return self._next_chunk_index(), pcm16_to_wav_bytes(pcm, self.sample_rate)
 
 
 async def _send_asr_stream_result(client: WebSocket, session: AsrStreamSession, index: int, wav_bytes: bytes, final: bool = False) -> None:
@@ -564,6 +657,11 @@ async def _send_asr_stream_result(client: WebSocket, session: AsrStreamSession, 
     result["board_event"]["source_type"] = f"asr.stream.{session.channel}"
     result["board_event"]["item_id"] = f"asr-stream-{index}"
     await client.send_json({"demo_event": "asr.stream.result", "result": result, "board_event": result["board_event"]})
+
+
+async def _close_asr_stream_policy(client: WebSocket, message: str, code: int = 1008) -> None:
+    await client.send_json({"demo_event": "asr.stream.error", "message": message})
+    await client.close(code=code, reason=message[:120])
 
 
 @app.websocket("/ws/asr/stream")
@@ -577,8 +675,15 @@ async def asr_stream(client: WebSocket) -> None:
             if message.get("type") == "websocket.disconnect":
                 break
             if message.get("bytes") is not None:
-                session.append_pcm16(message["bytes"])
+                try:
+                    session.append_pcm16(message["bytes"])
+                except ValueError as exc:
+                    await _close_asr_stream_policy(client, str(exc), 1009)
+                    break
             elif message.get("text") is not None:
+                if len(message["text"]) > MAX_ASR_STREAM_JSON_FRAME_BYTES:
+                    await _close_asr_stream_policy(client, f"JSON frame too large for demo; max {MAX_ASR_STREAM_JSON_FRAME_BYTES} chars", 1009)
+                    break
                 try:
                     payload = json.loads(message["text"])
                 except Exception:
@@ -586,33 +691,53 @@ async def asr_stream(client: WebSocket) -> None:
                     continue
                 msg_type = payload.get("type")
                 if msg_type == "asr.stream.start":
-                    session = AsrStreamSession(
-                        channel=str(payload.get("channel") or DEFAULT_ASR_CHANNEL),
-                        sample_rate=int(payload.get("sample_rate") or 16000),
-                        chunk_seconds=float(payload.get("chunk_seconds") or 4.0),
-                    )
+                    try:
+                        session = AsrStreamSession(
+                            channel=str(payload.get("channel") or DEFAULT_ASR_CHANNEL),
+                            sample_rate=payload.get("sample_rate", 16000),
+                            chunk_seconds=payload.get("chunk_seconds", 4.0),
+                        )
+                    except (TypeError, ValueError) as exc:
+                        await _close_asr_stream_policy(client, str(exc), 1008)
+                        break
                     await client.send_json({"demo_event": "asr.stream.started", "channel": session.channel, "sample_rate": session.sample_rate, "chunk_seconds": session.chunk_seconds})
                     continue
                 if msg_type == "asr.stream.append":
-                    session.append_base64_pcm16(str(payload.get("audio") or ""))
+                    try:
+                        session.append_base64_pcm16(str(payload.get("audio") or ""))
+                    except ValueError as exc:
+                        await _close_asr_stream_policy(client, str(exc), 1009)
+                        break
                 elif msg_type in {"asr.stream.commit", "asr.stream.finish"}:
-                    committed = session.commit_wav()
-                    if committed is not None:
-                        await _send_asr_stream_result(client, session, committed[0], committed[1], final=True)
+                    try:
+                        committed = session.commit_wav()
+                        if committed is not None:
+                            await _send_asr_stream_result(client, session, committed[0], committed[1], final=True)
+                    except ValueError as exc:
+                        await _close_asr_stream_policy(client, str(exc), 1009)
+                        break
                     await client.send_json({"demo_event": "asr.stream.done", "final": msg_type == "asr.stream.finish"})
                     if msg_type == "asr.stream.finish":
                         break
                     continue
                 else:
-                    await client.send_json({"demo_event": "asr.stream.error", "message": f"unknown message type: {msg_type}"})
+                    await client.send_json({"demo_event": "asr.stream.error", "message": "unknown ASR stream message type"})
                     continue
-            for index, wav_bytes in session.pop_ready_wavs():
-                await _send_asr_stream_result(client, session, index, wav_bytes, final=False)
+            try:
+                ready_wavs = session.pop_ready_wavs(max_chunks=MAX_ASR_STREAM_CHUNKS_PER_RECEIVE)
+                if ready_wavs and len(session.buffer) >= session.chunk_bytes:
+                    await client.send_json({"demo_event": "asr.stream.backpressure", "queued_bytes": len(session.buffer), "processed_chunks": len(ready_wavs)})
+                for index, wav_bytes in ready_wavs:
+                    await _send_asr_stream_result(client, session, index, wav_bytes, final=False)
+            except ValueError as exc:
+                await _close_asr_stream_policy(client, str(exc), 1009)
+                break
     except WebSocketDisconnect:
         pass
     except Exception as exc:
+        logger.warning("ASR stream failed: %s", type(exc).__name__)
         try:
-            await client.send_json({"demo_event": "asr.stream.error", "error_type": type(exc).__name__, "message": str(exc)[:700]})
+            await client.send_json({"demo_event": "asr.stream.error", "error_type": type(exc).__name__, "message": "stream ASR failed; retry with a smaller chunk or stub-local"})
         except Exception:
             pass
     finally:

@@ -6,8 +6,10 @@ import json
 import math
 import os
 import struct
+import tempfile
 import wave
 from pathlib import Path
+from fastapi.testclient import TestClient
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 import sys
@@ -39,6 +41,76 @@ checks["stream_route_exists"] = any(getattr(route, "path", None) == "/ws/asr/str
 checks["pcm16_wav_helper_exists"] = callable(getattr(main, "pcm16_to_wav_bytes", None))
 checks["chunk_session_class_exists"] = hasattr(main, "AsrStreamSession")
 checks["normalizer_source_type_gpu"] = main.normalize_asr_result("funasr-gpu", "我想嗯测试", "我想测试。", {"engine": "contract"})["board_event"]["source_type"] == "asr.funasr-gpu"
+checks["stream_sample_rate_allowlist"] = hasattr(main, "ALLOWED_ASR_STREAM_SAMPLE_RATES") and {8000, 16000, 24000, 48000}.issubset(main.ALLOWED_ASR_STREAM_SAMPLE_RATES)
+checks["stream_rejects_invalid_sample_rate"] = False
+try:
+    main.AsrStreamSession(sample_rate=0)
+except ValueError:
+    checks["stream_rejects_invalid_sample_rate"] = True
+checks["stream_rejects_unknown_channel"] = False
+try:
+    main.AsrStreamSession(channel="not-a-channel")
+except ValueError:
+    checks["stream_rejects_unknown_channel"] = True
+checks["stream_rejects_nonfinite_chunk_seconds"] = False
+try:
+    main.AsrStreamSession(channel="stub-local", chunk_seconds="nan")
+except ValueError:
+    checks["stream_rejects_nonfinite_chunk_seconds"] = True
+session = main.AsrStreamSession(channel="stub-local", sample_rate=16000, chunk_seconds=1)
+checks["stream_strict_base64"] = False
+try:
+    session.append_base64_pcm16("!!!!")
+except ValueError:
+    checks["stream_strict_base64"] = True
+checks["stream_rejects_oversized_frame"] = False
+try:
+    session.append_pcm16(b"\0" * (main.MAX_ASR_STREAM_FRAME_BYTES + 2))
+except ValueError:
+    checks["stream_rejects_oversized_frame"] = True
+bounded = main.AsrStreamSession(channel="stub-local", sample_rate=16000, chunk_seconds=1)
+bounded.append_pcm16(b"\0" * bounded.chunk_bytes * (main.MAX_ASR_STREAM_CHUNKS_PER_RECEIVE + 2))
+ready = bounded.pop_ready_wavs(max_chunks=main.MAX_ASR_STREAM_CHUNKS_PER_RECEIVE)
+checks["stream_caps_chunks_per_receive"] = len(ready) == main.MAX_ASR_STREAM_CHUNKS_PER_RECEIVE and len(bounded.buffer) >= bounded.chunk_bytes
+checks["stream_rejects_total_duration_overflow"] = False
+overflow = main.AsrStreamSession(channel="stub-local", sample_rate=16000, chunk_seconds=1)
+one_second = b"\0" * overflow.chunk_bytes
+try:
+    for _ in range(int(main.MAX_ASR_STREAM_TOTAL_SECONDS) + 2):
+        overflow.append_pcm16(one_second)
+        overflow.pop_ready_wavs(max_chunks=1)
+except ValueError:
+    checks["stream_rejects_total_duration_overflow"] = True
+temp_dir = main.PROJECT_ROOT / "playground" / "asr-temp"
+temp_dir.mkdir(parents=True, exist_ok=True)
+fd, temp_name = tempfile.mkstemp(prefix="qwen-demo-contract-cleanup-", suffix=".wav", dir=str(temp_dir))
+os.close(fd)
+temp_path = main.Path(temp_name)
+main._cleanup_asr_temp_file(temp_path)
+checks["stream_temp_cleanup_helper"] = not temp_path.exists()
+original_send = main._send_asr_stream_result
+try:
+    async def failing_send(*args, **kwargs):
+        raise RuntimeError("internal diagnostic details should not leak to websocket clients")
+
+    main._send_asr_stream_result = failing_send
+    client = TestClient(main.app)
+    with client.websocket_connect("/ws/asr/stream") as ws:
+        ws.receive_json()
+        ws.send_json({"type": "asr.stream.start", "channel": "stub-local", "sample_rate": 16000, "chunk_seconds": 0.5})
+        ws.receive_json()
+        ws.send_json({"type": "asr.stream.append", "audio": base64.b64encode(b"\0" * 16000).decode()})
+        err = ws.receive_json()
+        msg = json.dumps(err, ensure_ascii=False)
+        checks["stream_generic_errors_are_sanitized"] = err.get("demo_event") == "asr.stream.error" and "stream ASR failed" in err.get("message", "") and "internal diagnostic" not in msg
+finally:
+    main._send_asr_stream_result = original_send
+client = TestClient(main.app)
+with client.websocket_connect("/ws/asr/stream") as ws:
+    ws.receive_json()
+    ws.send_json({"type": "attacker-controlled-type-value"})
+    err = ws.receive_json()
+    checks["stream_unknown_type_not_reflected"] = err.get("demo_event") == "asr.stream.error" and "attacker-controlled" not in json.dumps(err, ensure_ascii=False)
 # The stub path must stay available so public smoke can run even if GPU model is warming/downloading.
 wav = make_test_wav()
 stub = main.transcribe_audio_bytes("stub-local", wav, "asr-gpu-contract-tone.wav", True)
