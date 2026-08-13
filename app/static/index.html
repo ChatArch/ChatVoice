@@ -25,6 +25,13 @@
     button.secondary { background:#162844; color:#d9e9ff; border:1px solid #2e4568; }
     button.danger { background:#ff6b8b; color:#21030a; }
     button:disabled { opacity:.45; cursor:not-allowed; }
+    .tabs { display:flex; gap:10px; flex-wrap:wrap; margin:0 0 18px; padding:8px; border:1px solid var(--line); border-radius:20px; background:#081629cc; }
+    .tab-button { margin:0; color:#cfe4ff; background:#10223c; border:1px solid #284466; }
+    .tab-button.active { color:#04111d; background:linear-gradient(135deg, var(--accent), #7effd4); border-color:transparent; }
+    .tab-panel { display:none; }
+    .tab-panel.active { display:block; }
+    details.debug-details > summary { cursor:pointer; color:#d9e9ff; font-weight:800; }
+    details.debug-details:not([open]) { opacity:.82; }
     .meta { margin-top:12px; font-size:13px; color:var(--muted); white-space:pre-wrap; }
     .ok { color:var(--good); } .err { color:var(--bad); } .warn { color:var(--warn); }
     audio { width:100%; margin-top:14px; }
@@ -58,14 +65,21 @@
   <header>
     <div>
       <h1>千问 Token Plan 音频 Demo</h1>
-      <p>后端读取服务器 ChatEnv 的 <b>OpenAI/qwen-token-plan</b>；浏览器只访问本地后端，不接触 API Key。TTS 走官方 Token Plan WebSocket SDK 路径；Realtime 走后端 WebSocket 代理。</p>
+      <p>后端读取服务器环境变量或私有 env 文件；浏览器只访问本地后端，不接触 API Key。先验收三个标签页，后续扩展 voice cloning 与 meeting notes。</p>
     </div>
     <span class="pill" id="status-pill">检查中…</span>
   </header>
 
+  <nav class="tabs" aria-label="Demo sections">
+    <button class="tab-button active" type="button" data-tab="tts">TTS</button>
+    <button class="tab-button" type="button" data-tab="realtime">realtime communication</button>
+    <button class="tab-button" type="button" data-tab="asr">asr transcription</button>
+  </nav>
+
   <section class="grid">
-    <div class="card">
-      <h2>1. TTS：文本转语音</h2>
+    <div class="card span2 tab-panel active" id="panel-tts" data-panel="tts">
+      <h2>TTS</h2>
+      <p>文本转语音；后续扩展为 voice cloning。</p>
       <label for="tts-text">文本</label>
       <textarea id="tts-text">你好，这是千问 Token Plan 的网页语音合成 Demo。API Key 只在后端使用。</textarea>
       <label for="voice">音色</label>
@@ -82,8 +96,8 @@
       <div class="meta" id="tts-meta"></div>
     </div>
 
-    <div class="card">
-      <h2>2. Realtime：麦克风 → 千问代理</h2>
+    <div class="card span2 tab-panel" id="panel-realtime" data-panel="realtime">
+      <h2>realtime communication</h2>
       <p>连接后点击「发送 session.update」，再点「开始麦克风」。模型返回的转写/文本 delta 会进入下方公屏；原始事件只保留在调试日志。</p>
       <button id="rt-connect">连接 Realtime</button>
       <button class="secondary" id="rt-update" disabled>发送 session.update</button>
@@ -94,8 +108,9 @@
       <div class="meter" id="rt-tags"></div>
     </div>
 
-    <div class="card span2">
-      <h2>3. 多渠道 ASR：录音/上传 → raw/corrected → 同一公屏</h2>
+    <div class="card span2 tab-panel" id="panel-asr" data-panel="asr">
+      <h2>asr transcription</h2>
+      <p>录音/上传 → raw/corrected → 同一公屏；后续扩展为 meeting notes：实时转写 + AI 润色修复 + 实时 summary。</p>
       <p>体验形式和 Realtime 公屏一致：主文本显示纠正/定稿，原始识别以小字旁注保留。第一路目标是 FunASR CPU；依赖未安装时可用本地合同通道先验证交互。</p>
       <div class="grid">
         <div>
@@ -121,7 +136,7 @@
     <div class="card span2">
       <div class="board-head">
         <div>
-          <h2>4. 实时文字板 / 公屏转写</h2>
+          <h2>实时文字板 / 公屏转写</h2>
           <p>这里不是事件日志：只显示 Realtime 或 ASR 多渠道抽取出的用户转写、AI 回复文本或环境音转写。</p>
         </div>
         <button class="secondary" id="transcript-clear">清空公屏</button>
@@ -132,11 +147,11 @@
       <div class="board-note" id="transcript-meta">监听事件：conversation.item.input_audio_transcription.* / response.audio_transcript.* / response.text.* / ambient_audio_transcription.*</div>
     </div>
 
-    <div class="card span2">
-      <h2>调试事件日志</h2>
+    <details class="card span2 debug-details">
+      <summary>调试事件日志（默认折叠）</summary>
       <p>这里保留完整协议诊断；公屏内容不再依赖用户读 JSON。</p>
       <pre id="log"></pre>
-    </div>
+    </details>
   </section>
 </main>
 <script>
@@ -156,6 +171,12 @@ let asrRecorder = null;
 let asrChunks = [];
 let lastAsrBlob = null;
 let lastAsrUrl = null;
+
+function activateTab(tab) {
+  document.querySelectorAll('.tab-button').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tab));
+  document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.toggle('active', panel.dataset.panel === tab));
+}
+document.querySelectorAll('.tab-button').forEach(btn => btn.addEventListener('click', () => activateTab(btn.dataset.tab)));
 
 function log(kind, obj) {
   const printable = typeof obj === 'string' ? obj : JSON.stringify(obj);
