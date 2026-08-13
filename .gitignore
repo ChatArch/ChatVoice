@@ -6,6 +6,8 @@ __pycache__/
 .ruff_cache/
 .venv/
 .venv-asr/
+.venv-asr-gpu/
+.venv-asr-gpu-cu121/
 venv/
 
 # Secrets / local env

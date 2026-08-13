@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import hashlib
+import io
 import json
 import math
 import os
@@ -39,25 +40,35 @@ TOKEN_PLAN_REALTIME_WS = "wss://token-plan.cn-beijing.maas.aliyuncs.com/api-ws/v
 REALTIME_MODEL = "qwen-audio-3.0-realtime-plus"
 TTS_MODEL = "qwen-audio-3.0-tts-plus"
 DEFAULT_VOICE = "longanlingxin"
-DEFAULT_ASR_CHANNEL = "funasr-cpu"
+FUNASR_MODEL = os.getenv("FUNASR_MODEL", "iic/SenseVoiceSmall")
+FUNASR_GPU_DEVICE = os.getenv("FUNASR_GPU_DEVICE", "cuda:0")
+DEFAULT_ASR_CHANNEL = os.getenv("DEFAULT_ASR_CHANNEL", "funasr-gpu")
+MEETING_NOTES_MODEL = os.getenv("QWEN_MEETING_NOTES_MODEL", os.getenv("QWEN_CODING_PLAN_MODEL", "qwen3.7-plus"))
 ASR_CHANNELS: dict[str, dict[str, Any]] = {
+    "funasr-gpu": {
+        "label": "FunASR GPU（CUDA PyTorch + SenseVoiceSmall）",
+        "engine": "funasr",
+        "device": FUNASR_GPU_DEVICE,
+        "status": "lazy-load",
+        "notes": "默认真实 ASR 通道；通过 .venv-asr-gpu worker 使用 CUDA PyTorch/FunASR。",
+    },
     "funasr-cpu": {
-        "label": "FunASR CPU（SenseVoiceSmall / Paraformer，可替换）",
+        "label": "FunASR CPU（fallback / debug）",
         "engine": "funasr",
         "device": "cpu",
-        "status": "lazy-load",
-        "notes": "真实 FunASR 通道；依赖未安装时返回明确错误，不影响页面其它功能。",
+        "status": "fallback",
+        "notes": "仅作为 GPU 不可用时的显式 fallback，不再是默认通道。",
     },
     "stub-local": {
         "label": "本地合同通道（无模型，用于体验/回归）",
         "engine": "stub",
         "device": "cpu",
         "status": "ready",
-        "notes": "用于先打通上传/录音→raw/corrected→公屏体验，不代表识别质量。",
+        "notes": "用于打通上传/录音/公网 smoke；不代表识别质量。",
     },
 }
 
-app = FastAPI(title="Qwen Token Plan Audio + Multi-channel ASR Demo", version="0.2.0")
+app = FastAPI(title="Qwen Token Plan Audio + GPU ASR Demo", version="0.3.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://127.0.0.1", "http://localhost", "http://127.0.0.1:18087", "http://localhost:18087"],
@@ -71,6 +82,20 @@ class TTSRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=800)
     voice: str = Field(DEFAULT_VOICE, min_length=1, max_length=80)
     format: str = Field("mp3", pattern="^(mp3|wav)$")
+
+
+class VoiceCloneRequest(BaseModel):
+    audio_url: str = Field(..., min_length=8, max_length=2000)
+    prefix: str = Field("qwen_demo", min_length=2, max_length=32)
+    target_model: str = Field(TTS_MODEL, min_length=1, max_length=80)
+    language_hints: list[str] = Field(default_factory=lambda: ["zh"])
+    max_prompt_audio_length: float | None = Field(default=30.0, ge=1.0, le=180.0)
+
+
+class MeetingNotesRequest(BaseModel):
+    transcript: str = Field(..., min_length=1, max_length=20000)
+    instruction: str = Field("输出中文会议纪要：先给实时摘要，再给润色修复后的逐段记录、待办、风险和未决问题。", max_length=1000)
+    model: str | None = Field(default=None, max_length=120)
 
 
 def _read_profile() -> dict[str, str]:
@@ -102,6 +127,18 @@ def _token_plan_base() -> str:
     return profile.get("OPENAI_API_BASE", "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1").rstrip("/")
 
 
+def _meeting_notes_model(req_model: str | None = None) -> str:
+    if req_model:
+        return req_model
+    profile = _read_profile()
+    return (
+        os.getenv("QWEN_MEETING_NOTES_MODEL")
+        or os.getenv("QWEN_CODING_PLAN_MODEL")
+        or profile.get("OPENAI_API_MODEL")
+        or MEETING_NOTES_MODEL
+    )
+
+
 def _safe_profile_summary() -> dict[str, Any]:
     profile = _read_profile()
     key = profile.get("OPENAI_API_KEY") or profile.get("DASHSCOPE_API_KEY") or ""
@@ -113,7 +150,6 @@ def _safe_profile_summary() -> dict[str, Any]:
         "base_host": parsed.netloc if parsed else None,
         "base_path": parsed.path if parsed else None,
         "key_present": bool(key),
-        "key_sha256_12": hashlib.sha256(key.encode()).hexdigest()[:12] if key else None,
         "tts_model": TTS_MODEL,
         "realtime_model": REALTIME_MODEL,
         "asr_channels": ASR_CHANNELS,
@@ -199,6 +235,93 @@ async def tts(req: TTSRequest) -> Response:
         "Content-Disposition": f'inline; filename="qwen-token-plan-tts.{suffix}"',
     }
     return Response(content=result["audio"], media_type=media_type, headers=headers)
+
+
+def _validate_public_audio_url(url: str) -> str:
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError("audio_url must be an http(s) URL accessible by Qwen voice enrollment")
+    return url
+
+
+def _create_voice_blocking(req: VoiceCloneRequest) -> dict[str, Any]:
+    key = _token_plan_key()
+    _validate_public_audio_url(req.audio_url)
+    dashscope.api_key = key
+    from dashscope.audio.tts_v2 import VoiceEnrollmentService
+
+    service = VoiceEnrollmentService(api_key=key)
+    voice_id = service.create_voice(
+        target_model=req.target_model,
+        prefix=req.prefix,
+        url=req.audio_url,
+        language_hints=req.language_hints or None,
+        max_prompt_audio_length=req.max_prompt_audio_length,
+    )
+    return {"voice_id": voice_id, "target_model": req.target_model, "request_id": service.get_last_request_id()}
+
+
+@app.post("/api/voice-cloning/create")
+async def voice_cloning_create(req: VoiceCloneRequest) -> JSONResponse:
+    try:
+        result = await asyncio.to_thread(_create_voice_blocking, req)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail={"error_type": type(exc).__name__, "message": str(exc)[:700]}) from exc
+    return JSONResponse(result)
+
+
+@app.get("/api/voice-cloning/list")
+def voice_cloning_list(prefix: str | None = None) -> JSONResponse:
+    try:
+        key = _token_plan_key()
+        from dashscope.audio.tts_v2 import VoiceEnrollmentService
+
+        service = VoiceEnrollmentService(api_key=key)
+        voices = service.list_voices(prefix=prefix)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail={"error_type": type(exc).__name__, "message": str(exc)[:700]}) from exc
+    return JSONResponse({"voices": voices})
+
+
+def _meeting_notes_blocking(req: MeetingNotesRequest) -> dict[str, Any]:
+    key = _token_plan_key()
+    model = _meeting_notes_model(req.model)
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": "你是会议纪要实时整理助手，只输出中文结构化结果。"},
+            {"role": "user", "content": req.instruction + "\n\n转写文本：\n" + req.transcript},
+        ],
+        "temperature": 0.2,
+    }
+    request = urllib.request.Request(
+        _token_plan_base() + "/chat/completions",
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json", "User-Agent": "qwen-audio-demo-meeting-notes/0.1"},
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=80) as response:
+        body = json.loads(response.read().decode("utf-8"))
+    content = ""
+    try:
+        content = body["choices"][0]["message"]["content"]
+    except Exception:
+        content = json.dumps(body, ensure_ascii=False)[:4000]
+    return {"model": model, "content": content, "raw_usage": body.get("usage")}
+
+
+@app.post("/api/meeting-notes/polish")
+async def meeting_notes_polish(req: MeetingNotesRequest) -> JSONResponse:
+    try:
+        result = await asyncio.to_thread(_meeting_notes_blocking, req)
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", "replace")[:700]
+        raise HTTPException(status_code=502, detail={"error_type": "HTTPError", "status": exc.code, "message": detail}) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail={"error_type": type(exc).__name__, "message": str(exc)[:700]}) from exc
+    return JSONResponse(result)
 
 
 def _collapse_text(text: str) -> str:
@@ -295,31 +418,57 @@ def _extract_funasr_text(result: Any) -> str:
     return ""
 
 
-def _funasr_cpu_asr(audio_bytes: bytes, filename: str) -> dict[str, Any]:
+def _funasr_worker_python(device: str) -> Path | None:
+    candidates: list[Path] = []
+    env_venv = os.getenv("ASR_GPU_VENV", "").strip()
+    if str(device).startswith("cuda"):
+        if env_venv:
+            candidates.append(Path(env_venv).expanduser() / "bin" / "python")
+        candidates.append(PROJECT_ROOT / ".venv-asr-gpu-cu121" / "bin" / "python")
+        candidates.append(PROJECT_ROOT / ".venv-asr-gpu" / "bin" / "python")
+    candidates.append(PROJECT_ROOT / ".venv-asr" / "bin" / "python")
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def _funasr_asr(audio_bytes: bytes, filename: str, channel: str, device: str) -> dict[str, Any]:
     source_path = _write_upload_to_temp(audio_bytes, filename)
     wav_path = _convert_to_wav_if_needed(source_path)
-    model_name = os.getenv("FUNASR_MODEL", "iic/SenseVoiceSmall")
+    model_name = FUNASR_MODEL
     started = time.time()
+    cache_root = PROJECT_ROOT / "playground" / "model-cache"
+    os.environ.setdefault("MODELSCOPE_CACHE", str(cache_root / "modelscope"))
+    os.environ.setdefault("HF_HOME", str(cache_root / "huggingface"))
+    os.environ.setdefault("TRANSFORMERS_CACHE", str(cache_root / "transformers"))
     try:
         from funasr import AutoModel  # type: ignore
-        model = AutoModel(model=model_name, device="cpu", disable_update=True)
+
+        model = AutoModel(model=model_name, device=device, disable_update=True)
         result = model.generate(input=str(wav_path), language="zh", use_itn=True)
         raw_text = _extract_funasr_text(result)
-        meta = {"engine": "funasr", "model": model_name, "device": "cpu", "elapsed_ms": round((time.time() - started) * 1000)}
+        meta = {
+            "engine": "funasr",
+            "model": model_name,
+            "device": device,
+            "channel": channel,
+            "elapsed_ms": round((time.time() - started) * 1000),
+        }
     except Exception as inproc_exc:
-        worker_python = PROJECT_ROOT / ".venv-asr" / "bin" / "python"
+        worker_python = _funasr_worker_python(device)
         worker = PROJECT_ROOT / "scripts" / "funasr_worker.py"
-        if not worker_python.exists():
+        if worker_python is None:
             raise RuntimeError(
-                "FunASR is not installed in the service venv and project .venv-asr is not ready; "
-                "the page is updated, but install/warm up FunASR before using funasr-cpu"
+                f"FunASR {channel} worker is not ready. Create .venv-asr-gpu with CUDA PyTorch/FunASR "
+                f"for funasr-gpu, or choose stub-local for contract smoke. In-process error: {type(inproc_exc).__name__}: {str(inproc_exc)[:200]}"
             ) from inproc_exc
         proc = subprocess.run(
-            [str(worker_python), str(worker), str(wav_path), "--model", model_name, "--device", "cpu"],
+            [str(worker_python), str(worker), str(wav_path), "--model", model_name, "--device", device],
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            timeout=180,
+            timeout=240,
         )
         json_lines = [line for line in proc.stdout.splitlines() if line.strip().startswith("{")]
         try:
@@ -330,10 +479,18 @@ def _funasr_cpu_asr(audio_bytes: bytes, filename: str) -> dict[str, Any]:
             raise RuntimeError(f"FunASR worker failed: {payload.get('error_type')}: {payload.get('message')}") from inproc_exc
         raw_text = str(payload.get("text") or "")
         meta = dict(payload.get("meta") or {})
-        meta["elapsed_ms"] = meta.get("elapsed_ms") or round((time.time() - started) * 1000)
+        meta.update({"channel": channel, "device": meta.get("device") or device, "elapsed_ms": meta.get("elapsed_ms") or round((time.time() - started) * 1000)})
     if not raw_text:
         raw_text = "（FunASR 未返回可展示文本，可能是静音或音频过短。）"
-    return normalize_asr_result("funasr-cpu", raw_text, _simple_chinese_correction(raw_text), meta)
+    return normalize_asr_result(channel, raw_text, _simple_chinese_correction(raw_text), meta)
+
+
+def _funasr_cpu_asr(audio_bytes: bytes, filename: str) -> dict[str, Any]:
+    return _funasr_asr(audio_bytes, filename, "funasr-cpu", "cpu")
+
+
+def _funasr_gpu_asr(audio_bytes: bytes, filename: str) -> dict[str, Any]:
+    return _funasr_asr(audio_bytes, filename, "funasr-gpu", FUNASR_GPU_DEVICE)
 
 
 def transcribe_audio_bytes(channel: str, audio_bytes: bytes, filename: str, correct: bool = True) -> dict[str, Any]:
@@ -343,13 +500,126 @@ def transcribe_audio_bytes(channel: str, audio_bytes: bytes, filename: str, corr
         raise ValueError("audio upload too large for demo; keep it under 12MB")
     if channel == "stub-local":
         return _stub_asr(audio_bytes, filename)
-    if channel == "funasr-cpu":
+    if channel == "funasr-gpu":
+        result = _funasr_gpu_asr(audio_bytes, filename)
+    elif channel == "funasr-cpu":
         result = _funasr_cpu_asr(audio_bytes, filename)
-        if not correct:
-            result["corrected_text"] = result["raw_text"]
-            result["board_event"]["text"] = result["raw_text"]
-        return result
-    raise ValueError(f"unknown ASR channel: {channel}")
+    else:
+        raise ValueError(f"unknown ASR channel: {channel}")
+    if not correct:
+        result["corrected_text"] = result["raw_text"]
+        result["board_event"]["text"] = result["raw_text"]
+    return result
+
+
+def pcm16_to_wav_bytes(pcm_bytes: bytes, sample_rate: int = 16000) -> bytes:
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(sample_rate)
+        wf.writeframes(pcm_bytes)
+    return buf.getvalue()
+
+
+class AsrStreamSession:
+    def __init__(self, channel: str = DEFAULT_ASR_CHANNEL, sample_rate: int = 16000, chunk_seconds: float = 4.0) -> None:
+        self.channel = channel or DEFAULT_ASR_CHANNEL
+        self.sample_rate = int(sample_rate or 16000)
+        self.chunk_seconds = max(1.0, min(float(chunk_seconds or 4.0), 15.0))
+        self.buffer = bytearray()
+        self.chunk_index = 0
+
+    @property
+    def chunk_bytes(self) -> int:
+        return int(self.sample_rate * self.chunk_seconds * 2)
+
+    def append_pcm16(self, chunk: bytes) -> None:
+        self.buffer.extend(chunk)
+
+    def append_base64_pcm16(self, audio_b64: str) -> None:
+        self.append_pcm16(base64.b64decode(audio_b64))
+
+    def pop_ready_wavs(self) -> list[tuple[int, bytes]]:
+        out: list[tuple[int, bytes]] = []
+        while len(self.buffer) >= self.chunk_bytes:
+            pcm = bytes(self.buffer[: self.chunk_bytes])
+            del self.buffer[: self.chunk_bytes]
+            self.chunk_index += 1
+            out.append((self.chunk_index, pcm16_to_wav_bytes(pcm, self.sample_rate)))
+        return out
+
+    def commit_wav(self) -> tuple[int, bytes] | None:
+        if not self.buffer:
+            return None
+        pcm = bytes(self.buffer)
+        self.buffer.clear()
+        self.chunk_index += 1
+        return self.chunk_index, pcm16_to_wav_bytes(pcm, self.sample_rate)
+
+
+async def _send_asr_stream_result(client: WebSocket, session: AsrStreamSession, index: int, wav_bytes: bytes, final: bool = False) -> None:
+    result = await asyncio.to_thread(transcribe_audio_bytes, session.channel, wav_bytes, f"stream-chunk-{index}.wav", True)
+    result["stream"] = {"chunk_index": index, "final": final, "sample_rate": session.sample_rate}
+    result["board_event"]["source_type"] = f"asr.stream.{session.channel}"
+    result["board_event"]["item_id"] = f"asr-stream-{index}"
+    await client.send_json({"demo_event": "asr.stream.result", "result": result, "board_event": result["board_event"]})
+
+
+@app.websocket("/ws/asr/stream")
+async def asr_stream(client: WebSocket) -> None:
+    await client.accept()
+    session = AsrStreamSession()
+    await client.send_json({"demo_event": "asr.stream.ready", "channel": session.channel, "sample_rate": session.sample_rate, "chunk_seconds": session.chunk_seconds})
+    try:
+        while True:
+            message = await client.receive()
+            if message.get("type") == "websocket.disconnect":
+                break
+            if message.get("bytes") is not None:
+                session.append_pcm16(message["bytes"])
+            elif message.get("text") is not None:
+                try:
+                    payload = json.loads(message["text"])
+                except Exception:
+                    await client.send_json({"demo_event": "asr.stream.error", "message": "expected JSON text or PCM16 bytes"})
+                    continue
+                msg_type = payload.get("type")
+                if msg_type == "asr.stream.start":
+                    session = AsrStreamSession(
+                        channel=str(payload.get("channel") or DEFAULT_ASR_CHANNEL),
+                        sample_rate=int(payload.get("sample_rate") or 16000),
+                        chunk_seconds=float(payload.get("chunk_seconds") or 4.0),
+                    )
+                    await client.send_json({"demo_event": "asr.stream.started", "channel": session.channel, "sample_rate": session.sample_rate, "chunk_seconds": session.chunk_seconds})
+                    continue
+                if msg_type == "asr.stream.append":
+                    session.append_base64_pcm16(str(payload.get("audio") or ""))
+                elif msg_type in {"asr.stream.commit", "asr.stream.finish"}:
+                    committed = session.commit_wav()
+                    if committed is not None:
+                        await _send_asr_stream_result(client, session, committed[0], committed[1], final=True)
+                    await client.send_json({"demo_event": "asr.stream.done", "final": msg_type == "asr.stream.finish"})
+                    if msg_type == "asr.stream.finish":
+                        break
+                    continue
+                else:
+                    await client.send_json({"demo_event": "asr.stream.error", "message": f"unknown message type: {msg_type}"})
+                    continue
+            for index, wav_bytes in session.pop_ready_wavs():
+                await _send_asr_stream_result(client, session, index, wav_bytes, final=False)
+    except WebSocketDisconnect:
+        pass
+    except Exception as exc:
+        try:
+            await client.send_json({"demo_event": "asr.stream.error", "error_type": type(exc).__name__, "message": str(exc)[:700]})
+        except Exception:
+            pass
+    finally:
+        try:
+            await client.close()
+        except Exception:
+            pass
 
 
 @app.get("/api/asr/channels")

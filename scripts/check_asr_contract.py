@@ -38,9 +38,10 @@ def make_test_wav(duration_seconds: float = 0.25, sample_rate: int = 16000) -> b
 
 def main() -> int:
     checks: dict[str, object] = {}
-    checks["channels_have_funasr_cpu"] = "funasr-cpu" in ASR_CHANNELS
+    checks["channels_have_funasr_gpu"] = "funasr-gpu" in ASR_CHANNELS
+    checks["default_channel_is_gpu"] = ASR_CHANNELS.get("funasr-gpu", {}).get("device") in {"cuda", "cuda:0"}
     normalized = normalize_asr_result(
-        channel="funasr-cpu",
+        channel="funasr-gpu",
         raw_text="我想嗯测试这个",
         corrected_text="我想测试这个。",
         meta={"engine": "contract"},
@@ -53,11 +54,11 @@ def main() -> int:
         "phase": "final",
         "text": "我想测试这个。",
         "raw_text": "我想嗯测试这个",
-        "source_type": "asr.funasr-cpu",
+        "source_type": "asr.funasr-gpu",
     }
     checks["sensevoice_tags_stripped"] = _extract_funasr_text([
-        {"text": "<|zh|><|NEUTRAL|><|Speech|><|withitn|>你好，这是FunASR CPU识别测试。"}
-    ]) == "你好，这是FunASR CPU识别测试。"
+        {"text": "<|zh|><|NEUTRAL|><|Speech|><|withitn|>你好，这是FunASR GPU识别测试。"}
+    ]) == "你好，这是FunASR GPU识别测试。"
     wav_bytes = make_test_wav()
     try:
         result = transcribe_audio_bytes(
