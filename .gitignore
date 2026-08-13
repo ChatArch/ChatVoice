@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+.venv-asr/
+venv/
+
+# Secrets / local env
+.env
+*.env.local
+*.key
+*.pem
+
+# Runtime and generated artifacts
+playground/logs/
+playground/asr-temp/
+playground/model-cache/
+playground/probe-output/
+playground/smoke-demo-*.json
+playground/check-*.json
+playground/public-*-verify.json
+playground/public-entry-verify-*.txt
+*.mp3
+*.wav
+*.webm
+*.ogg
+
+# OS/editor
+.DS_Store
+.idea/
+.vscode/
+# Large/static reference snapshots kept on disk, not in baseline commits
+reference/

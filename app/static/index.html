@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Qwen Token Plan Audio Demo</title>
+  <style>
+    :root { color-scheme: dark; --bg:#07111f; --panel:#0f1b2d; --muted:#8ea1bf; --text:#edf5ff; --accent:#59d6ff; --good:#55e39b; --bad:#ff6b8b; --line:#20324d; --warn:#ffd166; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: radial-gradient(circle at 20% 10%, #14345a, #07111f 42%), #07111f; color:var(--text); }
+    main { width:min(1180px, 94vw); margin:0 auto; padding:40px 0 56px; }
+    header { display:flex; justify-content:space-between; gap:20px; align-items:flex-start; margin-bottom:26px; }
+    h1 { margin:0 0 10px; font-size:32px; letter-spacing:-.03em; }
+    p { color:var(--muted); line-height:1.65; }
+    code { color:#d8f5ff; }
+    .pill { display:inline-flex; gap:8px; align-items:center; border:1px solid var(--line); background:#0a1628cc; border-radius:999px; padding:8px 12px; color:var(--muted); font-size:13px; }
+    .grid { display:grid; grid-template-columns: 1fr 1fr; gap:18px; }
+    .card { background:linear-gradient(180deg, #102039d9, #0c1729e6); border:1px solid var(--line); border-radius:22px; padding:22px; box-shadow:0 20px 60px #0006; }
+    .card h2 { margin:0 0 12px; font-size:20px; }
+    label { display:block; color:#b9c7dc; font-size:13px; margin:14px 0 7px; }
+    textarea, select, input { width:100%; background:#071222; color:var(--text); border:1px solid #263a59; border-radius:14px; padding:12px 13px; font:inherit; outline:none; }
+    input[type="file"] { padding:10px; }
+    textarea { min-height:128px; resize:vertical; }
+    button { border:0; border-radius:14px; padding:11px 15px; margin:10px 8px 0 0; color:#04111d; background:linear-gradient(135deg, var(--accent), #7effd4); font-weight:700; cursor:pointer; }
+    button.secondary { background:#162844; color:#d9e9ff; border:1px solid #2e4568; }
+    button.danger { background:#ff6b8b; color:#21030a; }
+    button:disabled { opacity:.45; cursor:not-allowed; }
+    .meta { margin-top:12px; font-size:13px; color:var(--muted); white-space:pre-wrap; }
+    .ok { color:var(--good); } .err { color:var(--bad); } .warn { color:var(--warn); }
+    audio { width:100%; margin-top:14px; }
+    pre { background:#06101f; border:1px solid #1e314d; border-radius:16px; padding:14px; overflow:auto; max-height:360px; color:#cfe4ff; font-size:12px; line-height:1.45; }
+    .span2 { grid-column:1 / -1; }
+    .meter { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+    .tag { border:1px solid #284466; color:#bdd0e9; background:#0a1526; padding:5px 9px; border-radius:999px; font-size:12px; }
+    .board-head { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+    .board { min-height:260px; border-radius:20px; border:1px solid #27466d; background:linear-gradient(180deg, #07182c, #06101f); padding:18px; margin-top:14px; display:flex; flex-direction:column; gap:12px; }
+    .empty { color:#7390b7; font-size:18px; text-align:center; margin:auto; }
+    .utterance { display:grid; grid-template-columns:86px 1fr; gap:12px; align-items:start; animation:fadeIn .18s ease-out; }
+    .who { border-radius:999px; padding:7px 10px; text-align:center; font-weight:800; font-size:13px; border:1px solid #2a4d75; background:#0b1c32; color:#bfeaff; }
+    .who.user { color:#06131e; background:linear-gradient(135deg,#69e0ff,#78ffd2); border:0; }
+    .who.assistant { color:#051a10; background:linear-gradient(135deg,#55e39b,#cafc6b); border:0; }
+    .who.ambient { color:#211806; background:linear-gradient(135deg,#ffd166,#ffef9a); border:0; }
+    .bubble { border:1px solid #223c5d; background:#08172a; border-radius:17px; padding:13px 15px; min-height:52px; }
+    .bubble .text { font-size:24px; line-height:1.55; letter-spacing:.01em; white-space:pre-wrap; word-break:break-word; }
+    .raw-aside { margin-top:10px; color:#90a6c5; font-size:12px; line-height:1.45; border-left:2px solid #28486e; padding-left:9px; opacity:.82; }
+    .raw-aside b { color:#b8c9e2; font-weight:700; }
+    .bubble .sub { margin-top:8px; color:#7891b4; font-size:12px; }
+    .bubble.live { border-color:#48c9ff; box-shadow:0 0 0 1px #48c9ff33, 0 0 24px #48c9ff18; }
+    .caret { display:inline-block; width:9px; height:1.15em; margin-left:4px; vertical-align:-.18em; background:#67e8ff; animation:blink 1s infinite; }
+    .board-note { margin-top:10px; color:#91a8c8; font-size:13px; }
+    @keyframes blink { 0%,45%{opacity:1;} 46%,100%{opacity:.12;} }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
+    @media (max-width: 860px) { .grid { grid-template-columns:1fr; } header { flex-direction:column; } .utterance { grid-template-columns:1fr; } .bubble .text { font-size:21px; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>千问 Token Plan 音频 Demo</h1>
+      <p>后端读取服务器 ChatEnv 的 <b>OpenAI/qwen-token-plan</b>；浏览器只访问本地后端，不接触 API Key。TTS 走官方 Token Plan WebSocket SDK 路径；Realtime 走后端 WebSocket 代理。</p>
+    </div>
+    <span class="pill" id="status-pill">检查中…</span>
+  </header>
+
+  <section class="grid">
+    <div class="card">
+      <h2>1. TTS：文本转语音</h2>
+      <label for="tts-text">文本</label>
+      <textarea id="tts-text">你好，这是千问 Token Plan 的网页语音合成 Demo。API Key 只在后端使用。</textarea>
+      <label for="voice">音色</label>
+      <select id="voice">
+        <option value="longanlingxin" selected>longanlingxin（官方示例音色）</option>
+        <option value="longanqian">longanqian</option>
+        <option value="longxiaochun">longxiaochun</option>
+        <option value="longxiaoxia">longxiaoxia</option>
+        <option value="longxiaobai">longxiaobai</option>
+      </select>
+      <button id="tts-run">生成 MP3</button>
+      <button class="secondary" id="tts-download" disabled>下载上一次音频</button>
+      <audio id="tts-audio" controls></audio>
+      <div class="meta" id="tts-meta"></div>
+    </div>
+
+    <div class="card">
+      <h2>2. Realtime：麦克风 → 千问代理</h2>
+      <p>连接后点击「发送 session.update」，再点「开始麦克风」。模型返回的转写/文本 delta 会进入下方公屏；原始事件只保留在调试日志。</p>
+      <button id="rt-connect">连接 Realtime</button>
+      <button class="secondary" id="rt-update" disabled>发送 session.update</button>
+      <button class="secondary" id="rt-silence" disabled>发送 0.1s 静音</button>
+      <button class="secondary" id="rt-mic" disabled>开始麦克风</button>
+      <button class="danger" id="rt-close" disabled>断开</button>
+      <div class="meta" id="rt-meta">未连接</div>
+      <div class="meter" id="rt-tags"></div>
+    </div>
+
+    <div class="card span2">
+      <h2>3. 多渠道 ASR：录音/上传 → raw/corrected → 同一公屏</h2>
+      <p>体验形式和 Realtime 公屏一致：主文本显示纠正/定稿，原始识别以小字旁注保留。第一路目标是 FunASR CPU；依赖未安装时可用本地合同通道先验证交互。</p>
+      <div class="grid">
+        <div>
+          <label for="asr-channel">识别通道</label>
+          <select id="asr-channel">
+            <option value="funasr-cpu" selected>FunASR CPU（目标通道）</option>
+            <option value="stub-local">本地合同通道（先验体验）</option>
+          </select>
+          <label for="asr-file">上传音频（wav/webm/mp3，Demo 限 12MB）</label>
+          <input id="asr-file" type="file" accept="audio/*" />
+          <button id="asr-upload">上传并识别</button>
+          <button class="secondary" id="asr-record">开始录音</button>
+          <button class="secondary" id="asr-send-recording" disabled>识别上一次录音</button>
+        </div>
+        <div>
+          <label>ASR 结果</label>
+          <div class="meta" id="asr-meta">等待音频。FunASR 如缺依赖会返回明确错误；不会暴露任何 Key。</div>
+          <audio id="asr-preview" controls></audio>
+        </div>
+      </div>
+    </div>
+
+    <div class="card span2">
+      <div class="board-head">
+        <div>
+          <h2>4. 实时文字板 / 公屏转写</h2>
+          <p>这里不是事件日志：只显示 Realtime 或 ASR 多渠道抽取出的用户转写、AI 回复文本或环境音转写。</p>
+        </div>
+        <button class="secondary" id="transcript-clear">清空公屏</button>
+      </div>
+      <div class="board" id="transcript-board">
+        <div class="empty">等待 Realtime 返回 transcript/text delta…</div>
+      </div>
+      <div class="board-note" id="transcript-meta">监听事件：conversation.item.input_audio_transcription.* / response.audio_transcript.* / response.text.* / ambient_audio_transcription.*</div>
+    </div>
+
+    <div class="card span2">
+      <h2>调试事件日志</h2>
+      <p>这里保留完整协议诊断；公屏内容不再依赖用户读 JSON。</p>
+      <pre id="log"></pre>
+    </div>
+  </section>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const logEl = $('log');
+let lastAudioUrl = null;
+let ws = null;
+let audioContext = null;
+let micStream = null;
+let processor = null;
+let source = null;
+let micOn = false;
+let transcriptLines = [];
+let transcriptDraft = {};
+let transcriptSeq = 0;
+let asrRecorder = null;
+let asrChunks = [];
+let lastAsrBlob = null;
+let lastAsrUrl = null;
+
+function log(kind, obj) {
+  const printable = typeof obj === 'string' ? obj : JSON.stringify(obj);
+  const line = `[${new Date().toLocaleTimeString()}] ${kind} ` + printable;
+  logEl.textContent = line + '\n' + logEl.textContent;
+}
+function setRealtimeButtons(connected) {
+  $('rt-update').disabled = !connected;
+  $('rt-silence').disabled = !connected;
+  $('rt-mic').disabled = !connected;
+  $('rt-close').disabled = !connected;
+  $('rt-connect').disabled = connected;
+}
+function roleLabel(role) {
+  if (role === 'user') return '你';
+  if (role === 'assistant') return '千问';
+  if (role === 'ambient') return '环境音';
+  return '文本';
+}
+function normalizeTranscriptText(text) {
+  return String(text || '').replace(/\s+/g, '').trim();
+}
+function draftKey(ev, role) {
+  if (ev.item_id) return `${role}:item:${ev.item_id}`;
+  if (ev.response_id) return `${role}:response:${ev.response_id}`;
+  return `${role}:draft`;
+}
+function finalKey(ev, role, text) {
+  if (ev.item_id) return `${role}:item:${ev.item_id}`;
+  if (ev.response_id) return `${role}:response:${ev.response_id}`;
+  return `${role}:text:${normalizeTranscriptText(text).slice(0, 96)}`;
+}
+function sameTranscript(a, b) {
+  return normalizeTranscriptText(a) === normalizeTranscriptText(b);
+}
+function findExistingTranscript(key, role, text) {
+  const normalized = normalizeTranscriptText(text);
+  for (let i = transcriptLines.length - 1; i >= Math.max(0, transcriptLines.length - 16); i--) {
+    const row = transcriptLines[i];
+    if (row.key === key) return row;
+    if (row.role === role && normalizeTranscriptText(row.text) === normalized) return row;
+  }
+  return null;
+}
+function renderTranscriptBoard() {
+  const board = $('transcript-board');
+  board.innerHTML = '';
+  const rows = transcriptLines.slice(-24).map(x => ({...x, live:false}));
+  for (const draft of Object.values(transcriptDraft)) {
+    if (draft && draft.text) rows.push({...draft, live:true, phase:'delta'});
+  }
+  if (!rows.length) {
+    board.innerHTML = '<div class="empty">等待 Realtime 返回 transcript/text delta…</div>';
+    return;
+  }
+  for (const row of rows) {
+    const wrap = document.createElement('div');
+    wrap.className = 'utterance';
+    const who = document.createElement('div');
+    who.className = 'who ' + (row.role || 'unknown');
+    who.textContent = roleLabel(row.role);
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble' + (row.live ? ' live' : '');
+    const text = document.createElement('div');
+    text.className = 'text';
+    text.textContent = row.text || '';
+    if (row.live) {
+      const caret = document.createElement('span'); caret.className = 'caret'; text.appendChild(caret);
+    }
+    bubble.appendChild(text);
+    if (row.rawText && !sameTranscript(row.rawText, row.text)) {
+      const raw = document.createElement('div');
+      raw.className = 'raw-aside';
+      raw.innerHTML = '<b>原始识别：</b>';
+      raw.appendChild(document.createTextNode(row.rawText));
+      bubble.appendChild(raw);
+    }
+    const sub = document.createElement('div');
+    sub.className = 'sub';
+    sub.textContent = `${row.phase === 'final' ? '纠正/定稿' : '流式原始'} · ${row.source_type || 'transcript'} · ${row.time || ''}`;
+    bubble.appendChild(sub); wrap.appendChild(who); wrap.appendChild(bubble); board.appendChild(wrap);
+  }
+  board.scrollTop = board.scrollHeight;
+}
+function appendTranscript(ev) {
+  const role = ev.role || 'unknown';
+  const text = ev.text || '';
+  if (!text) return;
+  const now = new Date().toLocaleTimeString();
+  if (ev.phase === 'delta') {
+    const key = draftKey(ev, role);
+    const current = transcriptDraft[key] || {id:'draft-' + key, key, role, text:'', source_type: ev.source_type, time: now};
+    current.text = (current.text || '') + text;
+    current.source_type = ev.source_type || current.source_type;
+    current.time = now;
+    transcriptDraft[key] = current;
+  } else {
+    const key = finalKey(ev, role, text);
+    const dKey = draftKey(ev, role);
+    const draft = transcriptDraft[dKey] || transcriptDraft[key];
+    const rawText = ev.raw_text || (draft && draft.text ? draft.text : '');
+    const finalText = text || rawText;
+    delete transcriptDraft[dKey];
+    delete transcriptDraft[key];
+    const existing = findExistingTranscript(key, role, finalText);
+    if (existing) {
+      if (!sameTranscript(existing.text, finalText)) {
+        existing.rawText = existing.rawText || existing.text;
+        existing.text = finalText;
+      }
+      if (rawText && !sameTranscript(rawText, finalText)) existing.rawText = rawText;
+      existing.source_type = ev.source_type || existing.source_type;
+      existing.time = now;
+    } else if (finalText) {
+      transcriptLines.push({id: ++transcriptSeq, key, role, text: finalText, rawText: sameTranscript(rawText, finalText) ? '' : rawText, phase:'final', source_type: ev.source_type, time: now});
+    }
+  }
+  $('transcript-meta').textContent = `${roleLabel(role)} · ${ev.phase || 'delta'} · ${ev.source_type || 'unknown'} · ${now}`;
+  renderTranscriptBoard();
+}
+function handleRealtimeEvent(payload) {
+  if (payload.demo_event === 'transcript.delta') {
+    appendTranscript(payload);
+    log('public-board.update', {role:payload.role, phase:payload.phase, text:payload.text, source_type:payload.source_type});
+    return;
+  }
+  if (payload.demo_event === 'upstream.event') {
+    const ev = payload.event || {};
+    log('server.event', ev);
+    return;
+  }
+  log('server.event', payload);
+}
+async function refreshStatus() {
+  try {
+    const r = await fetch('/api/status');
+    const j = await r.json();
+    $('status-pill').textContent = j.key_present && j.models_ok ? `就绪 · ${j.models.count} models · ${j.base_host}` : '配置需检查';
+    $('status-pill').className = 'pill ' + (j.key_present && j.models_ok ? 'ok' : 'err');
+    $('rt-tags').innerHTML = '';
+    [j.tts_model, j.realtime_model, j.asr_default_channel ? `ASR ${j.asr_default_channel}` : 'ASR pending', j.base_host, j.key_sha256_12 ? `key sha256 ${j.key_sha256_12}` : 'key redacted'].forEach(x => {
+      const s = document.createElement('span'); s.className='tag'; s.textContent=x; $('rt-tags').appendChild(s);
+    });
+    log('status', j);
+  } catch (e) {
+    $('status-pill').textContent = '状态检查失败'; $('status-pill').className='pill err'; log('status.error', String(e));
+  }
+}
+
+$('tts-run').onclick = async () => {
+  $('tts-run').disabled = true; $('tts-meta').textContent = '生成中…';
+  try {
+    const r = await fetch('/api/tts', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({text:$('tts-text').value, voice:$('voice').value, format:'mp3'})});
+    if (!r.ok) throw new Error(await r.text());
+    const blob = await r.blob();
+    if (lastAudioUrl) URL.revokeObjectURL(lastAudioUrl);
+    lastAudioUrl = URL.createObjectURL(blob);
+    $('tts-audio').src = lastAudioUrl;
+    $('tts-download').disabled = false;
+    const meta = {bytes: blob.size, request_id: r.headers.get('X-Qwen-Request-Id'), elapsed_ms: r.headers.get('X-Elapsed-Ms'), sha256_12: r.headers.get('X-Audio-Sha256-12')};
+    $('tts-meta').textContent = JSON.stringify(meta, null, 2);
+    log('tts.ok', meta);
+  } catch (e) {
+    $('tts-meta').textContent = '失败：' + String(e); log('tts.error', String(e));
+  } finally { $('tts-run').disabled = false; }
+};
+$('tts-download').onclick = () => {
+  if (!lastAudioUrl) return;
+  const a = document.createElement('a'); a.href = lastAudioUrl; a.download = 'qwen-token-plan-tts.mp3'; a.click();
+};
+$('transcript-clear').onclick = () => {
+  transcriptLines = []; transcriptDraft = {}; transcriptSeq = 0;
+  $('transcript-meta').textContent = '已清空公屏，等待新的 transcript/text delta。'; renderTranscriptBoard(); log('public-board.clear', 'cleared');
+};
+
+async function runAsr(blob, filename='recording.webm') {
+  const channel = $('asr-channel').value || 'funasr-cpu';
+  const form = new FormData();
+  form.append('channel', channel);
+  form.append('correct', 'true');
+  form.append('file', blob, filename);
+  $('asr-upload').disabled = true;
+  $('asr-send-recording').disabled = true;
+  $('asr-meta').textContent = `识别中：${channel}，${blob.size} bytes…`;
+  try {
+    const r = await fetch('/api/asr', {method:'POST', body: form});
+    const text = await r.text();
+    let j;
+    try { j = JSON.parse(text); } catch { j = {raw_response:text}; }
+    if (!r.ok) throw new Error(JSON.stringify(j));
+    $('asr-meta').textContent = JSON.stringify({channel:j.channel, raw_text:j.raw_text, corrected_text:j.corrected_text, meta:j.meta}, null, 2);
+    if (j.board_event) handleRealtimeEvent(j.board_event);
+    log('asr.ok', j);
+    return j;
+  } catch (e) {
+    $('asr-meta').textContent = 'ASR 失败：' + String(e);
+    log('asr.error', String(e));
+  } finally {
+    $('asr-upload').disabled = false;
+    $('asr-send-recording').disabled = !lastAsrBlob;
+  }
+}
+$('asr-upload').onclick = async () => {
+  const file = $('asr-file').files && $('asr-file').files[0];
+  if (!file) { $('asr-meta').textContent = '请先选择一个音频文件。'; return; }
+  if (lastAsrUrl) URL.revokeObjectURL(lastAsrUrl);
+  lastAsrUrl = URL.createObjectURL(file);
+  $('asr-preview').src = lastAsrUrl;
+  await runAsr(file, file.name || 'upload.wav');
+};
+$('asr-record').onclick = async () => {
+  if (asrRecorder && asrRecorder.state === 'recording') {
+    asrRecorder.stop();
+    return;
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+    asrChunks = [];
+    asrRecorder = new MediaRecorder(stream);
+    asrRecorder.ondataavailable = (ev) => { if (ev.data && ev.data.size) asrChunks.push(ev.data); };
+    asrRecorder.onstop = () => {
+      stream.getTracks().forEach(t => t.stop());
+      lastAsrBlob = new Blob(asrChunks, {type: asrRecorder.mimeType || 'audio/webm'});
+      if (lastAsrUrl) URL.revokeObjectURL(lastAsrUrl);
+      lastAsrUrl = URL.createObjectURL(lastAsrBlob);
+      $('asr-preview').src = lastAsrUrl;
+      $('asr-send-recording').disabled = false;
+      $('asr-record').textContent = '开始录音';
+      $('asr-meta').textContent = `录音完成：${lastAsrBlob.size} bytes，可点击识别上一次录音。`;
+      log('asr.record.stop', {bytes:lastAsrBlob.size, mime:lastAsrBlob.type});
+    };
+    asrRecorder.start();
+    $('asr-record').textContent = '停止录音';
+    $('asr-meta').textContent = '录音中…停止后可识别。';
+    log('asr.record.start', {mime:asrRecorder.mimeType});
+  } catch (e) {
+    $('asr-meta').textContent = '录音失败：' + String(e);
+    log('asr.record.error', String(e));
+  }
+};
+$('asr-send-recording').onclick = async () => {
+  if (!lastAsrBlob) return;
+  await runAsr(lastAsrBlob, 'recording.webm');
+};
+
+function sendJson(obj, logIt=true) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify(obj));
+  if (logIt) log('client.send', obj);
+}
+function sessionUpdate() {
+  sendJson({event_id:'web_demo_session_update_' + Date.now(), type:'session.update', session:{modalities:['text','audio'], voice:'longanqian', input_audio_format:'pcm', output_audio_format:'pcm', instructions:'请用简洁中文实时对话，并让可用的转写文本通过 transcript 事件返回。', turn_detection:{type:'server_vad', threshold:0.5, silence_duration_ms:800}}});
+}
+$('rt-connect').onclick = () => {
+  ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/realtime`);
+  ws.onopen = () => { $('rt-meta').textContent='已连接后端代理，请发送 session.update 后开始麦克风'; setRealtimeButtons(true); log('ws.open', 'connected'); };
+  ws.onmessage = (ev) => { try { handleRealtimeEvent(JSON.parse(ev.data)); } catch { log('server.raw', ev.data); } };
+  ws.onerror = (ev) => { $('rt-meta').textContent='WebSocket 错误'; log('ws.error', ev.type); };
+  ws.onclose = () => { $('rt-meta').textContent='已断开'; setRealtimeButtons(false); stopMic(false); log('ws.close', 'closed'); };
+};
+$('rt-update').onclick = sessionUpdate;
+$('rt-silence').onclick = () => sendJson({event_id:'web_demo_silence_' + Date.now(), type:'input_audio_buffer.append', audio: btoa(String.fromCharCode(...new Uint8Array(3200)))});
+$('rt-close').onclick = () => { if (ws) ws.close(); };
+
+function floatTo16BitPCM(input) {
+  const output = new Int16Array(input.length);
+  for (let i=0; i<input.length; i++) { const s = Math.max(-1, Math.min(1, input[i])); output[i] = s < 0 ? s * 0x8000 : s * 0x7fff; }
+  return output;
+}
+function downsample(buffer, inRate, outRate=16000) {
+  if (outRate === inRate) return buffer;
+  const ratio = inRate / outRate, newLen = Math.round(buffer.length / ratio), out = new Float32Array(newLen);
+  let offset = 0;
+  for (let i=0; i<newLen; i++) { const next = Math.round((i+1)*ratio); let sum=0, count=0; for (; offset<next && offset<buffer.length; offset++) { sum += buffer[offset]; count++; } out[i]=sum/Math.max(1,count); }
+  return out;
+}
+function bytesToBase64(bytes) { let bin=''; for (let i=0; i<bytes.length; i+=0x8000) bin += String.fromCharCode(...bytes.subarray(i, i+0x8000)); return btoa(bin); }
+async function startMic() {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  sessionUpdate();
+  micStream = await navigator.mediaDevices.getUserMedia({audio:true});
+  audioContext = new AudioContext();
+  source = audioContext.createMediaStreamSource(micStream);
+  processor = audioContext.createScriptProcessor(4096, 1, 1);
+  processor.onaudioprocess = (e) => {
+    if (!micOn || !ws || ws.readyState !== WebSocket.OPEN) return;
+    const input = e.inputBuffer.getChannelData(0);
+    const pcm = floatTo16BitPCM(downsample(input, audioContext.sampleRate, 16000));
+    sendJson({event_id:'web_demo_audio_' + Date.now(), type:'input_audio_buffer.append', audio: bytesToBase64(new Uint8Array(pcm.buffer))}, false);
+  };
+  source.connect(processor); processor.connect(audioContext.destination); micOn = true;
+  $('rt-mic').textContent = '停止麦克风'; $('rt-meta').textContent='麦克风发送中（16k PCM），公屏会显示上游转写文本'; log('mic.start', {sampleRate: audioContext.sampleRate});
+}
+function stopMic(commit=true) {
+  if (commit && ws && ws.readyState === WebSocket.OPEN && micOn) {
+    sendJson({event_id:'web_demo_audio_commit_' + Date.now(), type:'input_audio_buffer.commit'});
+  }
+  micOn = false;
+  if (processor) { processor.disconnect(); processor = null; }
+  if (source) { source.disconnect(); source = null; }
+  if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+  if (audioContext) { audioContext.close(); audioContext = null; }
+  $('rt-mic').textContent = '开始麦克风';
+}
+$('rt-mic').onclick = async () => { try { micOn ? stopMic(true) : await startMic(); } catch(e) { log('mic.error', String(e)); } };
+
+// Browser-side regression helper used by smoke/dogfood: proves the public board is not just a JSON log.
+window.__demoInjectTranscript = (text='这是公屏转写验收文本') => {
+  handleRealtimeEvent({demo_event:'transcript.delta', role:'user', phase:'final', text, source_type:'browser-test'});
+  return $('transcript-board').innerText;
+};
+window.__demoInjectDuplicateScenario = () => {
+  transcriptLines = []; transcriptDraft = {}; transcriptSeq = 0;
+  handleRealtimeEvent({demo_event:'transcript.delta', role:'user', phase:'delta', text:'我想嗯测试这个', item_id:'item_dup', source_type:'conversation.item.input_audio_transcription.delta'});
+  handleRealtimeEvent({demo_event:'transcript.delta', role:'user', phase:'final', text:'我想测试这个。', item_id:'item_dup', source_type:'conversation.item.input_audio_transcription.completed'});
+  handleRealtimeEvent({demo_event:'transcript.delta', role:'user', phase:'final', text:'我想测试这个。', item_id:'item_dup', source_type:'conversation.item.created'});
+  const boardText = $('transcript-board').innerText;
+  return {line_count: transcriptLines.length, board_text: boardText, duplicate_count: (boardText.match(/我想测试这个/g) || []).length, raw_present: boardText.includes('原始识别')};
+};
+window.__demoInjectAsrScenario = () => {
+  transcriptLines = []; transcriptDraft = {}; transcriptSeq = 0;
+  handleRealtimeEvent({demo_event:'transcript.delta', role:'user', phase:'final', text:'我想测试这个。', raw_text:'我想嗯测试这个', source_type:'asr.stub-local'});
+  const boardText = $('transcript-board').innerText;
+  return {line_count: transcriptLines.length, board_text: boardText, corrected_present: boardText.includes('我想测试这个。'), raw_present: boardText.includes('原始识别')};
+};
+
+refreshStatus();
+renderTranscriptBoard();
+</script>
+</body>
+</html>
