@@ -33,6 +33,15 @@ checks["asr_only_has_live_text"] = "asr-live-text" in panels.get("asr", "") and 
 checks["asr_only_has_meeting_notes"] = "meeting-notes-card" in panels.get("asr", "") and "meeting-notes-card" not in panels.get("tts", "") + panels.get("realtime", "")
 checks["debug_log_inside_realtime_panel"] = 'id="log"' in panels.get("realtime", "") and 'id="log"' not in panels.get("tts", "") + panels.get("asr", "")
 
+# Realtime conversation UI contract: one button starts/stops live conversation;
+# the browser configures server VAD and streams mic audio automatically. Developer
+# protocol buttons must not be the user-facing product surface.
+realtime_panel = panels.get("realtime", "")
+checks["realtime_has_one_button_live_surface"] = "rt-live-toggle" in realtime_panel and "开始实时对话" in realtime_panel and "实时对话展示面板" in realtime_panel
+checks["realtime_no_dev_protocol_buttons"] = all(x not in realtime_panel for x in ("rt-connect", "rt-update", "rt-silence", "rt-mic", "rt-close", "发送 session.update", "发送 0.1s 静音", "开始麦克风"))
+checks["realtime_uses_server_vad"] = "server_vad" in text and "sessionUpdate(); await startMic" in text
+checks["browser_no_manual_realtime_commit"] = "input_audio_buffer.commit" not in text
+
 # Realtime UI contract: corrected/final is the only primary utterance. Raw text may be aside only.
 checks["has_raw_aside_style"] = ".raw-aside" in text
 checks["raw_aside_not_primary_text"] = "bubble.appendChild(raw)" in text and "原始识别" in text

@@ -123,12 +123,9 @@
     <div class="grid">
       <div class="card span2">
         <h2>实时对话</h2>
-        <p>实时对话只在本页展示。主面板只显示纠错/定稿后的文字；原始识别如果不同，仅以小字旁注显示，不再生成第二条主消息。</p>
-        <button id="rt-connect">连接实时对话</button>
-        <button class="secondary" id="rt-update" disabled>发送 session.update</button>
-        <button class="secondary" id="rt-silence" disabled>发送 0.1s 静音</button>
-        <button class="secondary" id="rt-mic" disabled>开始麦克风</button>
-        <button class="danger" id="rt-close" disabled>断开</button>
+        <p>点一次开始，浏览器连续发送麦克风音频，后端用千问 Realtime 的 <code>server_vad</code> 自动判断说话轮次；不需要手动提交或发送静音。</p>
+        <button id="rt-live-toggle">开始实时对话</button>
+        <button class="secondary" id="rt-board-clear">清空实时对话面板</button>
         <div class="meta" id="rt-meta">未连接</div>
         <div class="meter" id="rt-tags"></div>
       </div>
@@ -138,7 +135,6 @@
             <h2>实时对话展示面板</h2>
             <p>不是事件日志；只保留用户/千问最终可读文本。原始识别仅小字旁注。</p>
           </div>
-          <button class="secondary" id="rt-board-clear">清空实时对话面板</button>
         </div>
         <div class="board" id="realtime-board"><div class="empty">等待实时转写/文本增量…</div></div>
         <div class="board-note" id="realtime-board-meta">监听实时转写/文本事件。</div>
@@ -223,9 +219,7 @@ function log(kind, obj) {
   const line = `[${new Date().toLocaleTimeString()}] ${kind} ` + printable;
   logEl.textContent = line + '\n' + logEl.textContent;
 }
-function setRealtimeButtons(connected) {
-  $('rt-update').disabled = !connected; $('rt-silence').disabled = !connected; $('rt-mic').disabled = !connected; $('rt-close').disabled = !connected; $('rt-connect').disabled = connected;
-}
+function setRealtimeButtons(connected) { $('rt-live-toggle').textContent = connected ? '停止实时对话' : '开始实时对话'; }
 function roleLabel(role) {
   if (role === 'user') return '你'; if (role === 'assistant') return '千问'; if (role === 'ambient') return '环境音'; return '文本';
 }
@@ -362,14 +356,15 @@ $('asr-live-clear').onclick = () => { asrLiveSegments = []; renderAsrLiveText();
 
 function sendJson(obj, logIt=true) { if (!ws || ws.readyState !== WebSocket.OPEN) return; ws.send(JSON.stringify(obj)); if (logIt) log('client.send', obj); }
 function sessionUpdate() { sendJson({event_id:'web_demo_session_update_' + Date.now(), type:'session.update', session:{modalities:['text','audio'], voice:'longanqian', input_audio_format:'pcm', output_audio_format:'pcm', instructions:'请用简洁中文实时对话，并让可用的转写文本通过 transcript 事件返回。', turn_detection:{type:'server_vad', threshold:0.5, silence_duration_ms:800}}}); }
-$('rt-connect').onclick = () => {
+async function startRealtimeLive() {
+  if (ws && ws.readyState === WebSocket.OPEN) return;
   ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/realtime`);
-  ws.onopen = () => { $('rt-meta').textContent='已连接后端代理，请发送 session.update 后开始麦克风'; setRealtimeButtons(true); log('ws.open', 'connected'); };
+  ws.onopen = async () => { $('rt-meta').textContent='实时对话已连接，正在打开麦克风…'; setRealtimeButtons(true); log('ws.open', 'connected'); sessionUpdate(); await startMic(); };
   ws.onmessage = (ev) => { try { handleRealtimeEvent(JSON.parse(ev.data)); } catch { log('server.raw', ev.data); } };
   ws.onerror = (ev) => { $('rt-meta').textContent='WebSocket 错误'; log('ws.error', ev.type); };
   ws.onclose = () => { $('rt-meta').textContent='已断开'; setRealtimeButtons(false); stopMic(false); log('ws.close', 'closed'); };
-};
-$('rt-update').onclick = sessionUpdate; $('rt-silence').onclick = () => sendJson({event_id:'web_demo_silence_' + Date.now(), type:'input_audio_buffer.append', audio: btoa(String.fromCharCode(...new Uint8Array(3200)))}); $('rt-close').onclick = () => { if (ws) ws.close(); };
+}
+function stopRealtimeLive() { stopMic(false); if (ws && ws.readyState === WebSocket.OPEN) ws.close(); else setRealtimeButtons(false); }
 
 function floatTo16BitPCM(input) { const output = new Int16Array(input.length); for (let i=0; i<input.length; i++) { const s = Math.max(-1, Math.min(1, input[i])); output[i] = s < 0 ? s * 0x8000 : s * 0x7fff; } return output; }
 function downsample(buffer, inRate, outRate=16000) { if (outRate === inRate) return buffer; const ratio = inRate / outRate, newLen = Math.round(buffer.length / ratio), out = new Float32Array(newLen); let offset = 0; for (let i=0; i<newLen; i++) { const next = Math.round((i+1)*ratio); let sum=0, count=0; for (; offset<next && offset<buffer.length; offset++) { sum += buffer[offset]; count++; } out[i]=sum/Math.max(1,count); } return out; }
@@ -377,10 +372,10 @@ function bytesToBase64(bytes) { let bin=''; for (let i=0; i<bytes.length; i+=0x8
 async function startMic() {
   if (!ws || ws.readyState !== WebSocket.OPEN) return; sessionUpdate(); micStream = await navigator.mediaDevices.getUserMedia({audio:true}); audioContext = new AudioContext(); source = audioContext.createMediaStreamSource(micStream); processor = audioContext.createScriptProcessor(4096, 1, 1);
   processor.onaudioprocess = (e) => { if (!micOn || !ws || ws.readyState !== WebSocket.OPEN) return; const input = e.inputBuffer.getChannelData(0); const pcm = floatTo16BitPCM(downsample(input, audioContext.sampleRate, 16000)); sendJson({event_id:'web_demo_audio_' + Date.now(), type:'input_audio_buffer.append', audio: bytesToBase64(new Uint8Array(pcm.buffer))}, false); };
-  source.connect(processor); processor.connect(audioContext.destination); micOn = true; $('rt-mic').textContent = '停止麦克风'; $('rt-meta').textContent='麦克风发送中（16k PCM），实时对话面板会显示可读文本'; log('mic.start', {sampleRate: audioContext.sampleRate});
+  source.connect(processor); processor.connect(audioContext.destination); micOn = true; $('rt-meta').textContent='正在实时对话：麦克风音频连续发送，千问自动判断说话轮次。'; log('mic.start', {sampleRate: audioContext.sampleRate});
 }
-function stopMic(commit=true) { if (commit && ws && ws.readyState === WebSocket.OPEN && micOn) sendJson({event_id:'web_demo_audio_commit_' + Date.now(), type:'input_audio_buffer.commit'}); micOn = false; if (processor) { processor.disconnect(); processor = null; } if (source) { source.disconnect(); source = null; } if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; } if (audioContext) { audioContext.close(); audioContext = null; } $('rt-mic').textContent = '开始麦克风'; }
-$('rt-mic').onclick = async () => { try { micOn ? stopMic(true) : await startMic(); } catch(e) { log('mic.error', String(e)); } };
+function stopMic() { micOn = false; if (processor) { processor.disconnect(); processor = null; } if (source) { source.disconnect(); source = null; } if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; } if (audioContext) { audioContext.close(); audioContext = null; } }
+$('rt-live-toggle').onclick = async () => { try { (ws && ws.readyState === WebSocket.OPEN) ? stopRealtimeLive() : await startRealtimeLive(); } catch(e) { $('rt-meta').textContent='实时对话失败：' + String(e); log('rt.live.error', String(e)); stopRealtimeLive(); } };
 
 async function startAsrLive() {
   if (asrStreamMicOn) return;
