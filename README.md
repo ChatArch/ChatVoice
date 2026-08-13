@@ -1,16 +1,16 @@
 # Qwen Token Plan Audio Demo
 
-A lightweight FastAPI + browser demo for Qwen Token Plan audio capabilities plus a GPU-first one-button realtime ASR/meeting-notes panel.
+A lightweight FastAPI + browser demo for Qwen Token Plan audio capabilities plus a GPU-first Open WebUI-style voice input composer.
 
 ## Features
 
 - **语音合成 (TTS)**: server-side proxy for `qwen-audio-3.0-tts-plus`, returning playable MP3/WAV audio.
 - **声音克隆**: server-side DashScope TTS v2 voice enrollment (`VoiceEnrollmentService`) creates reusable `voice_id` values; the browser never sees the API key.
 - **实时对话**: browser WebSocket -> FastAPI proxy -> Qwen `qwen-audio-3.0-realtime-plus` Realtime WebSocket.
-- **语音转写**: the browser ASR tab is a one-button realtime text surface. Click `开始实时转写`, speak, and text appears automatically; there is no user-facing upload/record/manual-segmentation flow.
+- **语音转写**: the browser ASR tab uses an Open WebUI-style chat input composer. Click the microphone button, it switches into `录音中`, and speech is rendered directly into the same text box like typing.
 - **GPU-first ASR**: default ASR channel is `funasr-gpu` (CUDA PyTorch + FunASR/SenseVoiceSmall worker). `funasr-cpu` remains an explicit fallback, and `stub-local` remains available for smoke tests.
-- **Realtime ASR WebSocket**: `WS /ws/asr/stream` accepts continuous PCM16 microphone frames and returns `demo_event=asr.stream.result` events that the page appends into the live text area.
-- **会议纪要**: realtime transcript text is automatically copied into the next-step text area, then sent to a server-side Qwen-compatible chat model for AI polish, repaired meeting notes, summary, action items, risks, and open questions.
+- **Realtime ASR WebSocket**: `WS /ws/asr/stream` accepts continuous PCM16 microphone frames and returns `demo_event=asr.stream.result` events that the page appends into the chat input composer.
+- **会议纪要**: voice-input text is automatically copied into the next-step text area, then sent to a server-side Qwen-compatible chat model for AI polish, repaired meeting notes, summary, action items, risks, and open questions.
 - **Separated tabs**: the browser has exactly three isolated tabs: `语音合成`, `实时对话`, and `语音转写`.
 
 ## Security model

@@ -27,7 +27,7 @@
 
 - 使用服务端环境变量或本地 env 文件：`OPENAI_API_KEY` / `DASHSCOPE_API_KEY` / `OPENAI_API_BASE`。
 - 不打印、不写入真实 `OPENAI_API_KEY` / `DASHSCOPE_API_KEY`。
-- 只记录字段是否存在、Base URL host/path、模型名等安全元数据；不输出 key 值或 key fingerprint。
+- 只记录字段是否存在、Base URL host/path、模型名等安全元数据；不输出 key 值或任何密钥派生标识。
 - 前端不得直接接触 Key；Demo 后端读取服务端密钥并代理上游调用。
 
 ## 探索顺序
@@ -44,8 +44,8 @@
 用户希望后续不要只围绕千问 Realtime：如果纯 ASR 的使用形式可以做到相似，就做成多渠道体验。当前新增范围：
 
 1. 增加统一 ASR 通道层，首选 `funasr-cpu`，后续可扩展 Whisper / 云 ASR / Qwen 专用 ASR。
-2. 体验形态统一为一键实时文字：用户点击“开始实时转写”后直接说话，页面自动持续显示文字；不得把上传录音、录音回放、手动提交、手动分段作为 ASR 标签页主流程。
-3. ASR 实时文字自动保留到“下一步内容”，用于后续会议纪要、智能润色和实时摘要。
+2. 体验形态参考 Open WebUI Chat 输入框：输入框右下角只有一个麦克风按钮；用户点一下进入“录音中”，说话内容像打字一样实时渲染到同一个文本框。
+3. 输入框中的语音文字自动保留到“下一步内容”，用于后续会议纪要、智能润色和实时摘要。
 4. 主展示只显示 corrected/final；raw/interim 只可作为低层级调试旁注，不能和 corrected 同级重复。
 5. 默认走 GPU 路线：`funasr-gpu`（CUDA PyTorch + FunASR/SenseVoiceSmall worker）。`funasr-cpu` 和 `stub-local` 仅作为显式 fallback / smoke 通道。
 
@@ -53,7 +53,7 @@
 
 - `reports/qwen-audio-tts-realtime-exploration.md` 完成，包含来源、官方 Demo 情况、API 结论、实测结果、风险和下一步。
 - `app/` 下有可读 Demo 源码和启动说明。
-- 页面包含 `语音合成`、`实时对话`、`语音转写` 三块能力；ASR 标签页必须是一键实时转文字体验，文字自动出现并留下给下一步内容。
+- 页面包含 `语音合成`、`实时对话`、`语音转写` 三块能力；ASR 标签页必须是 Open WebUI 风格的输入框麦克风体验，按钮进入录音态，文字实时进入输入框并留下给下一步内容。
 - 后端提供 `/api/asr/channels`、`/api/asr` 和 `/ws/asr/stream`；浏览器 ASR 主流程使用 `/ws/asr/stream` 持续发送麦克风音频，默认走 `funasr-gpu`。
 - `progress.md` 记录每个实质动作。
 - 若 TTS、Realtime 或 ASR 调用失败，报告真实 HTTP/WebSocket/依赖错误和可能原因，不伪造成功。

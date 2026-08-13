@@ -28,6 +28,16 @@
     textarea, select, input { width:100%; background:#071222; color:var(--text); border:1px solid #263a59; border-radius:14px; padding:12px 13px; font:inherit; outline:none; }
     input[type="file"] { padding:10px; }
     textarea { min-height:128px; resize:vertical; }
+    .chat-composer { border:1px solid #2b4a70; background:#06101f; border-radius:22px; padding:14px; box-shadow:inset 0 0 0 1px #ffffff05; }
+    .chat-composer textarea { min-height:118px; border:0; background:transparent; padding:2px 4px; resize:vertical; font-size:20px; line-height:1.6; }
+    .chat-composer textarea:focus { box-shadow:none; }
+    .composer-footer { display:flex; align-items:center; justify-content:space-between; gap:12px; padding-top:10px; border-top:1px solid #182a43; }
+    .composer-actions { display:flex; align-items:center; gap:8px; }
+    .composer-actions button { margin:0; }
+    .composer-status { color:#8ea1bf; font-size:13px; }
+    .voice-button { min-width:108px; border-radius:999px; margin:0; display:inline-flex; align-items:center; justify-content:center; gap:8px; }
+    .voice-button.recording { color:#25050b; background:linear-gradient(135deg,#ff6b8b,#ffd166); box-shadow:0 0 0 0 #ff6b8b88; animation:recordPulse 1.25s infinite; }
+    .voice-dot { width:9px; height:9px; border-radius:999px; background:currentColor; display:inline-block; }
     button { border:0; border-radius:14px; padding:11px 15px; margin:10px 8px 0 0; color:#04111d; background:linear-gradient(135deg, var(--accent), #7effd4); font-weight:700; cursor:pointer; }
     button.secondary { background:#162844; color:#d9e9ff; border:1px solid #2e4568; }
     button.danger { background:#ff6b8b; color:#21030a; }
@@ -58,6 +68,7 @@
     details.debug-details:not([open]) { opacity:.82; }
     .feature-list { margin:8px 0 0; padding-left:18px; color:#b9c7dc; line-height:1.7; }
     @keyframes blink { 0%,45%{opacity:1;} 46%,100%{opacity:.12;} }
+    @keyframes recordPulse { 0%{box-shadow:0 0 0 0 #ff6b8b88;} 70%{box-shadow:0 0 0 12px #ff6b8b00;} 100%{box-shadow:0 0 0 0 #ff6b8b00;} }
     @keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
     @media (max-width: 860px) { .grid { grid-template-columns:1fr; } header { flex-direction:column; } .utterance { grid-template-columns:1fr; } .bubble .text { font-size:21px; } }
   </style>
@@ -149,32 +160,35 @@
 
   <section class="tab-panel" id="panel-asr" data-panel="asr">
     <div class="grid">
-      <div class="card span2" id="asr-live-card">
-        <h2>实时语音转文字</h2>
-        <p>点一次开始，说话时文字会自动连续出现；无需上传或录音回放。后端通过 <code>/ws/asr/stream</code> 持续接收麦克风音频，并用默认 <code>funasr-gpu</code> 通道识别。</p>
-        <div class="grid">
-          <div>
-            <label for="asr-channel">识别通道</label>
-            <select id="asr-channel">
-              <option value="funasr-gpu" selected>FunASR GPU（默认）</option>
-              <option value="funasr-cpu">FunASR CPU（fallback）</option>
-              <option value="stub-local">本地合同通道（smoke fallback）</option>
-            </select>
-            <button id="asr-live-toggle">开始实时转写</button>
-            <button class="secondary" id="asr-live-clear">清空文字</button>
-            <div class="meta" id="asr-live-meta">等待开始。实时转写完成后会自动留下文字给会议纪要/润色使用。</div>
-          </div>
-          <div>
-            <label for="asr-live-text">实时文字</label>
-            <textarea id="asr-live-text" placeholder="点击开始实时转写，说话内容会自动出现在这里。" readonly></textarea>
+      <div class="card span2" id="asr-chat-card">
+        <h2>聊天输入框式语音转写</h2>
+        <p>Open WebUI 同款交互：输入框里只有一个麦克风按钮。点一下进入“录音中”，你说的话会像打字一样实时渲染到这个文本框里。</p>
+        <div class="chat-composer" id="asr-chat-composer">
+          <textarea id="asr-chat-input" placeholder="点右下角麦克风，说话内容会像打字一样出现在这里。"></textarea>
+          <div class="composer-footer">
+            <span class="composer-status" id="asr-chat-status">等待语音输入。</span>
+            <div class="composer-actions">
+              <button class="secondary" id="asr-chat-clear" type="button">清空</button>
+              <button id="asr-voice-button" class="voice-button" type="button" aria-pressed="false" title="开始语音输入">🎙️ 语音输入</button>
+            </div>
           </div>
         </div>
+        <details class="debug-details" id="asr-tech-details">
+          <summary>识别技术设置（默认折叠）</summary>
+          <label for="asr-channel">识别通道</label>
+          <select id="asr-channel">
+            <option value="funasr-gpu" selected>FunASR GPU（默认）</option>
+            <option value="funasr-cpu">FunASR CPU（fallback）</option>
+            <option value="stub-local">本地合同通道（smoke fallback）</option>
+          </select>
+          <div class="meta" id="asr-live-meta">后端通过 /ws/asr/stream 持续接收麦克风音频，并用默认 funasr-gpu 通道识别。</div>
+        </details>
       </div>
       <div class="card span2" id="meeting-notes-card">
         <h2>会议纪要</h2>
-        <p>上方实时文字会自动保留到这里，下一步可做智能润色和实时摘要。模型默认从后端配置读取，可接 Qwen Coding Plan。</p>
+        <p>聊天输入框里的语音文字会自动保留到这里，下一步可做智能润色和实时摘要。模型默认从后端配置读取，可接 Qwen Coding Plan。</p>
         <ul class="feature-list">
-          <li>实时转写：来自上方实时文字。</li>
+          <li>实时转写：来自上方聊天输入框。</li>
           <li>智能润色：修复口语、错字、断句。</li>
           <li>实时摘要：输出摘要、待办、风险、未决问题。</li>
         </ul>
@@ -316,7 +330,7 @@ function handleAsrEvent(payload) {
   }
   if (payload.result) $('asr-live-meta').textContent = `实时识别更新：${payload.result.corrected_text || ''}`;
 }
-function renderAsrLiveText() { const text = asrLiveSegments.join('\n'); $('asr-live-text').value = text; syncLiveTextToMeetingNotes(text); }
+function renderAsrLiveText() { const text = asrLiveSegments.join('\n'); $('asr-chat-input').value = text; $('asr-chat-input').style.height = ''; $('asr-chat-input').style.height = Math.min($('asr-chat-input').scrollHeight, 220) + 'px'; syncLiveTextToMeetingNotes(text); }
 function syncLiveTextToMeetingNotes(text) { $('meeting-transcript').value = text; }
 async function refreshStatus() {
   try {
@@ -336,7 +350,7 @@ $('tts-run').onclick = async () => {
     const r = await fetch('/api/tts', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({text:$('tts-text').value, voice:$('voice').value, format:'mp3'})});
     if (!r.ok) throw new Error(await r.text());
     const blob = await r.blob(); if (lastAudioUrl) URL.revokeObjectURL(lastAudioUrl); lastAudioUrl = URL.createObjectURL(blob); $('tts-audio').src = lastAudioUrl; $('tts-download').disabled = false;
-    const meta = {bytes: blob.size, request_id: r.headers.get('X-Qwen-Request-Id'), elapsed_ms: r.headers.get('X-Elapsed-Ms'), sha256_12: r.headers.get('X-Audio-Sha256-12')}; $('tts-meta').textContent = JSON.stringify(meta, null, 2); log('tts.ok', meta);
+    const meta = {bytes: blob.size, request_id: r.headers.get('X-Qwen-Request-Id'), elapsed_ms: r.headers.get('X-Elapsed-Ms')}; $('tts-meta').textContent = JSON.stringify(meta, null, 2); log('tts.ok', meta);
   } catch (e) { $('tts-meta').textContent = '失败：' + String(e); log('tts.error', String(e)); } finally { $('tts-run').disabled = false; }
 };
 $('tts-download').onclick = () => { if (!lastAudioUrl) return; const a = document.createElement('a'); a.href = lastAudioUrl; a.download = 'qwen-token-plan-tts.mp3'; a.click(); };
@@ -352,14 +366,14 @@ $('clone-list').onclick = async () => {
   catch(e) { $('clone-meta').textContent = '查询失败：' + String(e); }
 };
 $('rt-board-clear').onclick = () => { boards.realtime.lines = []; boards.realtime.draft = {}; boards.realtime.seq = 0; renderBoard('realtime'); $('realtime-board-meta').textContent = '已清空实时对话面板。'; log('realtime-board.clear', 'cleared'); };
-$('asr-live-clear').onclick = () => { asrLiveSegments = []; renderAsrLiveText(); $('asr-live-meta').textContent = '已清空实时文字。'; };
+$('asr-chat-clear').onclick = () => { asrLiveSegments = []; renderAsrLiveText(); $('asr-chat-status').textContent = '已清空语音输入框。'; $('asr-live-meta').textContent = '已清空实时文字。'; };
 
 function sendJson(obj, logIt=true) { if (!ws || ws.readyState !== WebSocket.OPEN) return; ws.send(JSON.stringify(obj)); if (logIt) log('client.send', obj); }
 function sessionUpdate() { sendJson({event_id:'web_demo_session_update_' + Date.now(), type:'session.update', session:{modalities:['text','audio'], voice:'longanqian', input_audio_format:'pcm', output_audio_format:'pcm', instructions:'请用简洁中文实时对话，并让可用的转写文本通过 transcript 事件返回。', turn_detection:{type:'server_vad', threshold:0.5, silence_duration_ms:800}}}); }
 async function startRealtimeLive() {
   if (ws && ws.readyState === WebSocket.OPEN) return;
   ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/realtime`);
-  ws.onopen = async () => { $('rt-meta').textContent='实时对话已连接，正在打开麦克风…'; setRealtimeButtons(true); log('ws.open', 'connected'); sessionUpdate(); await startMic(); };
+  ws.onopen = async () => { try { $('rt-meta').textContent='实时对话已连接，正在打开麦克风…'; setRealtimeButtons(true); log('ws.open', 'connected'); sessionUpdate(); await startMic(); } catch(e) { $('rt-meta').textContent='无法打开麦克风：请检查浏览器权限或输入设备。'; log('mic.error', String(e)); stopRealtimeLive(); } };
   ws.onmessage = (ev) => { try { handleRealtimeEvent(JSON.parse(ev.data)); } catch { log('server.raw', ev.data); } };
   ws.onerror = (ev) => { $('rt-meta').textContent='WebSocket 错误'; log('ws.error', ev.type); };
   ws.onclose = () => { $('rt-meta').textContent='已断开'; setRealtimeButtons(false); stopMic(false); log('ws.close', 'closed'); };
@@ -380,19 +394,22 @@ $('rt-live-toggle').onclick = async () => { try { (ws && ws.readyState === WebSo
 async function startAsrLive() {
   if (asrStreamMicOn) return;
   asrStreamWs = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/asr/stream`);
-  asrStreamWs.onopen = async () => { asrStreamWs.send(JSON.stringify({type:'asr.stream.start', channel:$('asr-channel').value || 'funasr-gpu', sample_rate:16000, chunk_seconds:2})); $('asr-live-meta').textContent='实时转写已启动，请直接说话。'; await startAsrStreamMic(); };
+  setAsrVoiceButton(false, '连接中…');
+  $('asr-chat-status').textContent='正在连接识别服务…';
+  asrStreamWs.onopen = async () => { try { asrStreamWs.send(JSON.stringify({type:'asr.stream.start', channel:$('asr-channel').value || 'funasr-gpu', sample_rate:16000, chunk_seconds:2})); $('asr-chat-status').textContent='正在打开麦克风…'; await startAsrStreamMic(); } catch(e) { $('asr-chat-status').textContent='无法打开麦克风：请检查浏览器权限或输入设备。'; stopAsrStreamMic(false); if (asrStreamWs && asrStreamWs.readyState === WebSocket.OPEN) asrStreamWs.close(); } };
   asrStreamWs.onmessage = (ev) => { try { const j=JSON.parse(ev.data); if (j.demo_event === 'asr.stream.result') handleAsrEvent(j); else if (j.demo_event === 'asr.stream.backpressure') $('asr-live-meta').textContent='后端正在追赶识别，请继续说话或稍等…'; else if (j.demo_event === 'asr.stream.done') $('asr-live-meta').textContent='实时转写已完成，文字已留下。'; } catch { $('asr-live-meta').textContent = String(ev.data || ''); } };
-  asrStreamWs.onclose = () => { stopAsrStreamMic(false); $('asr-live-meta').textContent='实时转写已停止，文字已留下。'; };
-  asrStreamWs.onerror = (ev) => { $('asr-live-meta').textContent='实时转写连接错误：' + ev.type; };
+  asrStreamWs.onclose = () => { stopAsrStreamMic(false); $('asr-chat-status').textContent='已停止，文字已留在输入框。'; $('asr-live-meta').textContent='实时转写已停止，文字已留下。'; };
+  asrStreamWs.onerror = (ev) => { $('asr-chat-status').textContent='实时转写连接错误：' + ev.type; $('asr-live-meta').textContent='实时转写连接错误：' + ev.type; };
 }
 async function startAsrStreamMic() {
   if (!asrStreamWs || asrStreamWs.readyState !== WebSocket.OPEN) return;
   asrStreamMicStream = await navigator.mediaDevices.getUserMedia({audio:true}); asrStreamAudioContext = new AudioContext(); asrStreamSource = asrStreamAudioContext.createMediaStreamSource(asrStreamMicStream); asrStreamProcessor = asrStreamAudioContext.createScriptProcessor(4096, 1, 1);
   asrStreamProcessor.onaudioprocess = (e) => { if (!asrStreamMicOn || !asrStreamWs || asrStreamWs.readyState !== WebSocket.OPEN) return; const input=e.inputBuffer.getChannelData(0); const pcm=floatTo16BitPCM(downsample(input, asrStreamAudioContext.sampleRate, 16000)); asrStreamWs.send(JSON.stringify({type:'asr.stream.append', audio: bytesToBase64(new Uint8Array(pcm.buffer))})); };
-  asrStreamSource.connect(asrStreamProcessor); asrStreamProcessor.connect(asrStreamAudioContext.destination); asrStreamMicOn = true; $('asr-live-toggle').textContent='停止实时转写'; $('asr-live-meta').textContent='正在实时转写，文字会自动出现并保留到下一步内容。';
+  asrStreamSource.connect(asrStreamProcessor); asrStreamProcessor.connect(asrStreamAudioContext.destination); asrStreamMicOn = true; setAsrVoiceButton(true); $('asr-chat-status').textContent='录音中，说话内容会实时出现在输入框。'; $('asr-live-meta').textContent='正在实时转写，文字会自动出现并保留到下一步内容。';
 }
-function stopAsrStreamMic(finish=true) { asrStreamMicOn=false; if (asrStreamProcessor) { asrStreamProcessor.disconnect(); asrStreamProcessor=null; } if (asrStreamSource) { asrStreamSource.disconnect(); asrStreamSource=null; } if (asrStreamMicStream) { asrStreamMicStream.getTracks().forEach(t=>t.stop()); asrStreamMicStream=null; } if (asrStreamAudioContext) { asrStreamAudioContext.close(); asrStreamAudioContext=null; } $('asr-live-toggle').textContent='开始实时转写'; if (finish && asrStreamWs && asrStreamWs.readyState === WebSocket.OPEN) { $('asr-live-meta').textContent='正在收尾识别，最后文字会自动留下…'; asrStreamWs.send(JSON.stringify({type:'asr.stream.finish'})); } }
-$('asr-live-toggle').onclick = async () => { try { asrStreamMicOn ? stopAsrStreamMic(true) : await startAsrLive(); } catch(e) { $('asr-live-meta').textContent='实时转写失败：' + String(e); stopAsrStreamMic(false); if (asrStreamWs && asrStreamWs.readyState === WebSocket.OPEN) asrStreamWs.close(); } };
+function setAsrVoiceButton(recording, label) { const b=$('asr-voice-button'); b.disabled = label === '连接中…'; b.classList.toggle('recording', recording); b.setAttribute('aria-pressed', recording ? 'true' : 'false'); b.title = recording ? '停止语音输入' : '开始语音输入'; b.innerHTML = recording ? '<span class="voice-dot"></span>录音中' : `🎙️ ${label || '语音输入'}`; }
+function stopAsrStreamMic(finish=true) { asrStreamMicOn=false; if (asrStreamProcessor) { asrStreamProcessor.disconnect(); asrStreamProcessor=null; } if (asrStreamSource) { asrStreamSource.disconnect(); asrStreamSource=null; } if (asrStreamMicStream) { asrStreamMicStream.getTracks().forEach(t=>t.stop()); asrStreamMicStream=null; } if (asrStreamAudioContext) { asrStreamAudioContext.close(); asrStreamAudioContext=null; } setAsrVoiceButton(false); if (finish && asrStreamWs && asrStreamWs.readyState === WebSocket.OPEN) { $('asr-chat-status').textContent='正在收尾识别，最后文字会自动留下…'; $('asr-live-meta').textContent='正在收尾识别，最后文字会自动留下…'; asrStreamWs.send(JSON.stringify({type:'asr.stream.finish'})); } }
+$('asr-voice-button').onclick = async () => { try { asrStreamMicOn ? stopAsrStreamMic(true) : await startAsrLive(); } catch(e) { $('asr-chat-status').textContent='实时转写失败：' + String(e); $('asr-live-meta').textContent='实时转写失败：' + String(e); stopAsrStreamMic(false); if (asrStreamWs && asrStreamWs.readyState === WebSocket.OPEN) asrStreamWs.close(); } };
 $('meeting-polish').onclick = async () => {
   $('meeting-meta').textContent = '生成会议纪要中…';
   try { const r = await fetch('/api/meeting-notes/polish', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({transcript:$('meeting-transcript').value})}); const j = await r.json(); if (!r.ok) throw new Error(JSON.stringify(j)); $('meeting-meta').textContent = j.content || JSON.stringify(j, null, 2); }
@@ -410,7 +427,7 @@ window.__demoInjectDuplicateScenario = () => {
 window.__demoInjectAsrScenario = () => {
   asrLiveSegments = [];
   handleAsrEvent({demo_event:'asr.stream.result', result:{corrected_text:'我想测试这个。'}, board_event:{demo_event:'transcript.delta', role:'user', phase:'final', text:'我想测试这个。', raw_text:'我想嗯测试这个', source_type:'asr.funasr-gpu'}});
-  return {text: $('asr-live-text').value, next_step_text: $('meeting-transcript').value, corrected_present: $('asr-live-text').value.includes('我想测试这个。')};
+  return {text: $('asr-chat-input').value, next_step_text: $('meeting-transcript').value, corrected_present: $('asr-chat-input').value.includes('我想测试这个。')};
 };
 
 refreshStatus(); renderBoard('realtime');
