@@ -72,20 +72,20 @@
     <span class="pill" id="status-pill">检查中…</span>
   </header>
 
-  <nav class="tabs" aria-label="Demo sections">
-    <button class="tab-button active" type="button" data-tab="tts">TTS</button>
-    <button class="tab-button" type="button" data-tab="realtime">realtime communication</button>
-    <button class="tab-button" type="button" data-tab="asr">ASR transcription</button>
+  <nav class="tabs" aria-label="演示分区">
+    <button class="tab-button active" type="button" data-tab="tts">语音合成</button>
+    <button class="tab-button" type="button" data-tab="realtime">实时对话</button>
+    <button class="tab-button" type="button" data-tab="asr">语音转写</button>
   </nav>
 
   <section class="tab-panel active" id="panel-tts" data-panel="tts">
     <div class="grid">
       <div class="card span2">
-        <h2>TTS</h2>
-        <p>文本转语音；音色可选。该页包含基础语音合成和 voice cloning。</p>
+        <h2>语音合成</h2>
+        <p>文本转语音；音色可选。该页包含基础语音合成和声音克隆。</p>
         <label for="tts-text">文本</label>
         <textarea id="tts-text">你好，这是千问 Token Plan 的网页语音合成 Demo。API Key 只在后端使用。</textarea>
-        <label for="voice">音色 / voice id</label>
+        <label for="voice">音色 / 声音 ID</label>
         <select id="voice">
           <option value="longanlingxin" selected>longanlingxin（官方示例音色）</option>
           <option value="longanqian">longanqian</option>
@@ -99,19 +99,19 @@
         <div class="meta" id="tts-meta"></div>
       </div>
       <div class="card span2" id="voice-cloning-card">
-        <h2>voice cloning</h2>
-        <p>通过后端调用 DashScope TTS v2 voice enrollment。浏览器提交可公开访问的参考音频 URL，服务端创建 voice id；随后可把 voice id 放入上方音色框生成克隆音色 TTS。</p>
+        <h2>声音克隆</h2>
+        <p>通过后端调用 DashScope 语音注册接口。浏览器提交可公开访问的参考音频 URL，服务端创建声音 ID；随后可把声音 ID 放入上方音色框生成克隆音色。</p>
         <div class="grid">
           <div>
             <label for="clone-audio-url">参考音频 URL（http/https）</label>
             <input id="clone-audio-url" placeholder="https://example.com/reference.wav" />
-            <label for="clone-prefix">voice 前缀</label>
+            <label for="clone-prefix">声音 ID 前缀</label>
             <input id="clone-prefix" value="qwen_demo" />
-            <button id="clone-create">创建 voice id</button>
-            <button class="secondary" id="clone-list">列出 voice ids</button>
+            <button id="clone-create">创建声音 ID</button>
+            <button class="secondary" id="clone-list">列出声音 ID</button>
           </div>
           <div>
-            <label>voice cloning 结果</label>
+            <label>声音克隆结果</label>
             <div class="meta" id="clone-meta">等待创建或查询。真实 API Key 只在后端使用。</div>
           </div>
         </div>
@@ -122,9 +122,9 @@
   <section class="tab-panel" id="panel-realtime" data-panel="realtime">
     <div class="grid">
       <div class="card span2">
-        <h2>realtime communication</h2>
+        <h2>实时对话</h2>
         <p>实时对话只在本页展示。主面板只显示纠错/定稿后的文字；原始识别如果不同，仅以小字旁注显示，不再生成第二条主消息。</p>
-        <button id="rt-connect">连接 Realtime</button>
+        <button id="rt-connect">连接实时对话</button>
         <button class="secondary" id="rt-update" disabled>发送 session.update</button>
         <button class="secondary" id="rt-silence" disabled>发送 0.1s 静音</button>
         <button class="secondary" id="rt-mic" disabled>开始麦克风</button>
@@ -135,13 +135,13 @@
       <div class="card span2">
         <div class="board-head">
           <div>
-            <h2>Realtime 展示面板</h2>
-            <p>不是事件日志；只保留用户/AI最终可读文本。raw transcript 仅小字旁注。</p>
+            <h2>实时对话展示面板</h2>
+            <p>不是事件日志；只保留用户/千问最终可读文本。原始识别仅小字旁注。</p>
           </div>
-          <button class="secondary" id="rt-board-clear">清空 Realtime 面板</button>
+          <button class="secondary" id="rt-board-clear">清空实时对话面板</button>
         </div>
-        <div class="board" id="realtime-board"><div class="empty">等待 Realtime transcript/text delta…</div></div>
-        <div class="board-note" id="realtime-board-meta">监听 Realtime transcript/text 事件。</div>
+        <div class="board" id="realtime-board"><div class="empty">等待实时转写/文本增量…</div></div>
+        <div class="board-note" id="realtime-board-meta">监听实时转写/文本事件。</div>
       </div>
       <details class="card span2 debug-details" id="realtime-debug">
         <summary>开发者调试事件日志（默认折叠）</summary>
@@ -154,8 +154,8 @@
   <section class="tab-panel" id="panel-asr" data-panel="asr">
     <div class="grid">
       <div class="card span2">
-        <h2>ASR transcription</h2>
-        <p>ASR 默认走 <code>funasr-gpu</code>：CUDA PyTorch + FunASR worker。该页包含音频识别、分片实时转写和 meeting notes。</p>
+        <h2>语音转写</h2>
+        <p>语音转写默认走 <code>funasr-gpu</code>：CUDA PyTorch + FunASR worker。该页包含音频识别、分片实时转写和会议纪要。</p>
         <div class="grid">
           <div>
             <label for="asr-channel">识别通道</label>
@@ -171,7 +171,7 @@
             <button class="secondary" id="asr-send-recording" disabled>识别上一次录音</button>
           </div>
           <div>
-            <label>ASR 结果</label>
+            <label>转写结果</label>
             <div class="meta" id="asr-meta">等待音频。FunASR GPU 如未就绪会返回明确错误；不会暴露任何 Key。</div>
             <audio id="asr-preview" controls></audio>
           </div>
@@ -180,34 +180,34 @@
       <div class="card span2">
         <div class="board-head">
           <div>
-            <h2>ASR 分片实时转写面板</h2>
-            <p>上传/录音/分片转写共用本页 ASR 面板。主文本显示纠错/定稿；raw 仅旁注。</p>
+            <h2>分片实时转写面板</h2>
+            <p>上传/录音/分片转写共用本页转写面板。主文本显示纠错/定稿；原始识别仅旁注。</p>
           </div>
-          <button class="secondary" id="asr-board-clear">清空 ASR 面板</button>
+          <button class="secondary" id="asr-board-clear">清空转写面板</button>
         </div>
-        <div class="board" id="asr-board"><div class="empty">等待 ASR 上传或分片结果…</div></div>
+        <div class="board" id="asr-board"><div class="empty">等待上传或分片转写结果…</div></div>
         <div class="board-note" id="asr-board-meta">默认通道：funasr-gpu。</div>
       </div>
       <div class="card span2" id="asr-stream-card">
-        <h2>chunked realtime transcription</h2>
+        <h2>分片实时转写</h2>
         <p>浏览器采集 PCM16 分片，经 <code>/ws/asr/stream</code> 发给后端；后端按 chunk 聚合成 wav 交给 FunASR GPU worker。适合后续会议实时转写。</p>
-        <button id="asr-stream-connect">连接 ASR stream</button>
+        <button id="asr-stream-connect">连接分片转写</button>
         <button class="secondary" id="asr-stream-mic" disabled>开始分片麦克风</button>
         <button class="secondary" id="asr-stream-commit" disabled>提交当前分片</button>
-        <button class="danger" id="asr-stream-close" disabled>断开 ASR stream</button>
+        <button class="danger" id="asr-stream-close" disabled>断开分片转写</button>
         <div class="meta" id="asr-stream-meta">未连接。</div>
       </div>
       <div class="card span2" id="meeting-notes-card">
-        <h2>meeting notes</h2>
-        <p>ASR 实时转写结合 AI 润色修复 + 实时 summary。模型默认从后端配置读取，可接 Qwen Coding Plan。</p>
+        <h2>会议纪要</h2>
+        <p>语音转写结合智能润色修复和实时摘要。模型默认从后端配置读取，可接 Qwen Coding Plan。</p>
         <ul class="feature-list">
-          <li>实时 transcript：来自 ASR 分片结果。</li>
-          <li>AI polish：修复口语、错字、断句。</li>
-          <li>realtime summary：输出摘要、待办、风险、未决问题。</li>
+          <li>实时转写：来自分片转写结果。</li>
+          <li>智能润色：修复口语、错字、断句。</li>
+          <li>实时摘要：输出摘要、待办、风险、未决问题。</li>
         </ul>
         <label for="meeting-transcript">会议转写文本</label>
         <textarea id="meeting-transcript" placeholder="可从 ASR 面板复制，也可手动粘贴会议转写。"></textarea>
-        <button id="meeting-polish">生成会议纪要 / summary</button>
+        <button id="meeting-polish">生成会议纪要 / 摘要</button>
         <div class="meta" id="meeting-meta">等待转写文本。</div>
       </div>
     </div>
@@ -235,8 +235,8 @@ let asrStreamMicStream = null;
 let asrStreamMicOn = false;
 
 const boards = {
-  realtime: {lines: [], draft: {}, seq: 0, boardId: 'realtime-board', metaId: 'realtime-board-meta', empty: '等待 Realtime transcript/text delta…'},
-  asr: {lines: [], draft: {}, seq: 0, boardId: 'asr-board', metaId: 'asr-board-meta', empty: '等待 ASR 上传或分片结果…'},
+  realtime: {lines: [], draft: {}, seq: 0, boardId: 'realtime-board', metaId: 'realtime-board-meta', empty: '等待实时转写/文本增量…'},
+  asr: {lines: [], draft: {}, seq: 0, boardId: 'asr-board', metaId: 'asr-board-meta', empty: '等待上传或分片转写结果…'},
 };
 
 function activateTab(tab) {
@@ -349,10 +349,10 @@ function handleAsrEvent(payload) {
 async function refreshStatus() {
   try {
     const r = await fetch('/api/status'); const j = await r.json();
-    $('status-pill').textContent = j.key_present && j.models_ok ? `就绪 · ${j.models.count} models · ASR ${j.asr_default_channel}` : '配置需检查';
+    $('status-pill').textContent = j.key_present && j.models_ok ? `就绪 · ${j.models.count} 个模型 · 转写通道 ${j.asr_default_channel}` : '配置需检查';
     $('status-pill').className = 'pill ' + (j.key_present && j.models_ok ? 'ok' : 'err');
     $('rt-tags').innerHTML = '';
-    [j.tts_model, j.realtime_model, j.asr_default_channel ? `ASR ${j.asr_default_channel}` : 'ASR pending', j.base_host, j.key_present ? 'server key loaded' : 'server key missing'].forEach(x => { const s = document.createElement('span'); s.className='tag'; s.textContent=x; $('rt-tags').appendChild(s); });
+    [j.tts_model, j.realtime_model, j.asr_default_channel ? `转写通道 ${j.asr_default_channel}` : '转写通道待检查', j.base_host, j.key_present ? '服务端密钥已加载' : '服务端密钥缺失'].forEach(x => { const s = document.createElement('span'); s.className='tag'; s.textContent=x; $('rt-tags').appendChild(s); });
     if (j.asr_default_channel) $('asr-channel').value = j.asr_default_channel;
     log('status', {models_ok:j.models_ok, asr_default_channel:j.asr_default_channel, tts_model:j.tts_model, realtime_model:j.realtime_model});
   } catch (e) { $('status-pill').textContent = '状态检查失败'; $('status-pill').className='pill err'; log('status.error', String(e)); }
@@ -373,14 +373,14 @@ $('clone-create').onclick = async () => {
   try {
     const r = await fetch('/api/voice-cloning/create', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({audio_url:$('clone-audio-url').value, prefix:$('clone-prefix').value})});
     const j = await r.json(); if (!r.ok) throw new Error(JSON.stringify(j)); $('clone-meta').textContent = JSON.stringify(j, null, 2); if (j.voice_id) $('voice').value = j.voice_id;
-  } catch(e) { $('clone-meta').textContent = 'voice cloning 失败：' + String(e); }
+  } catch(e) { $('clone-meta').textContent = '声音克隆失败：' + String(e); }
 };
 $('clone-list').onclick = async () => {
   try { const r = await fetch('/api/voice-cloning/list?prefix=' + encodeURIComponent($('clone-prefix').value)); const j = await r.json(); $('clone-meta').textContent = JSON.stringify(j, null, 2); }
   catch(e) { $('clone-meta').textContent = '查询失败：' + String(e); }
 };
-$('rt-board-clear').onclick = () => { boards.realtime.lines = []; boards.realtime.draft = {}; boards.realtime.seq = 0; renderBoard('realtime'); $('realtime-board-meta').textContent = '已清空 Realtime 面板。'; log('realtime-board.clear', 'cleared'); };
-$('asr-board-clear').onclick = () => { boards.asr.lines = []; boards.asr.draft = {}; boards.asr.seq = 0; renderBoard('asr'); $('asr-board-meta').textContent = '已清空 ASR 面板。'; };
+$('rt-board-clear').onclick = () => { boards.realtime.lines = []; boards.realtime.draft = {}; boards.realtime.seq = 0; renderBoard('realtime'); $('realtime-board-meta').textContent = '已清空实时对话面板。'; log('realtime-board.clear', 'cleared'); };
+$('asr-board-clear').onclick = () => { boards.asr.lines = []; boards.asr.draft = {}; boards.asr.seq = 0; renderBoard('asr'); $('asr-board-meta').textContent = '已清空转写面板。'; };
 
 async function runAsr(blob, filename='recording.webm') {
   const channel = $('asr-channel').value || 'funasr-gpu'; const form = new FormData(); form.append('channel', channel); form.append('correct', 'true'); form.append('file', blob, filename);
@@ -419,17 +419,17 @@ function bytesToBase64(bytes) { let bin=''; for (let i=0; i<bytes.length; i+=0x8
 async function startMic() {
   if (!ws || ws.readyState !== WebSocket.OPEN) return; sessionUpdate(); micStream = await navigator.mediaDevices.getUserMedia({audio:true}); audioContext = new AudioContext(); source = audioContext.createMediaStreamSource(micStream); processor = audioContext.createScriptProcessor(4096, 1, 1);
   processor.onaudioprocess = (e) => { if (!micOn || !ws || ws.readyState !== WebSocket.OPEN) return; const input = e.inputBuffer.getChannelData(0); const pcm = floatTo16BitPCM(downsample(input, audioContext.sampleRate, 16000)); sendJson({event_id:'web_demo_audio_' + Date.now(), type:'input_audio_buffer.append', audio: bytesToBase64(new Uint8Array(pcm.buffer))}, false); };
-  source.connect(processor); processor.connect(audioContext.destination); micOn = true; $('rt-mic').textContent = '停止麦克风'; $('rt-meta').textContent='麦克风发送中（16k PCM），Realtime 面板会显示可读文本'; log('mic.start', {sampleRate: audioContext.sampleRate});
+  source.connect(processor); processor.connect(audioContext.destination); micOn = true; $('rt-mic').textContent = '停止麦克风'; $('rt-meta').textContent='麦克风发送中（16k PCM），实时对话面板会显示可读文本'; log('mic.start', {sampleRate: audioContext.sampleRate});
 }
 function stopMic(commit=true) { if (commit && ws && ws.readyState === WebSocket.OPEN && micOn) sendJson({event_id:'web_demo_audio_commit_' + Date.now(), type:'input_audio_buffer.commit'}); micOn = false; if (processor) { processor.disconnect(); processor = null; } if (source) { source.disconnect(); source = null; } if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; } if (audioContext) { audioContext.close(); audioContext = null; } $('rt-mic').textContent = '开始麦克风'; }
 $('rt-mic').onclick = async () => { try { micOn ? stopMic(true) : await startMic(); } catch(e) { log('mic.error', String(e)); } };
 
 $('asr-stream-connect').onclick = () => {
   asrStreamWs = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/asr/stream`);
-  asrStreamWs.onopen = () => { setAsrStreamButtons(true); asrStreamWs.send(JSON.stringify({type:'asr.stream.start', channel:$('asr-channel').value || 'funasr-gpu', sample_rate:16000, chunk_seconds:4})); $('asr-stream-meta').textContent='ASR stream 已连接。'; };
+  asrStreamWs.onopen = () => { setAsrStreamButtons(true); asrStreamWs.send(JSON.stringify({type:'asr.stream.start', channel:$('asr-channel').value || 'funasr-gpu', sample_rate:16000, chunk_seconds:4})); $('asr-stream-meta').textContent='分片转写已连接。'; };
   asrStreamWs.onmessage = (ev) => { try { const j=JSON.parse(ev.data); if (j.demo_event === 'asr.stream.result') handleAsrEvent(j); else $('asr-stream-meta').textContent = JSON.stringify(j); } catch { $('asr-stream-meta').textContent = ev.data; } };
-  asrStreamWs.onclose = () => { setAsrStreamButtons(false); stopAsrStreamMic(false); $('asr-stream-meta').textContent='ASR stream 已断开。'; };
-  asrStreamWs.onerror = (ev) => { $('asr-stream-meta').textContent='ASR stream 错误：' + ev.type; };
+  asrStreamWs.onclose = () => { setAsrStreamButtons(false); stopAsrStreamMic(false); $('asr-stream-meta').textContent='分片转写已断开。'; };
+  asrStreamWs.onerror = (ev) => { $('asr-stream-meta').textContent='分片转写错误：' + ev.type; };
 };
 async function startAsrStreamMic() {
   if (!asrStreamWs || asrStreamWs.readyState !== WebSocket.OPEN) return;
@@ -447,7 +447,7 @@ $('meeting-polish').onclick = async () => {
   catch(e) { $('meeting-meta').textContent = '生成失败：' + String(e); }
 };
 
-window.__demoInjectTranscript = (text='这是 Realtime 展示面板验收文本') => { appendBoardEvent('realtime', {demo_event:'transcript.delta', role:'user', phase:'final', text, source_type:'browser-test'}); return $('realtime-board').innerText; };
+window.__demoInjectTranscript = (text='这是实时对话展示面板验收文本') => { appendBoardEvent('realtime', {demo_event:'transcript.delta', role:'user', phase:'final', text, source_type:'browser-test'}); return $('realtime-board').innerText; };
 window.__demoInjectDuplicateScenario = () => {
   boards.realtime.lines = []; boards.realtime.draft = {}; boards.realtime.seq = 0;
   handleRealtimeEvent({demo_event:'transcript.delta', role:'user', phase:'final', text:'我想嗯测试这个', item_id:'item_dup_raw', source_type:'conversation.item.input_audio_transcription.completed'});

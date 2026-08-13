@@ -13,7 +13,7 @@ checks: dict[str, object] = {}
 
 labels = re.findall(r'<button[^>]+class="tab-button[^>]*"[^>]*>(.*?)</button>', text, flags=re.S)
 labels = [re.sub(r"<[^>]+>", "", x).strip() for x in labels]
-checks["exact_tab_labels"] = labels == ["TTS", "realtime communication", "ASR transcription"]
+checks["exact_tab_labels"] = labels == ["语音合成", "实时对话", "语音转写"]
 
 panel_ids = re.findall(r'<section class="tab-panel(?: active)?" id="panel-([a-z]+)"', text)
 checks["exact_three_panels"] = panel_ids == ["tts", "realtime", "asr"]
@@ -43,8 +43,8 @@ checks["dedupe_merges_raw_corrected"] = "findSimilarRawTranscript" in text and "
 checks["debug_details_collapsed"] = '<details class="card span2 debug-details" open' not in text
 checks["debug_developer_label"] = "开发者调试事件日志（默认折叠）" in text
 
-checks["tts_voice_cloning_copy"] = "voice cloning" in panels.get("tts", "") and "VoiceEnrollmentService" not in panels.get("tts", "")
-checks["asr_meeting_notes_copy"] = "AI polish" in panels.get("asr", "") and "realtime summary" in panels.get("asr", "")
+checks["tts_voice_cloning_copy"] = "声音克隆" in panels.get("tts", "") and "VoiceEnrollmentService" not in panels.get("tts", "")
+checks["asr_meeting_notes_copy"] = "会议纪要" in panels.get("asr", "") and "智能润色" in panels.get("asr", "") and "实时摘要" in panels.get("asr", "")
 checks["asr_stream_route_copy"] = "/ws/asr/stream" in panels.get("asr", "")
 
 checks["ok"] = all(bool(v) for k, v in checks.items() if k != "ok")
