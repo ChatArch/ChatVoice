@@ -27,7 +27,7 @@
 
 - 使用服务端环境变量或本地 env 文件：`OPENAI_API_KEY` / `DASHSCOPE_API_KEY` / `OPENAI_API_BASE`。
 - 不打印、不写入真实 `OPENAI_API_KEY` / `DASHSCOPE_API_KEY`。
-- 只记录字段是否存在、Base URL host/path、模型名、key hash 等脱敏信息。
+- 只记录字段是否存在、Base URL host/path、模型名等安全元数据；不输出 key 值或 key fingerprint。
 - 前端不得直接接触 Key；Demo 后端读取服务端密钥并代理上游调用。
 
 ## 探索顺序
@@ -44,16 +44,16 @@
 用户希望后续不要只围绕千问 Realtime：如果纯 ASR 的使用形式可以做到相似，就做成多渠道体验。当前新增范围：
 
 1. 增加统一 ASR 通道层，首选 `funasr-cpu`，后续可扩展 Whisper / 云 ASR / Qwen 专用 ASR。
-2. 体验形态统一：上传/录音 → ASR 原始识别 raw → 轻量纠正 corrected → 同一个“实时文字板 / 公屏转写”。
-3. 主公屏只显示 corrected/final；raw 作为小字“原始识别”旁注，不和 corrected 同级重复。
-4. 先以 CPU 路线打通公网页面和接口；RTX 2080 Ti 后续作为优化项，不阻塞 Demo。
-5. 当前机器 PCI 可见 RTX 2080 Ti，但 `nvidia-smi` 无法与 NVIDIA driver 通信，因此现阶段服务按 CPU 部署。
+2. 体验形态统一为一键实时文字：用户点击“开始实时转写”后直接说话，页面自动持续显示文字；不得把上传录音、录音回放、手动提交、手动分段作为 ASR 标签页主流程。
+3. ASR 实时文字自动保留到“下一步内容”，用于后续会议纪要、智能润色和实时摘要。
+4. 主展示只显示 corrected/final；raw/interim 只可作为低层级调试旁注，不能和 corrected 同级重复。
+5. 默认走 GPU 路线：`funasr-gpu`（CUDA PyTorch + FunASR/SenseVoiceSmall worker）。`funasr-cpu` 和 `stub-local` 仅作为显式 fallback / smoke 通道。
 
 ## 完成标准
 
 - `reports/qwen-audio-tts-realtime-exploration.md` 完成，包含来源、官方 Demo 情况、API 结论、实测结果、风险和下一步。
 - `app/` 下有可读 Demo 源码和启动说明。
-- 页面包含 TTS、Realtime、多渠道 ASR 三块能力；ASR 面板支持上传/录音并把结果送入同一公屏。
-- 后端提供 `/api/asr/channels` 和 `/api/asr`；至少 `stub-local` 能完成体验链路；`funasr-cpu` 真实依赖可用时走 FunASR CPU。
+- 页面包含 `语音合成`、`实时对话`、`语音转写` 三块能力；ASR 标签页必须是一键实时转文字体验，文字自动出现并留下给下一步内容。
+- 后端提供 `/api/asr/channels`、`/api/asr` 和 `/ws/asr/stream`；浏览器 ASR 主流程使用 `/ws/asr/stream` 持续发送麦克风音频，默认走 `funasr-gpu`。
 - `progress.md` 记录每个实质动作。
 - 若 TTS、Realtime 或 ASR 调用失败，报告真实 HTTP/WebSocket/依赖错误和可能原因，不伪造成功。

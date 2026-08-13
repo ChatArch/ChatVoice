@@ -1,17 +1,17 @@
 # Qwen Token Plan Audio Demo
 
-A lightweight FastAPI + browser demo for Qwen Token Plan audio capabilities plus a GPU-first ASR/meeting-notes panel.
+A lightweight FastAPI + browser demo for Qwen Token Plan audio capabilities plus a GPU-first one-button realtime ASR/meeting-notes panel.
 
 ## Features
 
-- **TTS**: server-side proxy for `qwen-audio-3.0-tts-plus`, returning playable MP3/WAV audio.
-- **voice cloning**: server-side DashScope TTS v2 voice enrollment (`VoiceEnrollmentService`) creates reusable `voice_id` values; the browser never sees the API key.
-- **realtime communication**: browser WebSocket -> FastAPI proxy -> Qwen `qwen-audio-3.0-realtime-plus` Realtime WebSocket.
-- **ASR transcription**: default ASR channel is `funasr-gpu` (CUDA PyTorch + FunASR/SenseVoiceSmall worker). `funasr-cpu` remains an explicit fallback, and `stub-local` remains available for smoke tests.
-- **chunked realtime transcription**: `WS /ws/asr/stream` accepts PCM16 audio chunks, converts them to WAV chunks, and sends results back as transcript-board events.
-- **meeting notes**: ASR transcript text can be sent to a server-side Qwen-compatible chat model for AI polish, repaired meeting notes, summary, action items, risks, and open questions.
-- **Separated tabs**: the browser has exactly three isolated tabs: `TTS`, `realtime communication`, and `ASR transcription`. Realtime and ASR have separate transcript boards.
-- **Readable transcript display**: final/corrected text is primary; raw/interim text is only a small aside and is deduped so one utterance does not look like two dialogue turns.
+- **语音合成 (TTS)**: server-side proxy for `qwen-audio-3.0-tts-plus`, returning playable MP3/WAV audio.
+- **声音克隆**: server-side DashScope TTS v2 voice enrollment (`VoiceEnrollmentService`) creates reusable `voice_id` values; the browser never sees the API key.
+- **实时对话**: browser WebSocket -> FastAPI proxy -> Qwen `qwen-audio-3.0-realtime-plus` Realtime WebSocket.
+- **语音转写**: the browser ASR tab is a one-button realtime text surface. Click `开始实时转写`, speak, and text appears automatically; there is no user-facing upload/record/manual-segmentation flow.
+- **GPU-first ASR**: default ASR channel is `funasr-gpu` (CUDA PyTorch + FunASR/SenseVoiceSmall worker). `funasr-cpu` remains an explicit fallback, and `stub-local` remains available for smoke tests.
+- **Realtime ASR WebSocket**: `WS /ws/asr/stream` accepts continuous PCM16 microphone frames and returns `demo_event=asr.stream.result` events that the page appends into the live text area.
+- **会议纪要**: realtime transcript text is automatically copied into the next-step text area, then sent to a server-side Qwen-compatible chat model for AI polish, repaired meeting notes, summary, action items, risks, and open questions.
+- **Separated tabs**: the browser has exactly three isolated tabs: `语音合成`, `实时对话`, and `语音转写`.
 
 ## Security model
 
@@ -27,8 +27,8 @@ cd qwen-audio-tts-realtime-demo
 python3 -m venv .venv
 . .venv/bin/activate
 pip install -r requirements.txt
-export OPENAI_API_KEY='[REDACTED]'
-export OPENAI_API_BASE='https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1'
+# Set OPENAI_API_KEY or DASHSCOPE_API_KEY in the server environment first.
+# Keep credentials out of the browser, repository, logs, and shell history.
 uvicorn app.main:app --host 127.0.0.1 --port 18087
 ```
 
@@ -77,8 +77,8 @@ Model cache is written to `playground/model-cache/`, which is ignored by Git.
 - `POST /api/voice-cloning/create`: JSON `{audio_url, prefix, target_model, language_hints}` -> server-created `voice_id`.
 - `GET /api/voice-cloning/list`: list server-side voice enrollment ids by prefix.
 - `GET /api/asr/channels`: available ASR channels; default is `funasr-gpu`.
-- `POST /api/asr`: multipart upload with `channel=funasr-gpu|funasr-cpu|stub-local` and `correct=true|false`; returns `raw_text`, `corrected_text`, and a transcript-board event.
-- `WS /ws/asr/stream`: bounded chunked PCM16 ASR stream; returns `demo_event=asr.stream.result` with normalized ASR board events.
+- `POST /api/asr`: programmatic/smoke multipart upload endpoint with `channel=funasr-gpu|funasr-cpu|stub-local` and `correct=true|false`; not the browser ASR product flow.
+- `WS /ws/asr/stream`: bounded continuous PCM16 ASR stream used by the browser one-button realtime transcription UI; returns `demo_event=asr.stream.result` with normalized transcript events.
 - `WS /ws/realtime`: browser-to-backend Realtime proxy; upstream events are normalized into `demo_event=transcript.delta` for the Realtime board.
 - `POST /api/meeting-notes/polish`: Qwen-compatible chat completion endpoint for transcript polish + realtime summary structure.
 
