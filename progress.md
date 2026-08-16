@@ -33,3 +33,11 @@
 - 增加 `scripts/check_meeting_e2e.py`，以 Qwen TTS 音频验证自动分片、GPU ASR 文本相似度和 Qwen 摘要
 - Recall 已改用 GPU venv 直接运行 Web 服务；模型预热后每个 3 秒分片约 65–89 ms
 - 最终 Qwen TTS 端到端回归：14 秒音频自动生成 5 个分片，合并文字相似度 0.9624，Qwen 摘要成功
+
+## 2026-08-17 上下文回写
+
+- 流式 ASR 每 3 秒对当前会话音频进行累积重识别，以后文修正最近的识别假设
+- WebSocket 结果增加 `revision`、`revision_scope=session`、`replace` 与 `final`；前端按 revision 原位覆盖而非重复追加
+- 前端按中文标点自动整理段落，最近两段显示“回写中”，结束时切换为最终确认文本
+- 波形振幅上限降至容器高度的 38%，增加 0.76/0.24 缓动，并提高静音阈值以抑制环境底噪
+- Qwen TTS 回归得到 5 次累积 revision、最终 3 个语义段落，合并文本与原文相似度 1.0，摘要成功

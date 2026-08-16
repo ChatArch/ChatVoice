@@ -10,7 +10,7 @@ A lightweight FastAPI + browser meeting recorder with realtime transcription, lo
 - **会议录音首页**: a mobile-first recording surface with live transcript, waveform, pause/resume, finish, and local audio download.
 - **语音转写**: the recorder streams microphone PCM16 to the existing ASR WebSocket and appends normalized final segments to the timeline.
 - **GPU-first ASR**: default ASR channel is `funasr-gpu` (CUDA PyTorch + FunASR/SenseVoiceSmall worker). `funasr-cpu` remains an explicit fallback, and `stub-local` remains available for smoke tests.
-- **Realtime ASR WebSocket**: `WS /ws/asr/stream` accepts continuous PCM16 microphone frames and returns `demo_event=asr.stream.result` events that the page appends into the chat input composer.
+- **Realtime ASR WebSocket**: `WS /ws/asr/stream` accepts continuous PCM16 microphone frames and returns cumulative revision events. The page replaces the current hypothesis in place, then commits a final version when recording ends.
 - **会议纪要**: final transcript segments can be sent to a server-side Qwen-compatible model for summary, action items, risks, and open questions.
 - **Focused product UI**: the default page exposes exactly two product tabs, `文字记录` and `实时摘要`; TTS, voice cloning, and realtime conversation stay available as backend capabilities for later product work.
 
@@ -83,7 +83,7 @@ Model cache is written to `playground/model-cache/`, which is ignored by Git.
 - `GET /api/voice-cloning/list`: list server-side voice enrollment ids by prefix.
 - `GET /api/asr/channels`: available ASR channels; default is `funasr-gpu`.
 - `POST /api/asr`: programmatic/smoke multipart upload endpoint with `channel=funasr-gpu|funasr-cpu|stub-local` and `correct=true|false`; not the browser ASR product flow.
-- `WS /ws/asr/stream`: bounded continuous PCM16 ASR stream used by the browser one-button realtime transcription UI; returns `demo_event=asr.stream.result` with normalized transcript events.
+- `WS /ws/asr/stream`: bounded PCM16 stream used by the recorder. Results include `stream.revision`, `stream.revision_scope=session`, `stream.replace=true`, and `stream.final`; clients should upsert rather than append revisions.
 - `WS /ws/realtime`: browser-to-backend Realtime proxy; upstream events are normalized into `demo_event=transcript.delta` for the Realtime board.
 - `POST /api/meeting-notes/polish`: Qwen-compatible chat completion endpoint for transcript polish + realtime summary structure.
 
