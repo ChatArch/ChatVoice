@@ -13,7 +13,7 @@ checks: dict[str, object] = {}
 checks["meeting_recorder_is_primary_surface"] = all(
     marker in text
     for marker in (
-        'class="recorder-shell"',
+        'id="recorder-shell"',
         'id="meeting-title"',
         'id="recording-console"',
     )
@@ -24,6 +24,25 @@ checks["exact_product_tabs"] = (
     and 'id="summary-tab"' in text
     and "文字记录" in text
     and "实时摘要" in text
+)
+checks["top_level_workspaces_exist"] = (
+    text.count('<button class="product-tab') == 2
+    and 'id="meeting-product-tab"' in text
+    and 'id="studio-product-tab"' in text
+    and 'data-product-view="meeting"' in text
+    and 'data-product-view="studio"' in text
+)
+checks["voice_studio_tts_is_wired"] = all(
+    marker in text
+    for marker in ('id="tts-text"', 'id="voice-options"', 'id="synthesize-voice"', "fetch('/api/tts'", 'id="tts-audio"', 'id="download-voice"')
+)
+checks["voice_clone_is_configuration_aware"] = all(
+    marker in text
+    for marker in ('id="clone-capability"', 'id="create-cloned-voice"', "status.voice_cloning_configured", "fetch('/api/voice-cloning/create'", "DASHSCOPE_VOICE_API_KEY")
+)
+checks["studio_switch_guards_active_recording"] = (
+    "请先结束当前录音，再进入声音工作室" in text
+    and "['connecting', 'recording', 'paused', 'finishing'].includes(recorderState)" in text
 )
 checks["transcript_and_summary_panels_exist"] = all(
     marker in text
@@ -45,7 +64,7 @@ checks["recording_states_are_explicit"] = all(state in text for state in ("conne
 checks["asr_channel_is_server_driven"] = "/api/asr/channels" in text and 'id="asr-channel"' in text
 checks["summary_endpoint_is_used"] = "/api/meeting-notes/polish" in text and 'id="generate-summary"' in text
 checks["no_api_key_in_browser"] = all(name not in text for name in ("OPENAI_API_KEY", "DASHSCOPE_API_KEY", "Authorization: Bearer"))
-checks["other_model_labs_are_not_primary_tabs"] = all(label not in text for label in ("语音合成</button>", "实时对话</button>", "语音转写</button>"))
+checks["other_model_labs_are_not_primary_tabs"] = all(label not in text for label in ("实时对话</button>", "语音转写</button>"))
 checks["contract_helpers_exist"] = all(name in text for name in ("__demoInjectAsrScenario", "__demoInjectSummary", "__demoGetState"))
 checks["permission_error_is_handled"] = "NotAllowedError" in text and "未获得麦克风权限" in text
 checks["navigation_guard_exists"] = "beforeunload" in text

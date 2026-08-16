@@ -45,6 +45,7 @@ PROFILE_ENV_FILE = os.getenv("QWEN_TOKEN_PLAN_ENV_FILE", "").strip()
 PROFILE_PATH = Path(PROFILE_ENV_FILE).expanduser() if PROFILE_ENV_FILE else None
 TOKEN_PLAN_TTS_WS = "wss://token-plan.cn-beijing.maas.aliyuncs.com/api-ws/v1/inference"
 TOKEN_PLAN_REALTIME_WS = "wss://token-plan.cn-beijing.maas.aliyuncs.com/api-ws/v1/realtime"
+DASHSCOPE_HTTP_API_BASE = os.getenv("DASHSCOPE_HTTP_API_BASE", "https://dashscope.aliyuncs.com/api/v1").rstrip("/")
 REALTIME_MODEL = "qwen-audio-3.0-realtime-plus"
 TTS_MODEL = "qwen-audio-3.0-tts-plus"
 DEFAULT_VOICE = "longanlingxin"
@@ -112,7 +113,7 @@ class TTSRequest(BaseModel):
 
 class VoiceCloneRequest(BaseModel):
     audio_url: str = Field(..., min_length=8, max_length=2000)
-    prefix: str = Field("qwen_demo", min_length=2, max_length=32)
+    prefix: str = Field("voicenote", min_length=2, max_length=9, pattern="^[a-z0-9]+$")
     target_model: str = Field(TTS_MODEL, min_length=1, max_length=80)
     language_hints: list[str] = Field(default_factory=lambda: ["zh"])
     max_prompt_audio_length: float | None = Field(default=30.0, ge=1.0, le=180.0)
@@ -155,7 +156,7 @@ def _read_profile() -> dict[str, str]:
             key, value = line.split("=", 1)
             data[key] = value.strip().strip('"').strip("'")
     # Allow explicit env override for a temporary shell session, but never expose it.
-    for key in ("OPENAI_API_KEY", "OPENAI_API_BASE", "DASHSCOPE_API_KEY"):
+    for key in ("OPENAI_API_KEY", "OPENAI_API_BASE", "DASHSCOPE_API_KEY", "DASHSCOPE_VOICE_API_KEY"):
         if os.getenv(key):
             data[key] = os.environ[key]
     return data
@@ -172,6 +173,17 @@ def _token_plan_key() -> str:
 def _token_plan_base() -> str:
     profile = _read_profile()
     return profile.get("OPENAI_API_BASE", "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1").rstrip("/")
+
+
+def _voice_cloning_key() -> str:
+    profile = _read_profile()
+    key = profile.get("DASHSCOPE_VOICE_API_KEY") or profile.get("DASHSCOPE_API_KEY")
+    if not key:
+        raise HTTPException(
+            status_code=503,
+            detail="Voice cloning is not configured. Set DASHSCOPE_VOICE_API_KEY on the server.",
+        )
+    return key
 
 
 def _meeting_notes_model(req_model: str | None = None) -> str:
@@ -197,6 +209,8 @@ def _safe_profile_summary() -> dict[str, Any]:
         "base_host": parsed.netloc if parsed else None,
         "base_path": parsed.path if parsed else None,
         "key_present": bool(key),
+        "voice_cloning_configured": bool(profile.get("DASHSCOPE_VOICE_API_KEY") or profile.get("DASHSCOPE_API_KEY")),
+        "voice_cloning_provider": "dashscope-direct",
         "tts_model": TTS_MODEL,
         "realtime_model": REALTIME_MODEL,
         "asr_channels": ASR_CHANNELS,
@@ -592,9 +606,10 @@ def _validate_public_audio_url(url: str) -> str:
 
 
 def _create_voice_blocking(req: VoiceCloneRequest) -> dict[str, Any]:
-    key = _token_plan_key()
+    key = _voice_cloning_key()
     _validate_public_audio_url(req.audio_url)
     dashscope.api_key = key
+    dashscope.base_http_api_url = DASHSCOPE_HTTP_API_BASE
     from dashscope.audio.tts_v2 import VoiceEnrollmentService
 
     service = VoiceEnrollmentService(api_key=key)
@@ -614,6 +629,8 @@ async def voice_cloning_create(req: VoiceCloneRequest) -> JSONResponse:
         result = await asyncio.to_thread(_create_voice_blocking, req)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=502, detail={"error_type": type(exc).__name__, "message": str(exc)[:700]}) from exc
     return JSONResponse(result)
@@ -622,11 +639,14 @@ async def voice_cloning_create(req: VoiceCloneRequest) -> JSONResponse:
 @app.get("/api/voice-cloning/list")
 def voice_cloning_list(prefix: str | None = None) -> JSONResponse:
     try:
-        key = _token_plan_key()
+        key = _voice_cloning_key()
+        dashscope.base_http_api_url = DASHSCOPE_HTTP_API_BASE
         from dashscope.audio.tts_v2 import VoiceEnrollmentService
 
         service = VoiceEnrollmentService(api_key=key)
         voices = service.list_voices(prefix=prefix)
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=502, detail={"error_type": type(exc).__name__, "message": str(exc)[:700]}) from exc
     return JSONResponse({"voices": voices})

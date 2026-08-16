@@ -92,6 +92,10 @@
     .service-state.ready { color: var(--green); }.service-state.ready i { background: var(--green); box-shadow: 0 0 0 4px rgba(32, 166, 110, .1); }
     .service-state.error { color: var(--red); }.service-state.error i { background: var(--red); }
 
+    .product-tabs { justify-self: center; display: inline-flex; align-items: center; gap: 4px; padding: 4px; border: 1px solid #e5e5e8; border-radius: 13px; background: #eeeef0; }
+    .product-tab { min-width: 92px; height: 34px; padding: 0 13px; border: 0; border-radius: 10px; background: transparent; color: #777980; font-size: 10px; font-weight: 680; transition: background .16s ease, color .16s ease, box-shadow .16s ease; }
+    .product-tab.active { background: #fff; color: var(--ink); box-shadow: 0 2px 9px rgba(27, 29, 38, .08); }
+
     .utility-actions { display: flex; justify-content: flex-end; gap: 8px; }
     .icon-button { width: 36px; height: 36px; padding: 0; display: grid; place-items: center; border: 1px solid #e7e7e9; border-radius: 12px; background: #fff; font-size: 12px; font-weight: 700; }
     .icon-button:hover { background: #f8f8f9; }
@@ -112,6 +116,93 @@
       border-radius: 28px;
       box-shadow: var(--shadow);
     }
+
+    .voice-studio {
+      width: min(1040px, calc(100% - 44px));
+      height: calc(100vh - 92px);
+      min-height: 660px;
+      margin: 14px auto;
+      overflow-y: auto;
+      padding: 40px;
+      background: #f9f9fa;
+      border: 1px solid #e7e7e9;
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+      scrollbar-width: thin;
+    }
+    .studio-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 25px; }
+    .studio-kicker { display: flex; align-items: center; gap: 7px; margin: 0 0 9px; color: var(--violet); font-size: 9px; font-weight: 760; letter-spacing: .09em; text-transform: uppercase; }
+    .studio-kicker::before { content: ""; width: 18px; height: 2px; border-radius: 2px; background: currentColor; }
+    .studio-hero h1 { margin: 0; font-size: clamp(29px, 4vw, 43px); line-height: 1.08; letter-spacing: -.055em; }
+    .studio-hero p:last-child { max-width: 530px; margin: 12px 0 0; color: #777980; font-size: 11px; line-height: 1.75; }
+    .studio-model-badge { flex: none; padding: 9px 12px; border: 1px solid #e2e2e5; border-radius: 11px; background: #fff; color: #696b72; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 8px; }
+    .studio-grid { display: grid; grid-template-columns: minmax(0, 1.16fr) minmax(300px, .84fr); gap: 14px; }
+    .studio-card { border: 1px solid #e5e5e8; border-radius: 21px; background: #fff; }
+    .studio-composer { padding: 24px; }
+    .studio-card-header { display: flex; align-items: center; justify-content: space-between; gap: 15px; }
+    .studio-card-header h2 { margin: 0; font-size: 14px; letter-spacing: -.025em; }
+    .studio-step { display: grid; place-items: center; width: 25px; height: 25px; border-radius: 8px; background: #f0f0f2; color: #777980; font-size: 9px; font-weight: 760; }
+    .studio-text-wrap { position: relative; margin-top: 16px; }
+    .studio-text-wrap textarea { width: 100%; min-height: 158px; resize: vertical; padding: 17px 18px 32px; border: 1px solid #dedee2; border-radius: 16px; outline: 0; background: #fbfbfc; color: #292a30; font: inherit; font-size: 13px; line-height: 1.75; transition: border-color .15s ease, box-shadow .15s ease; }
+    .studio-text-wrap textarea:focus { border-color: #aaaaf0; box-shadow: 0 0 0 4px rgba(105, 106, 232, .08); }
+    .studio-count { position: absolute; right: 14px; bottom: 11px; color: #a0a2a7; font-size: 8px; }
+    .studio-label { display: flex; align-items: center; justify-content: space-between; margin: 20px 1px 10px; color: #65676e; font-size: 9px; font-weight: 700; }
+    .studio-label small { color: #a0a2a7; font-size: 8px; font-weight: 500; }
+    .voice-options { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+    .voice-card { min-width: 0; display: grid; grid-template-columns: 36px 1fr 16px; align-items: center; gap: 10px; padding: 11px; border: 1px solid #e4e4e7; border-radius: 14px; background: #fff; text-align: left; }
+    .voice-card:hover { border-color: #c6c6e9; }
+    .voice-card.active { border-color: #9999ec; background: #fafaff; box-shadow: inset 0 0 0 1px #9999ec; }
+    .voice-avatar { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 12px; background: linear-gradient(145deg, #d0d0ff, #f0f0ff); color: #6465d9; font-size: 11px; font-weight: 760; }
+    .voice-card:nth-child(2) .voice-avatar { background: linear-gradient(145deg, #c9ebdc, #effaf4); color: #28865f; }
+    .voice-card strong, .voice-card small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .voice-card strong { font-size: 10px; }
+    .voice-card small { margin-top: 3px; color: #989aa0; font-size: 8px; }
+    .voice-check { width: 15px; height: 15px; border: 1.5px solid #d1d2d6; border-radius: 50%; }
+    .voice-card.active .voice-check { border: 4px solid var(--violet); }
+    .custom-voice-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 9px; }
+    .custom-voice-row input { min-width: 0; height: 40px; padding: 0 12px; border: 1px solid #e1e1e4; border-radius: 11px; outline: 0; background: #fbfbfc; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 9px; }
+    .custom-voice-row input:focus { border-color: #aaaaf0; }
+    .voice-list-button { padding: 0 12px; border: 1px solid #e3e3e6; border-radius: 11px; background: #fff; color: #74767d; font-size: 9px; }
+    .voice-list-button:disabled { opacity: .45; cursor: not-allowed; }
+    .studio-footer { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 20px; }
+    .format-toggle { display: flex; gap: 3px; padding: 3px; border-radius: 10px; background: #f1f1f3; }
+    .format-button { min-width: 49px; height: 31px; border: 0; border-radius: 8px; background: transparent; color: #888a90; font-size: 8px; font-weight: 700; }
+    .format-button.active { background: #fff; color: var(--ink); box-shadow: 0 2px 7px rgba(20, 22, 30, .07); }
+    .primary-studio-button { min-width: 142px; height: 42px; padding: 0 17px; border: 0; border-radius: 13px; background: var(--ink); color: #fff; font-size: 10px; font-weight: 700; box-shadow: 0 8px 22px rgba(22, 23, 28, .15); }
+    .primary-studio-button:disabled { opacity: .5; cursor: wait; }
+    .studio-result { min-height: 100%; display: flex; flex-direction: column; overflow: hidden; background: linear-gradient(150deg, #202127, #30313a); color: #fff; }
+    .result-head { padding: 24px 24px 10px; }
+    .result-head small { color: #b5b6bd; font-size: 8px; letter-spacing: .08em; }
+    .result-head h2 { margin: 8px 0 0; font-size: 20px; letter-spacing: -.035em; }
+    .result-visual { flex: 1; min-height: 158px; display: grid; place-items: center; padding: 20px 24px; }
+    .sound-orbit { position: relative; width: 112px; height: 112px; display: grid; place-items: center; border-radius: 50%; background: radial-gradient(circle at 36% 30%, #a5a6ff, #6667df 49%, #41429a); box-shadow: 0 22px 52px rgba(82, 83, 201, .34); }
+    .sound-orbit::before, .sound-orbit::after { content: ""; position: absolute; border: 1px solid rgba(255,255,255,.22); border-radius: 50%; }
+    .sound-orbit::before { inset: -13px; }.sound-orbit::after { inset: -27px; border-color: rgba(255,255,255,.1); }
+    .sound-bars { height: 31px; display: flex; align-items: center; gap: 4px; }
+    .sound-bars i { width: 3px; height: 13px; border-radius: 3px; background: #fff; opacity: .92; }
+    .sound-bars i:nth-child(2), .sound-bars i:nth-child(4) { height: 25px; }.sound-bars i:nth-child(3) { height: 31px; }
+    .studio-result.ready .sound-bars i { animation: studio-wave .8s ease-in-out infinite alternate; }
+    .studio-result.ready .sound-bars i:nth-child(2) { animation-delay: -.25s; }.studio-result.ready .sound-bars i:nth-child(3) { animation-delay: -.5s; }
+    .result-empty { margin: 0; color: #b7b8bf; font-size: 9px; text-align: center; line-height: 1.7; }
+    .result-player { padding: 0 18px 18px; }
+    .result-player audio { width: 100%; height: 38px; }
+    .result-meta { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-top: 10px; }
+    .result-meta span { min-width: 0; padding: 9px; border-radius: 10px; background: rgba(255,255,255,.07); }
+    .result-meta small, .result-meta strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .result-meta small { color: #9fa0aa; font-size: 7px; }.result-meta strong { margin-top: 3px; font-size: 8px; }
+    .download-voice { width: 100%; height: 38px; margin-top: 9px; border: 1px solid rgba(255,255,255,.15); border-radius: 11px; background: rgba(255,255,255,.09); color: #fff; font-size: 9px; font-weight: 680; }
+    .clone-card { margin-top: 14px; padding: 24px; }
+    .clone-copy { max-width: 620px; margin: 8px 0 0; color: #8b8d93; font-size: 9px; line-height: 1.7; }
+    .capability-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 9px; border-radius: 9px; background: #fff5e6; color: #b56d17; font-size: 8px; font-weight: 700; }
+    .capability-badge::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+    .capability-badge.ready { background: #eaf8f1; color: var(--green); }
+    .clone-form { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(120px, .5fr) 92px auto; gap: 9px; margin-top: 17px; }
+    .clone-field { min-width: 0; }
+    .clone-field label { display: block; margin: 0 0 6px 2px; color: #8a8c92; font-size: 8px; }
+    .clone-field input, .clone-field select { width: 100%; height: 40px; padding: 0 11px; border: 1px solid #e0e0e3; border-radius: 11px; outline: 0; background: #fbfbfc; font-size: 9px; }
+    .clone-submit { align-self: end; height: 40px; padding: 0 15px; border: 0; border-radius: 11px; background: #eeeeff; color: var(--violet); font-size: 9px; font-weight: 720; }
+    .clone-submit:disabled { background: #f1f1f2; color: #a4a5aa; cursor: not-allowed; }
+    .clone-help { margin: 11px 1px 0; color: #aaaab0; font-size: 8px; line-height: 1.65; }
 
     .meeting-header { padding: 39px 48px 20px; }
     .meeting-header input { width: 100%; padding: 0; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: clamp(25px, 3.2vw, 38px); font-weight: 740; line-height: 1.25; letter-spacing: -.045em; }
@@ -254,6 +345,7 @@
     @keyframes blink { 50% { opacity: 0; } }
     @keyframes bounce { to { transform: translateY(-4px); opacity: .35; } }
     @keyframes fade-in { from { opacity: 0; transform: translateY(5px); } }
+    @keyframes studio-wave { to { transform: scaleY(.45); opacity: .55; } }
 
     @media (max-width: 900px) {
       .site-shell { padding-left: 0; }
@@ -266,8 +358,11 @@
 
     @media (max-width: 680px) {
       .site-shell { background: #fff; }
-      .site-bar { height: 60px; grid-template-columns: 1fr auto; padding: 0 17px; background: #fff; }
+      .site-bar { height: 60px; grid-template-columns: auto 1fr auto; gap: 8px; padding: 0 12px; background: #fff; }
       .brand small, .service-state { display: none; }
+      .brand strong { display: none; }
+      .product-tabs { justify-self: center; }
+      .product-tab { min-width: 74px; height: 32px; padding: 0 8px; font-size: 9px; }
       .utility-actions .language-button { display: none; }
       .icon-button { width: 34px; height: 34px; border: 0; }
       .recorder-shell { width: 100%; height: calc(100dvh - 60px); min-height: 590px; margin: 0; border: 0; border-radius: 0; box-shadow: none; }
@@ -294,6 +389,17 @@
       .mode-grid { grid-template-columns: 1fr; }
       .mode-card { min-height: 137px; }
       .mode-card strong { margin-top: 14px; }
+      .voice-studio { width: 100%; height: calc(100dvh - 60px); min-height: 0; margin: 0; padding: 27px 17px 50px; border: 0; border-radius: 0; box-shadow: none; }
+      .studio-hero { display: block; margin-bottom: 20px; }
+      .studio-model-badge { display: inline-block; margin-top: 13px; }
+      .studio-grid { grid-template-columns: 1fr; }
+      .studio-composer { padding: 19px; }
+      .voice-options { grid-template-columns: 1fr; }
+      .studio-result { min-height: 380px; }
+      .clone-card { padding: 19px; }
+      .clone-form { grid-template-columns: 1fr 1fr; }
+      .clone-field:first-child { grid-column: 1 / -1; }
+      .clone-submit { width: 100%; }
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -334,17 +440,21 @@
         <small>VoiceNote</small>
       </a>
 
-      <span class="service-state" id="service-state"><i></i><span>检查识别服务…</span></span>
+      <nav class="product-tabs" aria-label="产品功能" role="tablist">
+        <button class="product-tab active" id="meeting-product-tab" data-product="meeting" type="button" role="tab" aria-selected="true">会议记录</button>
+        <button class="product-tab" id="studio-product-tab" data-product="studio" type="button" role="tab" aria-selected="false">声音工作室</button>
+      </nav>
 
       <nav class="utility-actions" aria-label="录音工具">
+        <span class="service-state" id="service-state"><i></i><span>检查识别服务…</span></span>
         <button class="icon-button" id="toggle-sidebar" type="button" aria-label="打开会议记录">☰</button>
         <button class="icon-button language-button" type="button" aria-label="当前语言">中</button>
-        <button class="icon-button" id="open-settings" type="button" aria-label="识别设置"><span class="settings-icon"></span></button>
-        <button class="icon-button" id="copy-transcript" type="button" aria-label="复制文字记录">•••</button>
+        <button class="icon-button meeting-only-action" id="open-settings" type="button" aria-label="识别设置"><span class="settings-icon"></span></button>
+        <button class="icon-button meeting-only-action" id="copy-transcript" type="button" aria-label="复制文字记录">•••</button>
       </nav>
     </header>
 
-    <section class="recorder-shell" id="recorder-shell">
+    <section class="recorder-shell product-view" id="recorder-shell" data-product-view="meeting">
       <header class="meeting-header">
         <input id="meeting-title" aria-label="录音标题" value="新录音" />
         <div class="meeting-meta">
@@ -443,6 +553,85 @@
         </div>
       </footer>
     </section>
+
+    <section class="voice-studio product-view" id="voice-studio" data-product-view="studio" hidden>
+      <header class="studio-hero">
+        <div>
+          <p class="studio-kicker">Voice workspace</p>
+          <h1>让文字拥有合适的声音。</h1>
+          <p>选择系统音色，或接入经过授权的复刻声音。生成后的音频可直接试听、下载，并继续用于播客、旁白和内容工作流。</p>
+        </div>
+        <span class="studio-model-badge">qwen-audio-3.0-tts-plus</span>
+      </header>
+
+      <div class="studio-grid">
+        <section class="studio-card studio-composer" aria-labelledby="tts-composer-title">
+          <header class="studio-card-header"><h2 id="tts-composer-title">文字与声音</h2><span class="studio-step">01</span></header>
+          <div class="studio-text-wrap">
+            <textarea id="tts-text" maxlength="800" aria-label="需要合成的文字" placeholder="输入要转换成语音的内容……">欢迎使用声笺声音工作室。把文字交给一个恰当的声音，让表达更自然，也更有温度。</textarea>
+            <span class="studio-count"><b id="tts-char-count">0</b> / 800</span>
+          </div>
+
+          <div class="studio-label"><span>选择音色</span><small>系统音色可直接使用</small></div>
+          <div class="voice-options" id="voice-options">
+            <button class="voice-card active" data-voice="longanlingxin" type="button">
+              <span class="voice-avatar">灵</span><span><strong>龙安灵心</strong><small>温暖 · 细腻 · 女声</small></span><i class="voice-check"></i>
+            </button>
+            <button class="voice-card" data-voice="longanlufeng" type="button">
+              <span class="voice-avatar">风</span><span><strong>龙安鲁风</strong><small>明亮 · 开朗 · 男声</small></span><i class="voice-check"></i>
+            </button>
+          </div>
+
+          <div class="studio-label"><span>自定义音色</span><small>粘贴已创建的 voice id</small></div>
+          <div class="custom-voice-row">
+            <input id="custom-voice-id" maxlength="80" list="cloned-voice-list" aria-label="自定义音色 ID" placeholder="qwen-audio-3.0-tts-plus-…" />
+            <datalist id="cloned-voice-list"></datalist>
+            <button class="voice-list-button" id="refresh-voices" type="button" disabled>读取复刻音色</button>
+          </div>
+
+          <footer class="studio-footer">
+            <div class="format-toggle" aria-label="音频格式">
+              <button class="format-button active" data-format="mp3" type="button">MP3</button>
+              <button class="format-button" data-format="wav" type="button">WAV</button>
+            </div>
+            <button class="primary-studio-button" id="synthesize-voice" type="button">生成声音&nbsp; →</button>
+          </footer>
+        </section>
+
+        <section class="studio-card studio-result" id="studio-result" aria-labelledby="result-title">
+          <header class="result-head"><small>GENERATED AUDIO</small><h2 id="result-title">试听结果</h2></header>
+          <div class="result-visual">
+            <div>
+              <div class="sound-orbit"><span class="sound-bars"><i></i><i></i><i></i><i></i><i></i></span></div>
+              <p class="result-empty" id="result-empty">生成后，声音会出现在这里</p>
+            </div>
+          </div>
+          <div class="result-player" id="result-player" hidden>
+            <audio id="tts-audio" controls preload="metadata"></audio>
+            <div class="result-meta">
+              <span><small>VOICE</small><strong id="result-voice">—</strong></span>
+              <span><small>ELAPSED</small><strong id="result-elapsed">—</strong></span>
+              <span><small>SIZE</small><strong id="result-size">—</strong></span>
+            </div>
+            <button class="download-voice" id="download-voice" type="button">下载生成音频</button>
+          </div>
+        </section>
+      </div>
+
+      <section class="studio-card clone-card" aria-labelledby="clone-title">
+        <header class="studio-card-header">
+          <div><h2 id="clone-title">复刻一个经过授权的声音</h2><p class="clone-copy">准备 10–20 秒干净、单人、无背景音乐的参考音频。创建成功后会得到专属 voice id，并自动填入上方合成器。</p></div>
+          <span class="capability-badge" id="clone-capability">检查服务配置…</span>
+        </header>
+        <div class="clone-form">
+          <div class="clone-field"><label for="clone-audio-url">参考音频公网 URL</label><input id="clone-audio-url" type="url" placeholder="https://…/voice-sample.wav" /></div>
+          <div class="clone-field"><label for="clone-prefix">音色前缀</label><input id="clone-prefix" value="voicenote" minlength="2" maxlength="9" pattern="[a-z0-9]+" /></div>
+          <div class="clone-field"><label for="clone-language">语言</label><select id="clone-language"><option value="zh">中文</option><option value="en">English</option></select></div>
+          <button class="clone-submit" id="create-cloned-voice" type="button" disabled>创建复刻音色</button>
+        </div>
+        <p class="clone-help" id="clone-help">参考音频仅用于供应商创建音色；请确保已获得声音本人明确授权。首版使用公网 URL，后续会增加页面内录制与临时上传。</p>
+      </section>
+    </section>
   </main>
 
   <dialog id="settings-dialog">
@@ -539,6 +728,12 @@
     let csrfToken = '';
     let authMode = 'login';
     let guestDbPromise = null;
+    let activeProductView = 'meeting';
+    let selectedTtsVoice = 'longanlingxin';
+    let selectedTtsFormat = 'mp3';
+    let ttsAudioUrl = null;
+    let voiceCloningConfigured = false;
+    let ttsGenerating = false;
 
     function escapeHtml(value) {
       return String(value || '').replace(/[&<>'"]/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
@@ -555,6 +750,171 @@
       $('toast').classList.add('visible');
       clearTimeout(toastTimer);
       toastTimer = setTimeout(() => $('toast').classList.remove('visible'), 2200);
+    }
+
+    function switchProductView(view) {
+      if (!['meeting', 'studio'].includes(view) || view === activeProductView) return true;
+      if (view === 'studio' && ['connecting', 'recording', 'paused', 'finishing'].includes(recorderState)) {
+        showToast('请先结束当前录音，再进入声音工作室');
+        return false;
+      }
+      activeProductView = view;
+      document.querySelectorAll('[data-product-view]').forEach((panel) => { panel.hidden = panel.dataset.productView !== view; });
+      document.querySelectorAll('.product-tab').forEach((button) => {
+        const active = button.dataset.product === view;
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-selected', active ? 'true' : 'false');
+      });
+      document.querySelectorAll('.meeting-only-action').forEach((button) => { button.hidden = view !== 'meeting'; });
+      document.title = view === 'meeting' ? '声笺 · 实时会议记录' : '声笺 · 声音工作室';
+      closeSidebarOnSmallScreen();
+      return true;
+    }
+
+    async function responseError(response, fallback) {
+      try {
+        const payload = await response.json();
+        if (typeof payload.detail === 'string') return payload.detail;
+        if (payload.detail && payload.detail.message) return payload.detail.message;
+        if (payload.message) return payload.message;
+      } catch (_) {}
+      return fallback;
+    }
+
+    function selectTtsVoice(voice) {
+      selectedTtsVoice = voice;
+      $('custom-voice-id').value = '';
+      document.querySelectorAll('.voice-card').forEach((card) => card.classList.toggle('active', card.dataset.voice === voice));
+    }
+
+    function selectedVoiceId() {
+      return $('custom-voice-id').value.trim() || selectedTtsVoice;
+    }
+
+    function updateTtsCount() {
+      $('tts-char-count').textContent = String($('tts-text').value.length);
+    }
+
+    function humanBytes(value) {
+      const bytes = Number(value || 0);
+      if (!bytes) return '—';
+      return bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.round(bytes / 1024)} KB`;
+    }
+
+    async function synthesizeVoice() {
+      const text = $('tts-text').value.trim();
+      const voice = selectedVoiceId();
+      if (!text) { showToast('请先输入要生成的文字'); return; }
+      if (!voice || ttsGenerating) return;
+      ttsGenerating = true;
+      $('synthesize-voice').disabled = true;
+      $('synthesize-voice').textContent = '正在生成…';
+      $('result-empty').textContent = '正在把文字转换成声音…';
+      try {
+        const response = await fetch('/api/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, voice, format: selectedTtsFormat }),
+        });
+        if (!response.ok) throw new Error(await responseError(response, '声音生成服务暂不可用'));
+        const audio = await response.blob();
+        if (ttsAudioUrl) URL.revokeObjectURL(ttsAudioUrl);
+        ttsAudioUrl = URL.createObjectURL(audio);
+        $('tts-audio').src = ttsAudioUrl;
+        $('result-player').hidden = false;
+        $('result-empty').textContent = '已生成，可以试听';
+        $('result-voice').textContent = response.headers.get('X-Qwen-Voice') || voice;
+        const elapsed = response.headers.get('X-Elapsed-Ms');
+        $('result-elapsed').textContent = elapsed ? `${(Number(elapsed) / 1000).toFixed(1)} s` : '—';
+        $('result-size').textContent = humanBytes(response.headers.get('X-Audio-Bytes') || audio.size);
+        $('studio-result').classList.add('ready');
+        showToast('声音已经生成');
+      } catch (error) {
+        $('result-empty').textContent = `生成失败：${error.message || String(error)}`;
+        $('studio-result').classList.remove('ready');
+      } finally {
+        ttsGenerating = false;
+        $('synthesize-voice').disabled = false;
+        $('synthesize-voice').innerHTML = '生成声音&nbsp; →';
+      }
+    }
+
+    function collectVoiceIds(value, output = new Set()) {
+      if (Array.isArray(value)) value.forEach((item) => collectVoiceIds(item, output));
+      else if (value && typeof value === 'object') {
+        Object.entries(value).forEach(([key, item]) => {
+          if (['voice_id', 'voice'].includes(key) && typeof item === 'string') output.add(item);
+          else collectVoiceIds(item, output);
+        });
+      }
+      return [...output];
+    }
+
+    async function loadClonedVoices() {
+      if (!voiceCloningConfigured) return;
+      $('refresh-voices').disabled = true;
+      $('refresh-voices').textContent = '读取中…';
+      try {
+        const response = await fetch('/api/voice-cloning/list');
+        if (!response.ok) throw new Error(await responseError(response, '读取复刻音色失败'));
+        const ids = collectVoiceIds(await response.json());
+        $('cloned-voice-list').innerHTML = ids.map((id) => `<option value="${escapeHtml(id)}"></option>`).join('');
+        $('refresh-voices').textContent = ids.length ? `已读取 ${ids.length} 个` : '暂无复刻音色';
+        if (!ids.length) showToast('当前账号还没有复刻音色');
+      } catch (error) {
+        $('refresh-voices').textContent = '读取失败';
+        showToast(error.message || String(error));
+      } finally {
+        $('refresh-voices').disabled = !voiceCloningConfigured;
+      }
+    }
+
+    function configureVoiceCloning(configured) {
+      voiceCloningConfigured = Boolean(configured);
+      $('clone-capability').classList.toggle('ready', voiceCloningConfigured);
+      $('clone-capability').textContent = voiceCloningConfigured ? '声音复刻服务已就绪' : '待配置复刻密钥';
+      $('create-cloned-voice').disabled = !voiceCloningConfigured;
+      $('refresh-voices').disabled = !voiceCloningConfigured;
+      $('clone-help').textContent = voiceCloningConfigured
+        ? '参考音频仅用于创建音色；请确保已获得声音本人明确授权。音色创建后将自动填入上方合成器。'
+        : 'TTS 已可正常使用；声音复刻还需要在服务器配置 DASHSCOPE_VOICE_API_KEY。配置前不会上传参考音频。';
+    }
+
+    async function createClonedVoice() {
+      if (!voiceCloningConfigured) { showToast('服务器尚未配置声音复刻密钥'); return; }
+      const audioUrl = $('clone-audio-url').value.trim();
+      const prefix = $('clone-prefix').value.trim();
+      if (!/^https?:\/\//i.test(audioUrl)) { showToast('请填写供应商可访问的 HTTP(S) 音频地址'); return; }
+      if (!/^[a-z0-9]{2,9}$/.test(prefix)) { showToast('音色前缀须为 2–9 位小写字母或数字'); return; }
+      const button = $('create-cloned-voice');
+      button.disabled = true;
+      button.textContent = '创建中…';
+      try {
+        const response = await fetch('/api/voice-cloning/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            audio_url: audioUrl,
+            prefix,
+            target_model: 'qwen-audio-3.0-tts-plus',
+            language_hints: [$('clone-language').value],
+            max_prompt_audio_length: 30,
+          }),
+        });
+        if (!response.ok) throw new Error(await responseError(response, '创建复刻音色失败'));
+        const payload = await response.json();
+        const voiceId = payload.voice_id || payload.voice;
+        if (!voiceId) throw new Error('服务没有返回 voice id');
+        $('custom-voice-id').value = voiceId;
+        document.querySelectorAll('.voice-card').forEach((card) => card.classList.remove('active'));
+        await loadClonedVoices();
+        showToast('复刻音色已创建，并填入合成器');
+      } catch (error) {
+        showToast(error.message || String(error));
+      } finally {
+        button.disabled = !voiceCloningConfigured;
+        button.textContent = '创建复刻音色';
+      }
     }
 
     function meetingHeaders(write = false) {
@@ -1398,6 +1758,7 @@
       try {
         const response = await fetch('/api/status');
         const status = await response.json();
+        configureVoiceCloning(status.voice_cloning_configured);
         const channelsResponse = await fetch('/api/asr/channels');
         const channelsData = await channelsResponse.json();
         const select = $('asr-channel');
@@ -1414,19 +1775,40 @@
         $('service-state').className = 'service-state ready';
         $('service-state').querySelector('span').textContent = '识别服务已连接';
       } catch (_) {
+        configureVoiceCloning(false);
         $('service-state').className = 'service-state error';
         $('service-state').querySelector('span').textContent = '服务状态不可用';
       }
     }
 
     document.querySelectorAll('.content-tab').forEach((button) => button.addEventListener('click', () => setActiveTab(button.dataset.tab)));
-    $('new-meeting').addEventListener('click', () => createNewMeeting());
+    document.querySelectorAll('.product-tab').forEach((button) => button.addEventListener('click', () => switchProductView(button.dataset.product)));
+    document.querySelectorAll('.voice-card').forEach((button) => button.addEventListener('click', () => selectTtsVoice(button.dataset.voice)));
+    document.querySelectorAll('.format-button').forEach((button) => button.addEventListener('click', () => {
+      selectedTtsFormat = button.dataset.format;
+      document.querySelectorAll('.format-button').forEach((item) => item.classList.toggle('active', item === button));
+    }));
+    $('tts-text').addEventListener('input', updateTtsCount);
+    $('custom-voice-id').addEventListener('input', () => {
+      if ($('custom-voice-id').value.trim()) document.querySelectorAll('.voice-card').forEach((card) => card.classList.remove('active'));
+    });
+    $('synthesize-voice').addEventListener('click', synthesizeVoice);
+    $('refresh-voices').addEventListener('click', loadClonedVoices);
+    $('create-cloned-voice').addEventListener('click', createClonedVoice);
+    $('download-voice').addEventListener('click', () => {
+      if (!ttsAudioUrl) return;
+      const link = document.createElement('a');
+      link.href = ttsAudioUrl;
+      link.download = `voicenote-${selectedVoiceId().replace(/[^A-Za-z0-9_-]/g, '-')}.${selectedTtsFormat}`;
+      link.click();
+    });
+    $('new-meeting').addEventListener('click', () => { if (switchProductView('meeting')) createNewMeeting(); });
     $('meeting-search').addEventListener('input', renderMeetingIndex);
     $('meeting-groups').addEventListener('click', (event) => {
       const deleteButton = event.target.closest('[data-delete-meeting]');
       if (deleteButton) { deleteMeetingRecord(deleteButton.dataset.deleteMeeting); return; }
       const openButton = event.target.closest('[data-meeting-id]');
-      if (openButton) openMeeting(openButton.dataset.meetingId);
+      if (openButton && switchProductView('meeting')) openMeeting(openButton.dataset.meetingId);
     });
     $('toggle-sidebar').addEventListener('click', () => {
       if (matchMedia('(max-width: 900px)').matches) document.body.classList.toggle('sidebar-open');
@@ -1497,7 +1879,9 @@
       return transcriptSegments.map(({ text: value, revisable, liveDraft }) => ({ text: value, revisable, liveDraft }));
     };
     window.__demoGetState = () => ({ recorderState, activeTab, elapsedSeconds, transcript: transcriptText(), summary: $('summary-output').textContent });
+    window.__demoStudioState = () => ({ activeProductView, voice: selectedVoiceId(), format: selectedTtsFormat, cloningConfigured: voiceCloningConfigured, audioReady: Boolean(ttsAudioUrl) });
 
+    updateTtsCount();
     renderTranscript();
     refreshStatus();
     bootstrapAccess();
