@@ -6,6 +6,7 @@ import asyncio
 import difflib
 import io
 import json
+import re
 import urllib.request
 import wave
 from urllib.parse import urlparse
@@ -45,7 +46,7 @@ async def stream_asr(base_url: str, wav_bytes: bytes) -> list[str]:
     scheme = "wss" if parsed.scheme == "https" else "ws"
     ws_url = f"{scheme}://{parsed.netloc}/ws/asr/stream"
     frame_bytes = sample_rate * 2
-    segments: list[str] = []
+    revisions: list[str] = []
     async with websockets.connect(ws_url, open_timeout=15, max_size=2_000_000) as socket:
         ready = json.loads(await asyncio.wait_for(socket.recv(), 15))
         assert ready.get("demo_event") == "asr.stream.ready", ready
@@ -65,12 +66,12 @@ async def stream_asr(base_url: str, wav_bytes: bytes) -> list[str]:
             if event.get("demo_event") == "asr.stream.result":
                 text = str((event.get("board_event") or {}).get("text") or "").strip()
                 if text:
-                    segments.append(text)
+                    revisions.append(text)
             if event.get("demo_event") == "asr.stream.error":
                 raise RuntimeError(event.get("message") or "ASR stream error")
             if event.get("demo_event") == "asr.stream.done":
                 break
-    return segments
+    return revisions
 
 
 async def main() -> int:
@@ -85,8 +86,9 @@ async def main() -> int:
         "voice": "longanlingxin",
         "format": "wav",
     })
-    segments = await stream_asr(base_url, wav_bytes)
-    merged = "".join(segments)
+    revisions = await stream_asr(base_url, wav_bytes)
+    merged = revisions[-1] if revisions else ""
+    segments = [part.strip() for part in re.findall(r"[^。！？!?]+[。！？!?]?", merged) if normalized(part)]
     similarity = difflib.SequenceMatcher(None, normalized(SOURCE_TEXT), normalized(merged)).ratio()
 
     summary_bytes, _ = post_json(f"{base_url}/api/meeting-notes/polish", {
@@ -101,12 +103,14 @@ async def main() -> int:
         "tts_elapsed_ms": lower_headers.get("x-elapsed-ms"),
         "segment_count": len(segments),
         "segments": segments,
+        "revision_count": len(revisions),
+        "revision_updates_are_cumulative": len(set(revisions)) >= 2,
         "merged_transcript": merged,
         "similarity": round(similarity, 4),
         "summary_model": summary.get("model"),
         "summary_chars": len(summary_content),
         "summary_mentions_actions": "行动" in summary_content,
-        "ok": bool(segments) and similarity >= args.min_similarity and bool(summary_content),
+        "ok": bool(segments) and len(revisions) >= 2 and similarity >= args.min_similarity and bool(summary_content),
     }
     print(json.dumps(checks, ensure_ascii=False, indent=2))
     return 0 if checks["ok"] else 1

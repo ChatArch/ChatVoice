@@ -36,6 +36,8 @@ checks["recording_controls_exist"] = all(
 checks["idle_waveform_is_flat"] = "waveform-placeholder::before" in text and "getByteTimeDomainData" in text and "const silent = rms" in text
 checks["new_recording_can_be_cleared"] = "function resetSession" in text and "内容已清空，可以开始新录音" in text
 checks["finish_waits_for_gpu_result"] = "}, 90000);" in text and "}, 5000);" not in text
+checks["transcript_revision_is_supported"] = all(marker in text for marker in ("function applyTranscriptRevision", "revision_scope", "已回写第", "回写中"))
+checks["waveform_is_damped"] = "height * .38" in text and "previous * .76 + target * .24" in text
 checks["real_asr_websocket_is_used"] = "/ws/asr/stream" in text and "asr.stream.start" in text and "asr.stream.append" in text and "asr.stream.finish" in text
 checks["browser_microphone_capture_exists"] = "navigator.mediaDevices.getUserMedia" in text and "createScriptProcessor" in text and "pcm" in text
 checks["local_archive_recording_exists"] = "new MediaRecorder" in text and "download-recording" in text and "recordingUrl" in text

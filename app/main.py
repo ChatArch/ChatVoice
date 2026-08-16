@@ -589,8 +589,10 @@ class AsrStreamSession:
         self.sample_rate = self._validate_sample_rate(16000 if sample_rate is None else sample_rate)
         self.chunk_seconds = self._validate_chunk_seconds(chunk_seconds)
         self.buffer = bytearray()
+        self.history = bytearray()
         self.chunk_index = 0
         self.total_pcm_bytes = 0
+        self.last_revision_total_bytes = 0
 
     @staticmethod
     def _validate_channel(channel: str) -> str:
@@ -644,6 +646,7 @@ class AsrStreamSession:
         if len(self.buffer) + len(chunk) > self.max_buffer_bytes:
             raise ValueError(f"stream buffer too large for demo; max {MAX_ASR_STREAM_BUFFER_SECONDS:g}s buffered")
         self.buffer.extend(chunk)
+        self.history.extend(chunk)
         self.total_pcm_bytes += len(chunk)
 
     def append_base64_pcm16(self, audio_b64: str) -> None:
@@ -676,6 +679,21 @@ class AsrStreamSession:
         self.buffer.clear()
         return self._next_chunk_index(), pcm16_to_wav_bytes(pcm, self.sample_rate)
 
+    def pop_ready_revision_wav(self) -> tuple[int, bytes] | None:
+        """Re-decode the full session when another interval becomes available."""
+        if len(self.history) - self.last_revision_total_bytes < self.chunk_bytes:
+            return None
+        self.last_revision_total_bytes = len(self.history)
+        self.buffer.clear()
+        return self._next_chunk_index(), pcm16_to_wav_bytes(bytes(self.history), self.sample_rate)
+
+    def commit_revision_wav(self) -> tuple[int, bytes] | None:
+        if not self.history:
+            return None
+        self.last_revision_total_bytes = len(self.history)
+        self.buffer.clear()
+        return self._next_chunk_index(), pcm16_to_wav_bytes(bytes(self.history), self.sample_rate)
+
 
 async def _send_asr_stream_result(client: WebSocket, session: AsrStreamSession, index: int, wav_bytes: bytes, final: bool = False) -> None:
     started = time.monotonic()
@@ -687,7 +705,15 @@ async def _send_asr_stream_result(client: WebSocket, session: AsrStreamSession, 
         final,
     )
     result = await asyncio.to_thread(transcribe_audio_bytes, session.channel, wav_bytes, f"stream-chunk-{index}.wav", True)
-    result["stream"] = {"chunk_index": index, "final": final, "sample_rate": session.sample_rate}
+    result["stream"] = {
+        "chunk_index": index,
+        "revision": index,
+        "revision_scope": "session",
+        "replace": True,
+        "final": final,
+        "sample_rate": session.sample_rate,
+    }
+    result["board_event"]["phase"] = "final" if final else "partial"
     result["board_event"]["source_type"] = f"asr.stream.{session.channel}"
     result["board_event"]["item_id"] = f"asr-stream-{index}"
     await client.send_json({"demo_event": "asr.stream.result", "result": result, "board_event": result["board_event"]})
@@ -758,7 +784,7 @@ async def asr_stream(client: WebSocket) -> None:
                         break
                 elif msg_type in {"asr.stream.commit", "asr.stream.finish"}:
                     try:
-                        committed = session.commit_wav()
+                        committed = session.commit_revision_wav()
                         if committed is not None:
                             await _send_asr_stream_result(client, session, committed[0], committed[1], final=True)
                     except ValueError as exc:
@@ -772,11 +798,9 @@ async def asr_stream(client: WebSocket) -> None:
                     await client.send_json({"demo_event": "asr.stream.error", "message": "unknown ASR stream message type"})
                     continue
             try:
-                ready_wavs = session.pop_ready_wavs(max_chunks=MAX_ASR_STREAM_CHUNKS_PER_RECEIVE)
-                if ready_wavs and len(session.buffer) >= session.chunk_bytes:
-                    await client.send_json({"demo_event": "asr.stream.backpressure", "queued_bytes": len(session.buffer), "processed_chunks": len(ready_wavs)})
-                for index, wav_bytes in ready_wavs:
-                    await _send_asr_stream_result(client, session, index, wav_bytes, final=False)
+                revision_wav = session.pop_ready_revision_wav()
+                if revision_wav is not None:
+                    await _send_asr_stream_result(client, session, revision_wav[0], revision_wav[1], final=False)
             except ValueError as exc:
                 await _close_asr_stream_policy(client, str(exc), 1009)
                 break

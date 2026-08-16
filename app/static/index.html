@@ -109,6 +109,8 @@
     .transcript-block header em { margin-left: 2px; padding: 3px 6px; border-radius: 6px; background: #f0f0ff; color: var(--violet); font-style: normal; font-size: 8px; }
     .transcript-block p { margin: 8px 0 0; color: #24252a; font-size: 15px; line-height: 1.85; letter-spacing: .01em; white-space: pre-wrap; word-break: break-word; }
     .transcript-block.demo { opacity: .72; }
+    .transcript-block.revisable p { color: #565861; }
+    .transcript-block.revisable header em { background: #fff4df; color: #b3741d; }
     .transcript-block.demo header::after { content: "示例"; padding: 2px 5px; border-radius: 5px; background: #f2f2f3; color: #a0a2a7; font-size: 7px; }
     .live-block { display: none; }
     .live-block.visible { display: grid; }
@@ -366,6 +368,7 @@
     let lastSummaryAt = 0;
     let toastTimer = null;
     let finishFallbackTimer = null;
+    let waveformLevels = [];
 
     function escapeHtml(value) {
       return String(value || '').replace(/[&<>'"]/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
@@ -386,10 +389,10 @@
 
     function renderTranscript() {
       $('transcript-list').innerHTML = transcriptSegments.map((segment) => `
-        <article class="transcript-block${segment.demo ? ' demo' : ''}">
+        <article class="transcript-block${segment.demo ? ' demo' : ''}${segment.revisable ? ' revisable' : ''}">
           <span class="speaker-dot"></span>
           <div>
-            <header><strong>${escapeHtml(segment.speaker)}</strong><span>·</span><time>${escapeHtml(segment.time)}</time></header>
+            <header><strong>${escapeHtml(segment.speaker)}</strong><span>·</span><time>${escapeHtml(segment.time)}</time>${segment.revisable ? '<em>回写中</em>' : ''}</header>
             <p>${escapeHtml(segment.text)}</p>
           </div>
         </article>
@@ -431,6 +434,36 @@
       renderTranscript();
       requestAnimationFrame(() => { $('content-scroll').scrollTop = $('content-scroll').scrollHeight; });
       maybeRefreshSummary();
+    }
+
+    function splitTranscriptSentences(text) {
+      const normalized = String(text || '').replace(/\s+/g, ' ').trim();
+      if (!normalized) return [];
+      return normalized.match(/[^。！？!?]+[。！？!?]?/g)?.map((part) => part.trim()).filter((part) => /[\p{L}\p{N}]/u.test(part)) || [];
+    }
+
+    function applyTranscriptRevision(text, meta = {}) {
+      const sentences = splitTranscriptSentences(text);
+      if (!sentences.length) {
+        $('latency-label').textContent = '该片段未检测到语音';
+        return;
+      }
+      clearDemoContent();
+      const final = Boolean(meta.final);
+      const revision = Number(meta.revision || 1);
+      transcriptSegments = sentences.map((sentence, index) => ({
+        speaker: '说话人 1',
+        time: index === 0 ? '00:00' : formatTime(Math.max(0, Math.round(elapsedSeconds * index / sentences.length))),
+        text: sentence,
+        demo: false,
+        revisable: !final && index >= Math.max(0, sentences.length - 2),
+        revision,
+      }));
+      $('live-text').textContent = sentences[sentences.length - 1];
+      renderTranscript();
+      $('latency-label').textContent = final ? '最终文字已确认' : `已回写第 ${revision} 版`;
+      requestAnimationFrame(() => { $('content-scroll').scrollTop = $('content-scroll').scrollHeight; });
+      if (final) maybeRefreshSummary();
     }
 
     function setActiveTab(tab) {
@@ -565,7 +598,7 @@
         energy += centered * centered;
       }
       const rms = Math.sqrt(energy / samples.length);
-      const silent = rms < .022;
+      const silent = rms < .026;
       const bars = Math.max(28, Math.floor(width / 7));
       const gap = 3;
       const barWidth = Math.max(2, (width - gap * (bars - 1)) / bars);
@@ -573,7 +606,10 @@
       for (let index = 0; index < bars; index += 1) {
         const sourceIndex = Math.floor(index / bars * samples.length);
         const localLevel = Math.abs(samples[sourceIndex] - 128) / 128;
-        const amplitude = recorderState === 'paused' || silent ? 2 : Math.max(2, Math.min(height - 4, localLevel * height * 2.4));
+        const target = recorderState === 'paused' || silent ? 2 : Math.max(2, Math.min(height * .38, 2 + localLevel * height * .72));
+        const previous = waveformLevels[index] || 2;
+        const amplitude = previous * .76 + target * .24;
+        waveformLevels[index] = amplitude;
         context.beginPath();
         context.roundRect(index * (barWidth + gap), (height - amplitude) / 2, barWidth, amplitude, Math.min(2, barWidth / 2));
         context.fill();
@@ -599,6 +635,7 @@
       audioSource.connect(audioProcessor);
       audioProcessor.connect(audioContext.destination);
       $('waveform-placeholder').classList.add('hidden');
+      waveformLevels = [];
       startArchiveRecording(microphoneStream);
       drawWaveform();
     }
@@ -610,6 +647,7 @@
       if (audioProcessor) { audioProcessor.disconnect(); audioProcessor = null; }
       if (audioSource) { audioSource.disconnect(); audioSource = null; }
       audioAnalyser = null;
+      waveformLevels = [];
       if (microphoneStream) { microphoneStream.getTracks().forEach((track) => track.stop()); microphoneStream = null; }
       if (audioContext) { audioContext.close(); audioContext = null; }
       $('waveform-placeholder').classList.remove('hidden');
@@ -619,7 +657,10 @@
       if (payload.demo_event === 'asr.stream.result') {
         const boardEvent = payload.board_event || (payload.result && payload.result.board_event) || {};
         const text = boardEvent.text || (payload.result && payload.result.corrected_text) || '';
-        if (/[\p{L}\p{N}]/u.test(text)) {
+        const stream = payload.result && payload.result.stream ? payload.result.stream : {};
+        if (stream.revision_scope === 'session' && stream.replace) {
+          applyTranscriptRevision(text, { revision: stream.revision, final: stream.final });
+        } else if (/[\p{L}\p{N}]/u.test(text)) {
           appendTranscript(text, { time: formatTime(elapsedSeconds), speaker: '说话人 1' });
           $('latency-label').textContent = '已收到最终片段';
         } else {
@@ -852,6 +893,10 @@
       $('summary-output').textContent = text;
       $('summary-state').textContent = '测试更新';
       return $('summary-output').textContent;
+    };
+    window.__demoApplyRevision = (text, revision = 1, final = false) => {
+      applyTranscriptRevision(text, { revision, final });
+      return transcriptSegments.map(({ text: value, revisable }) => ({ text: value, revisable }));
     };
     window.__demoGetState = () => ({ recorderState, activeTab, elapsedSeconds, transcript: transcriptText(), summary: $('summary-output').textContent });
 

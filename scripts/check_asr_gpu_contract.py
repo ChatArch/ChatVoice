@@ -72,6 +72,18 @@ bounded = main.AsrStreamSession(channel="stub-local", sample_rate=16000, chunk_s
 bounded.append_pcm16(b"\0" * bounded.chunk_bytes * (main.MAX_ASR_STREAM_CHUNKS_PER_RECEIVE + 2))
 ready = bounded.pop_ready_wavs(max_chunks=main.MAX_ASR_STREAM_CHUNKS_PER_RECEIVE)
 checks["stream_caps_chunks_per_receive"] = len(ready) == main.MAX_ASR_STREAM_CHUNKS_PER_RECEIVE and len(bounded.buffer) >= bounded.chunk_bytes
+revision_session = main.AsrStreamSession(channel="stub-local", sample_rate=16000, chunk_seconds=1)
+revision_session.append_pcm16(b"\0" * revision_session.chunk_bytes)
+revision_one = revision_session.pop_ready_revision_wav()
+revision_session.append_pcm16(b"\0" * revision_session.chunk_bytes)
+revision_two = revision_session.pop_ready_revision_wav()
+checks["stream_revision_uses_full_history"] = (
+    revision_one is not None
+    and revision_two is not None
+    and len(revision_two[1]) > len(revision_one[1])
+    and not revision_session.buffer
+)
+checks["stream_final_revision_uses_full_history"] = bool(revision_session.commit_revision_wav())
 checks["stream_rejects_total_duration_overflow"] = False
 overflow = main.AsrStreamSession(channel="stub-local", sample_rate=16000, chunk_seconds=1)
 one_second = b"\0" * overflow.chunk_bytes
