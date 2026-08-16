@@ -619,8 +619,12 @@
       if (payload.demo_event === 'asr.stream.result') {
         const boardEvent = payload.board_event || (payload.result && payload.result.board_event) || {};
         const text = boardEvent.text || (payload.result && payload.result.corrected_text) || '';
-        appendTranscript(text, { time: formatTime(elapsedSeconds), speaker: '说话人 1' });
-        $('latency-label').textContent = '已收到最终片段';
+        if (/[\p{L}\p{N}]/u.test(text)) {
+          appendTranscript(text, { time: formatTime(elapsedSeconds), speaker: '说话人 1' });
+          $('latency-label').textContent = '已收到最终片段';
+        } else {
+          $('latency-label').textContent = '该分片未检测到语音';
+        }
       } else if (payload.demo_event === 'asr.stream.backpressure') {
         $('latency-label').textContent = '识别服务正在追赶';
       } else if (payload.demo_event === 'asr.stream.error') {

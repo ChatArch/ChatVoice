@@ -53,7 +53,7 @@ async def stream_asr(base_url: str, wav_bytes: bytes) -> list[str]:
             "type": "asr.stream.start",
             "channel": "funasr-gpu",
             "sample_rate": sample_rate,
-            "chunk_seconds": 5,
+            "chunk_seconds": 3,
         }))
         started = json.loads(await asyncio.wait_for(socket.recv(), 15))
         assert started.get("demo_event") == "asr.stream.started", started
@@ -95,9 +95,10 @@ async def main() -> int:
     })
     summary = json.loads(summary_bytes.decode("utf-8"))
     summary_content = str(summary.get("content") or "")
+    lower_headers = {key.lower(): value for key, value in tts_headers.items()}
     checks = {
         "tts_audio_bytes": len(wav_bytes),
-        "tts_elapsed_ms": tts_headers.get("X-Elapsed-Ms"),
+        "tts_elapsed_ms": lower_headers.get("x-elapsed-ms"),
         "segment_count": len(segments),
         "segments": segments,
         "merged_transcript": merged,

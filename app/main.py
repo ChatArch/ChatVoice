@@ -534,8 +534,9 @@ def _funasr_asr(audio_bytes: bytes, filename: str, channel: str, device: str) ->
             raw_text = str(payload.get("text") or "")
             meta = dict(payload.get("meta") or {})
             meta.update({"channel": channel, "device": meta.get("device") or device, "elapsed_ms": meta.get("elapsed_ms") or round((time.time() - started) * 1000)})
-        if not raw_text:
-            raw_text = "（FunASR 未返回可展示文本，可能是静音或音频过短。）"
+        if not any(char.isalnum() for char in raw_text):
+            raw_text = ""
+        meta["speech_detected"] = bool(raw_text)
         return normalize_asr_result(channel, raw_text, _simple_chinese_correction(raw_text), meta)
     finally:
         try:
