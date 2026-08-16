@@ -1391,6 +1391,16 @@ async def realtime_proxy(client: WebSocket) -> None:
                     continue
                 for transcript_event in extract_realtime_transcript_events(event):
                     await client.send_json(transcript_event)
+                if event.get("type") == "response.audio.delta" and isinstance(event.get("delta"), str):
+                    await client.send_json(
+                        {
+                            "demo_event": "audio.delta",
+                            "audio": event["delta"],
+                            "response_id": event.get("response_id"),
+                            "item_id": event.get("item_id"),
+                            "sample_rate": 24000,
+                        }
+                    )
                 await client.send_json({"demo_event": "upstream.event", "event": _redact_event_for_browser_log(event)})
 
         async def client_to_upstream() -> None:
@@ -1399,8 +1409,14 @@ async def realtime_proxy(client: WebSocket) -> None:
                 if message.get("type") == "websocket.disconnect":
                     break
                 if message.get("text") is not None:
+                    if len(message["text"]) > MAX_ASR_STREAM_JSON_FRAME_BYTES:
+                        await client.send_json({"demo_event": "proxy.error", "message": "realtime message is too large"})
+                        continue
                     await upstream.send(message["text"])
                 elif message.get("bytes") is not None:
+                    if len(message["bytes"]) > MAX_ASR_STREAM_FRAME_BYTES:
+                        await client.send_json({"demo_event": "proxy.error", "message": "realtime binary frame is too large"})
+                        continue
                     await upstream.send(message["bytes"])
 
         done, pending = await asyncio.wait(

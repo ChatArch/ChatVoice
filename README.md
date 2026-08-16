@@ -6,7 +6,7 @@ A lightweight FastAPI + browser meeting recorder with realtime transcription, lo
 
 - **语音合成 (TTS)**: server-side proxy for `qwen-audio-3.0-tts-plus`, returning playable MP3/WAV audio.
 - **声音克隆**: server-side DashScope TTS v2 voice enrollment (`VoiceEnrollmentService`) creates reusable `voice_id` values; the browser never sees the API key.
-- **实时对话**: browser WebSocket -> FastAPI proxy -> Qwen `qwen-audio-3.0-realtime-plus` Realtime WebSocket.
+- **实时对话**: 独立的豆包式语音对话页；browser WebSocket -> FastAPI proxy -> Qwen `qwen-audio-3.0-realtime-plus`，支持服务端 VAD、流式文字、24 kHz PCM 播放和自然打断。
 - **会议录音首页**: a mobile-first recording surface with live transcript, waveform, pause/resume, finish, and local audio download.
 - **语音转写**: the recorder streams microphone PCM16 to the existing ASR WebSocket and appends normalized final segments to the timeline.
 - **GPU-first ASR**: default ASR channel is `funasr-gpu` (CUDA PyTorch + FunASR/SenseVoiceSmall worker). `funasr-cpu` remains an explicit fallback, and `stub-local` remains available for smoke tests.
@@ -14,7 +14,7 @@ A lightweight FastAPI + browser meeting recorder with realtime transcription, lo
 - **会议纪要**: final transcript segments can be sent to a server-side Qwen-compatible model for summary, action items, risks, and open questions.
 - **双模式会议历史**: guests keep meeting text and summaries only in browser IndexedDB; signed-in accounts sync records through authenticated server storage.
 - **账号登录**: first-party username/email registration and login with salted PBKDF2 password hashes, HttpOnly session cookies, and CSRF-protected record writes.
-- **Focused product UI**: the default page exposes exactly two product tabs, `文字记录` and `实时摘要`; TTS, voice cloning, and realtime conversation stay available as backend capabilities for later product work.
+- **Focused product UI**: 一级工作区为 `会议记录 / 声音工作室 / 实时对话`；会议内部保留 `文字记录 / 实时摘要` 两个内容标签。
 
 ## Security model
 

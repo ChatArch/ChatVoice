@@ -204,6 +204,80 @@
     .clone-submit:disabled { background: #f1f1f2; color: #a4a5aa; cursor: not-allowed; }
     .clone-help { margin: 11px 1px 0; color: #aaaab0; font-size: 8px; line-height: 1.65; }
 
+    .realtime-chat {
+      position: relative;
+      width: min(960px, calc(100% - 44px));
+      height: calc(100vh - 92px);
+      min-height: 660px;
+      margin: 14px auto;
+      overflow: hidden;
+      background: linear-gradient(180deg, #fbfbfc 0%, #f8f8fa 58%, #f3f3f6 100%);
+      border: 1px solid #e7e7e9;
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+    }
+    .conversation-header { position: relative; z-index: 4; height: 77px; display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 0 28px 0 32px; border-bottom: 1px solid rgba(224,224,228,.85); background: rgba(255,255,255,.76); backdrop-filter: blur(20px); }
+    .conversation-title { display: flex; align-items: center; gap: 12px; }
+    .conversation-title-mark { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 12px; background: #202126; color: #fff; }
+    .conversation-title-mark i { width: 11px; height: 15px; border: 2px solid currentColor; border-radius: 7px; position: relative; }
+    .conversation-title-mark i::before { content: ""; position: absolute; left: 50%; bottom: -6px; width: 7px; height: 5px; border-left: 1.5px solid currentColor; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; border-radius: 0 0 6px 6px; transform: translateX(-50%); }
+    .conversation-title strong, .conversation-title small { display: block; }
+    .conversation-title strong { font-size: 13px; letter-spacing: -.02em; }
+    .conversation-title small { margin-top: 3px; color: #96989e; font-size: 8px; }
+    .conversation-head-actions { display: flex; align-items: center; gap: 8px; }
+    .conversation-status { display: inline-flex; align-items: center; gap: 7px; min-width: 98px; justify-content: flex-end; color: #92949a; font-size: 9px; }
+    .conversation-status i { width: 6px; height: 6px; border-radius: 50%; background: #b8b9bd; }
+    .conversation-status.live { color: var(--green); }.conversation-status.live i { background: var(--green); box-shadow: 0 0 0 4px rgba(32,166,110,.1); }
+    .conversation-status.thinking { color: var(--orange); }.conversation-status.thinking i { background: var(--orange); }
+    .conversation-status.speaking { color: var(--violet); }.conversation-status.speaking i { background: var(--violet); box-shadow: 0 0 0 4px rgba(105,106,232,.1); }
+    .conversation-status.error { color: var(--red); }.conversation-status.error i { background: var(--red); }
+    .conversation-voice { height: 36px; padding: 0 29px 0 11px; border: 1px solid #e3e3e6; border-radius: 11px; outline: 0; background: #fff; color: #676970; font-size: 9px; }
+    .conversation-voice:disabled { opacity: .55; }
+    .conversation-scroll { position: absolute; inset: 77px 0 132px; overflow-y: auto; padding: 28px max(28px, calc((100% - 720px) / 2)); scrollbar-width: thin; scrollbar-color: #ddd transparent; }
+    .conversation-intro { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; padding-bottom: 30px; text-align: center; }
+    .conversation-intro[hidden] { display: none; }
+    .conversation-orb-wrap { position: relative; width: 186px; height: 186px; display: grid; place-items: center; }
+    .conversation-orb-ring { position: absolute; inset: 5px; border: 1px solid rgba(105,106,232,.12); border-radius: 50%; transform: scale(calc(1 + var(--voice-level, 0) * .12)); transition: transform .08s linear; }
+    .conversation-orb-ring:nth-child(2) { inset: 22px; border-color: rgba(105,106,232,.18); transform: scale(calc(1 + var(--voice-level, 0) * .08)); }
+    .conversation-orb { position: relative; width: 118px; height: 118px; display: grid; place-items: center; overflow: hidden; border-radius: 43% 57% 55% 45% / 46% 43% 57% 54%; background: radial-gradient(circle at 32% 27%, #d8d8ff 0 9%, #9697f3 31%, #6869de 62%, #484994 100%); box-shadow: 0 26px 68px rgba(83,84,196,.32), inset -12px -16px 30px rgba(36,37,111,.28); transform: scale(calc(1 + var(--voice-level, 0) * .06)); animation: orb-drift 5s ease-in-out infinite alternate; }
+    .conversation-orb::before { content: ""; position: absolute; width: 82px; height: 82px; left: -20px; top: -16px; border-radius: 50%; background: rgba(255,255,255,.24); filter: blur(10px); }
+    .conversation-orb::after { content: ""; width: 33px; height: 24px; border-radius: 50%; background: rgba(255,255,255,.85); filter: blur(12px); transform: translate(-20px,-24px); }
+    .realtime-chat[data-state="speaking"] .conversation-orb { animation: orb-speaking .55s ease-in-out infinite alternate; }
+    .realtime-chat[data-state="thinking"] .conversation-orb { animation: orb-thinking 1.25s ease-in-out infinite; }
+    .realtime-chat[data-state="muted"] .conversation-orb { filter: grayscale(.55); opacity: .72; }
+    .conversation-intro h1 { margin: 17px 0 7px; font-size: 26px; letter-spacing: -.045em; }
+    .conversation-intro > p { max-width: 430px; margin: 0; color: #898b91; font-size: 10px; line-height: 1.7; }
+    .conversation-prompts { display: flex; flex-wrap: wrap; justify-content: center; gap: 7px; margin-top: 20px; }
+    .conversation-prompts button { padding: 8px 11px; border: 1px solid #e3e3e7; border-radius: 11px; background: rgba(255,255,255,.82); color: #777980; font-size: 8px; }
+    .conversation-prompts button:hover { border-color: #c4c4e9; color: var(--violet); }
+    .conversation-messages { display: flex; flex-direction: column; gap: 18px; }
+    .conversation-message { display: flex; gap: 10px; max-width: 82%; animation: fade-in .2s ease; }
+    .conversation-message.user { align-self: flex-end; flex-direction: row-reverse; }
+    .message-avatar { flex: none; width: 27px; height: 27px; display: grid; place-items: center; border-radius: 9px; background: #202126; color: #fff; font-size: 8px; font-weight: 760; }
+    .conversation-message.user .message-avatar { background: #ececff; color: var(--violet); }
+    .message-body { min-width: 0; }
+    .message-body small { display: block; margin: 0 4px 5px; color: #a0a2a7; font-size: 8px; }
+    .conversation-message.user .message-body small { text-align: right; }
+    .message-bubble { padding: 12px 14px; border: 1px solid #e4e4e7; border-radius: 6px 16px 16px 16px; background: #fff; color: #303137; font-size: 12px; line-height: 1.75; white-space: pre-wrap; word-break: break-word; box-shadow: 0 7px 22px rgba(35,37,48,.045); }
+    .conversation-message.user .message-bubble { border-color: #ddddf8; border-radius: 16px 6px 16px 16px; background: #f0f0ff; }
+    .message-bubble.streaming::after { content: ""; display: inline-block; width: 4px; height: 4px; margin-left: 6px; border-radius: 50%; background: var(--violet); box-shadow: 8px 0 0 rgba(105,106,232,.55), 16px 0 0 rgba(105,106,232,.28); animation: message-dots .8s ease-in-out infinite alternate; vertical-align: 2px; }
+    .conversation-dock { position: absolute; z-index: 4; left: 18px; right: 18px; bottom: 16px; min-height: 100px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 13px 25px; border: 1px solid rgba(222,222,226,.9); border-radius: 23px; background: rgba(255,255,255,.9); backdrop-filter: blur(22px); box-shadow: 0 18px 50px rgba(30,32,45,.11); }
+    .conversation-side-control { display: flex; align-items: center; gap: 8px; width: fit-content; padding: 8px 10px; border: 0; border-radius: 11px; background: transparent; color: #777980; font-size: 9px; }
+    .conversation-side-control:hover:not(:disabled) { background: #f3f3f5; }
+    .conversation-side-control:disabled { color: #babcc1; cursor: not-allowed; }
+    .conversation-side-control.end { justify-self: end; }
+    .side-control-icon { width: 27px; height: 27px; display: grid; place-items: center; border-radius: 9px; background: #f0f0f2; color: #55575e; font-size: 12px; }
+    .conversation-main-control { min-width: 154px; height: 60px; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 0 18px; border: 0; border-radius: 20px; background: #202126; color: #fff; box-shadow: 0 10px 28px rgba(28,29,35,.2); }
+    .conversation-main-control .mic-shape { position: relative; width: 14px; height: 20px; border: 2px solid currentColor; border-radius: 8px; }
+    .conversation-main-control .mic-shape::before { content: ""; position: absolute; left: 50%; bottom: -7px; width: 10px; height: 6px; border-left: 2px solid currentColor; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; border-radius: 0 0 7px 7px; transform: translateX(-50%); }
+    .conversation-main-control .mic-shape::after { content: ""; position: absolute; left: 50%; bottom: -10px; width: 2px; height: 4px; background: currentColor; transform: translateX(-50%); }
+    .conversation-main-control strong, .conversation-main-control small { display: block; text-align: left; }
+    .conversation-main-control strong { font-size: 10px; }.conversation-main-control small { margin-top: 2px; color: #bfc0c5; font-size: 7px; font-weight: 500; }
+    .realtime-chat[data-state="listening"] .conversation-main-control { background: var(--violet); box-shadow: 0 10px 30px rgba(105,106,232,.28); }
+    .realtime-chat[data-state="speaking"] .conversation-main-control { background: #5556c8; }
+    .realtime-chat[data-state="error"] .conversation-main-control { background: #a74747; }
+    .conversation-privacy { position: absolute; left: 50%; bottom: 4px; transform: translateX(-50%); color: #b0b1b6; font-size: 7px; white-space: nowrap; }
+
     .meeting-header { padding: 39px 48px 20px; }
     .meeting-header input { width: 100%; padding: 0; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: clamp(25px, 3.2vw, 38px); font-weight: 740; line-height: 1.25; letter-spacing: -.045em; }
     .meeting-meta { display: flex; align-items: center; gap: 8px; margin-top: 13px; color: var(--muted); font-size: 10px; }
@@ -349,6 +423,10 @@
     @keyframes bounce { to { transform: translateY(-4px); opacity: .35; } }
     @keyframes fade-in { from { opacity: 0; transform: translateY(5px); } }
     @keyframes studio-wave { to { transform: scaleY(.45); opacity: .55; } }
+    @keyframes orb-drift { to { border-radius: 57% 43% 44% 56% / 54% 57% 43% 46%; transform: translateY(-3px) scale(calc(1 + var(--voice-level, 0) * .06)); } }
+    @keyframes orb-speaking { to { transform: scale(1.08); filter: saturate(1.2) brightness(1.08); } }
+    @keyframes orb-thinking { 50% { transform: rotate(8deg) scale(.94); filter: hue-rotate(14deg); } }
+    @keyframes message-dots { to { opacity: .35; transform: translateY(-2px); } }
 
     @media (max-width: 900px) {
       .site-shell { padding-left: 0; }
@@ -365,7 +443,7 @@
       .brand small, .service-state { display: none; }
       .brand strong { display: none; }
       .product-tabs { justify-self: center; }
-      .product-tab { min-width: 74px; height: 32px; padding: 0 8px; font-size: 9px; }
+      .product-tab { min-width: 64px; height: 32px; padding: 0 7px; font-size: 8px; }
       .utility-actions .language-button { display: none; }
       .icon-button { width: 34px; height: 34px; border: 0; }
       .recorder-shell { width: 100%; height: calc(100dvh - 60px); min-height: 590px; margin: 0; border: 0; border-radius: 0; box-shadow: none; }
@@ -403,6 +481,21 @@
       .clone-form { grid-template-columns: 1fr 1fr; }
       .clone-field:first-child { grid-column: 1 / -1; }
       .clone-submit { width: 100%; }
+      .realtime-chat { width: 100%; height: calc(100dvh - 60px); min-height: 570px; margin: 0; border: 0; border-radius: 0; box-shadow: none; }
+      .conversation-header { height: 64px; padding: 0 14px 0 17px; }
+      .conversation-title-mark { width: 31px; height: 31px; }
+      .conversation-title small, .conversation-status { display: none; }
+      .conversation-voice { max-width: 105px; height: 34px; }
+      .conversation-scroll { inset: 64px 0 124px; padding: 20px 17px; }
+      .conversation-orb-wrap { width: 165px; height: 165px; }
+      .conversation-orb { width: 104px; height: 104px; }
+      .conversation-intro h1 { font-size: 23px; }
+      .conversation-message { max-width: 92%; }
+      .conversation-dock { left: 8px; right: 8px; bottom: max(7px, env(safe-area-inset-bottom)); min-height: 92px; padding: 10px 13px; border-radius: 20px; }
+      .conversation-side-control { padding: 6px; }
+      .conversation-side-control > span:last-child { display: none; }
+      .conversation-main-control { min-width: 132px; height: 55px; border-radius: 18px; }
+      .conversation-privacy { display: none; }
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -446,6 +539,7 @@
       <nav class="product-tabs" aria-label="产品功能" role="tablist">
         <button class="product-tab active" id="meeting-product-tab" data-product="meeting" type="button" role="tab" aria-selected="true">会议记录</button>
         <button class="product-tab" id="studio-product-tab" data-product="studio" type="button" role="tab" aria-selected="false">声音工作室</button>
+        <button class="product-tab" id="conversation-product-tab" data-product="conversation" type="button" role="tab" aria-selected="false">实时对话</button>
       </nav>
 
       <nav class="utility-actions" aria-label="录音工具">
@@ -637,6 +731,48 @@
         <p class="clone-help" id="clone-help">参考音频仅用于供应商创建音色；请确保已获得声音本人明确授权。首版使用公网 URL，后续会增加页面内录制与临时上传。</p>
       </section>
     </section>
+
+    <section class="realtime-chat product-view" id="realtime-chat" data-product-view="conversation" data-state="idle" hidden>
+      <header class="conversation-header">
+        <div class="conversation-title">
+          <span class="conversation-title-mark"><i></i></span>
+          <span><strong>实时对话</strong><small>自然打断 · 流式语音回复</small></span>
+        </div>
+        <div class="conversation-head-actions">
+          <span class="conversation-status" id="conversation-status"><i></i><span>等待开始</span></span>
+          <label><span class="sr-only">助手音色</span><select class="conversation-voice" id="conversation-voice">
+            <option value="longanqian">龙安浅 · 自然</option>
+            <option value="longanlingxin">龙安灵心 · 温暖</option>
+            <option value="longanlufeng">龙安鲁风 · 明亮</option>
+          </select></label>
+        </div>
+      </header>
+
+      <div class="conversation-scroll" id="conversation-scroll">
+        <section class="conversation-intro" id="conversation-intro">
+          <div class="conversation-orb-wrap" id="conversation-orb-wrap">
+            <span class="conversation-orb-ring"></span><span class="conversation-orb-ring"></span><span class="conversation-orb"></span>
+          </div>
+          <h1>现在，可以开始说话。</h1>
+          <p>不需要按住按钮。开始后直接说话，声笺会自动判断停顿，并用自然语音回答你。</p>
+          <div class="conversation-prompts" aria-label="对话建议">
+            <button type="button" data-conversation-prompt="帮我梳理一下今天最重要的三件事。">梳理今天的计划</button>
+            <button type="button" data-conversation-prompt="请和我进行一段简单的英语口语练习。">练习英语口语</button>
+            <button type="button" data-conversation-prompt="我们随便聊聊，先问我一个轻松的问题。">随便聊聊</button>
+          </div>
+        </section>
+        <div class="conversation-messages" id="conversation-messages" aria-live="polite"></div>
+      </div>
+
+      <footer class="conversation-dock">
+        <button class="conversation-side-control" id="conversation-mute" type="button" disabled><span class="side-control-icon">⌁</span><span>静音</span></button>
+        <button class="conversation-main-control" id="conversation-main" type="button">
+          <span class="mic-shape"></span><span><strong id="conversation-main-label">开始对话</strong><small id="conversation-main-hint">点击并授权麦克风</small></span>
+        </button>
+        <button class="conversation-side-control end" id="conversation-end" type="button" disabled><span class="side-control-icon">×</span><span>结束</span></button>
+        <span class="conversation-privacy">语音仅用于当前实时会话，声笺不保存对话音频</span>
+      </footer>
+    </section>
   </main>
 
   <dialog id="settings-dialog">
@@ -743,6 +879,23 @@
     let titleGenerationAttempted = false;
     let titleGenerationTimer = null;
     let titleAbortController = null;
+    let realtimeState = 'idle';
+    let realtimeSocket = null;
+    let realtimeMicStream = null;
+    let realtimeInputContext = null;
+    let realtimeInputSource = null;
+    let realtimeInputProcessor = null;
+    let realtimeOutputContext = null;
+    let realtimeOutputCursor = 0;
+    let realtimeOutputSources = new Set();
+    let realtimeMessages = [];
+    let realtimeDrafts = { user: null, assistant: null };
+    let realtimeMuted = false;
+    let realtimeSendingAudio = false;
+    let realtimeClosing = false;
+    let realtimeSessionConfigured = false;
+    let realtimeResponseDone = false;
+    let pendingRealtimePrompt = '';
 
     function escapeHtml(value) {
       return String(value || '').replace(/[&<>'"]/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
@@ -762,9 +915,13 @@
     }
 
     function switchProductView(view) {
-      if (!['meeting', 'studio'].includes(view) || view === activeProductView) return true;
-      if (view === 'studio' && ['connecting', 'recording', 'paused', 'finishing'].includes(recorderState)) {
-        showToast('请先结束当前录音，再进入声音工作室');
+      if (!['meeting', 'studio', 'conversation'].includes(view) || view === activeProductView) return true;
+      if (view !== 'meeting' && ['connecting', 'recording', 'paused', 'finishing'].includes(recorderState)) {
+        showToast('请先结束当前录音，再切换功能');
+        return false;
+      }
+      if (activeProductView === 'conversation' && view !== 'conversation' && isRealtimeActive()) {
+        showToast('请先结束当前实时对话');
         return false;
       }
       activeProductView = view;
@@ -775,7 +932,7 @@
         button.setAttribute('aria-selected', active ? 'true' : 'false');
       });
       document.querySelectorAll('.meeting-only-action').forEach((button) => { button.hidden = view !== 'meeting'; });
-      document.title = view === 'meeting' ? '声笺 · 实时会议记录' : '声笺 · 声音工作室';
+      document.title = view === 'meeting' ? '声笺 · 实时会议记录' : view === 'studio' ? '声笺 · 声音工作室' : '声笺 · 实时对话';
       closeSidebarOnSmallScreen();
       return true;
     }
@@ -866,6 +1023,307 @@
       } finally {
         if (titleAbortController === controller) titleAbortController = null;
       }
+    }
+
+    function isRealtimeActive() {
+      return ['connecting', 'listening', 'thinking', 'speaking', 'muted'].includes(realtimeState);
+    }
+
+    function setRealtimeState(state, detail = '') {
+      realtimeState = state;
+      $('realtime-chat').dataset.state = state;
+      const copy = {
+        idle: ['等待开始', '开始对话', '点击并授权麦克风'],
+        connecting: ['正在连接', '连接中…', '正在准备实时语音'],
+        listening: ['正在聆听', '正在聆听', '直接说话，我会自动回应'],
+        thinking: ['正在思考', '正在思考', '已经听到，正在组织回答'],
+        speaking: ['正在回复', '正在回复', '可以随时开口打断'],
+        muted: ['麦克风已关闭', '已静音', '点击恢复麦克风'],
+        ended: ['对话已结束', '再次对话', '开始一个新的实时会话'],
+        error: ['连接异常', '重新连接', '点击重新建立会话'],
+      }[state] || ['状态更新', '开始对话', ''];
+      const statusClass = state === 'listening' ? 'live' : state === 'thinking' ? 'thinking' : state === 'speaking' ? 'speaking' : state === 'error' ? 'error' : '';
+      $('conversation-status').className = `conversation-status${statusClass ? ` ${statusClass}` : ''}`;
+      $('conversation-status').querySelector('span').textContent = detail || copy[0];
+      $('conversation-main-label').textContent = copy[1];
+      $('conversation-main-hint').textContent = copy[2];
+      $('conversation-main').disabled = state === 'connecting';
+      $('conversation-mute').disabled = !isRealtimeActive() || state === 'connecting';
+      $('conversation-end').disabled = !isRealtimeActive();
+      $('conversation-voice').disabled = isRealtimeActive();
+      $('conversation-mute').querySelector('span:last-child').textContent = realtimeMuted ? '恢复声音' : '静音';
+      $('conversation-mute').querySelector('.side-control-icon').textContent = realtimeMuted ? '○' : '⌁';
+    }
+
+    function clearRealtimeMessages() {
+      realtimeMessages = [];
+      realtimeDrafts = { user: null, assistant: null };
+      renderRealtimeMessages();
+    }
+
+    function renderRealtimeMessages() {
+      $('conversation-intro').hidden = realtimeMessages.length > 0;
+      $('conversation-messages').innerHTML = realtimeMessages.map((message) => `
+        <article class="conversation-message ${message.role}">
+          <span class="message-avatar">${message.role === 'assistant' ? '声' : '我'}</span>
+          <div class="message-body">
+            <small>${message.role === 'assistant' ? '声笺' : '你'}</small>
+            <div class="message-bubble${message.final ? '' : ' streaming'}">${escapeHtml(message.text || (message.role === 'assistant' ? '正在组织回答' : '正在识别'))}</div>
+          </div>
+        </article>
+      `).join('');
+      requestAnimationFrame(() => { $('conversation-scroll').scrollTop = $('conversation-scroll').scrollHeight; });
+    }
+
+    function mergeRealtimeDelta(current, delta) {
+      const prior = String(current || '');
+      const next = String(delta || '');
+      if (!next) return prior;
+      if (next.startsWith(prior)) return next;
+      if (prior.endsWith(next)) return prior;
+      return prior + next;
+    }
+
+    function handleRealtimeTranscript(payload) {
+      const role = payload.role === 'assistant' ? 'assistant' : 'user';
+      const text = String(payload.text || '').trim();
+      if (!text) return;
+      const source = String(payload.source_type || '');
+      let draftIndex = realtimeDrafts[role];
+      const draft = draftIndex === null ? null : realtimeMessages[draftIndex];
+      if (role === 'assistant' && source.startsWith('response.text') && draft && draft.source.startsWith('response.audio_transcript')) return;
+      if (role === 'assistant' && source.startsWith('response.audio_transcript') && draft && draft.source.startsWith('response.text')) {
+        draft.text = '';
+        draft.source = source;
+      }
+      if (payload.phase === 'final') {
+        if (draft && !draft.final) {
+          draft.text = text;
+          draft.final = true;
+          draft.source = source;
+        } else {
+          const lastSameRole = [...realtimeMessages].reverse().find((message) => message.role === role);
+          if (!lastSameRole || lastSameRole.text !== text) realtimeMessages.push({ role, text, final: true, source });
+        }
+        realtimeDrafts[role] = null;
+      } else {
+        if (!draft || draft.final) {
+          draftIndex = realtimeMessages.length;
+          realtimeMessages.push({ role, text: '', final: false, source });
+          realtimeDrafts[role] = draftIndex;
+        }
+        const current = realtimeMessages[draftIndex];
+        current.source = source || current.source;
+        current.text = mergeRealtimeDelta(current.text, text);
+      }
+      renderRealtimeMessages();
+    }
+
+    function ensureAssistantRealtimeDraft() {
+      if (realtimeDrafts.assistant !== null) return;
+      realtimeDrafts.assistant = realtimeMessages.length;
+      realtimeMessages.push({ role: 'assistant', text: '', final: false, source: 'response.created' });
+      renderRealtimeMessages();
+    }
+
+    function stopRealtimePlayback(cancelUpstream = false) {
+      realtimeOutputSources.forEach((source) => { try { source.stop(); } catch (_) {} });
+      realtimeOutputSources.clear();
+      realtimeOutputCursor = 0;
+      realtimeResponseDone = false;
+      if (cancelUpstream && realtimeSocket && realtimeSocket.readyState === WebSocket.OPEN) {
+        realtimeSocket.send(JSON.stringify({ type: 'response.cancel' }));
+      }
+    }
+
+    function enqueueRealtimeAudio(base64Audio, sampleRate = 24000) {
+      if (!base64Audio || !realtimeOutputContext) return;
+      const binary = atob(base64Audio);
+      const bytes = new Uint8Array(binary.length);
+      for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+      const sampleCount = Math.floor(bytes.byteLength / 2);
+      if (!sampleCount) return;
+      const view = new DataView(bytes.buffer, bytes.byteOffset, sampleCount * 2);
+      const buffer = realtimeOutputContext.createBuffer(1, sampleCount, sampleRate);
+      const channel = buffer.getChannelData(0);
+      for (let index = 0; index < sampleCount; index += 1) channel[index] = view.getInt16(index * 2, true) / 32768;
+      const source = realtimeOutputContext.createBufferSource();
+      source.buffer = buffer;
+      source.connect(realtimeOutputContext.destination);
+      const startsAt = Math.max(realtimeOutputContext.currentTime + .025, realtimeOutputCursor || 0);
+      realtimeOutputCursor = startsAt + buffer.duration;
+      realtimeOutputSources.add(source);
+      source.onended = () => {
+        realtimeOutputSources.delete(source);
+        if (!realtimeOutputSources.size && realtimeResponseDone && isRealtimeActive() && !realtimeMuted) setRealtimeState('listening');
+      };
+      source.start(startsAt);
+      if (!realtimeMuted) setRealtimeState('speaking');
+    }
+
+    function sendRealtimeSessionUpdate() {
+      if (!realtimeSocket || realtimeSocket.readyState !== WebSocket.OPEN || realtimeSessionConfigured) return;
+      realtimeSessionConfigured = true;
+      realtimeSocket.send(JSON.stringify({
+        event_id: `session-${Date.now()}`,
+        type: 'session.update',
+        session: {
+          modalities: ['text', 'audio'],
+          voice: $('conversation-voice').value,
+          instructions: '你是声笺中的实时语音助手。默认使用自然、简洁的中文口语回答；先直接回应用户，再在必要时补充细节。不要朗读格式符号，不要声称看到了不存在的内容。',
+          input_audio_format: 'pcm',
+          output_audio_format: 'pcm',
+          max_history_turns: 20,
+          turn_detection: { type: 'server_vad', threshold: .5, silence_duration_ms: 700 },
+        },
+      }));
+    }
+
+    function sendRealtimeTextPrompt(text) {
+      const normalized = String(text || '').trim();
+      if (!normalized) return;
+      if (!realtimeSocket || realtimeSocket.readyState !== WebSocket.OPEN || !realtimeSessionConfigured || realtimeState === 'connecting') {
+        pendingRealtimePrompt = normalized;
+        if (!isRealtimeActive()) startRealtimeConversation();
+        return;
+      }
+      realtimeMessages.push({ role: 'user', text: normalized, final: true, source: 'input_text' });
+      renderRealtimeMessages();
+      realtimeSocket.send(JSON.stringify({
+        type: 'conversation.item.create',
+        item: { type: 'message', role: 'user', content: [{ type: 'input_text', text: normalized }] },
+      }));
+      realtimeSocket.send(JSON.stringify({ type: 'response.create', response: { modalities: ['audio', 'text'] } }));
+      setRealtimeState('thinking');
+    }
+
+    function handleRealtimeUpstreamEvent(event) {
+      const type = String(event && event.type || '');
+      if (type === 'session.updated') {
+        realtimeSendingAudio = true;
+        if (!realtimeMuted) setRealtimeState('listening');
+        if (pendingRealtimePrompt) {
+          const prompt = pendingRealtimePrompt;
+          pendingRealtimePrompt = '';
+          sendRealtimeTextPrompt(prompt);
+        }
+      } else if (type === 'input_audio_buffer.speech_started') {
+        stopRealtimePlayback(false);
+        if (!realtimeMuted) setRealtimeState('listening', '正在听你说');
+      } else if (type === 'input_audio_buffer.speech_stopped' || type === 'input_audio_buffer.committed') {
+        if (!realtimeMuted) setRealtimeState('thinking');
+      } else if (type === 'response.created') {
+        realtimeResponseDone = false;
+        ensureAssistantRealtimeDraft();
+        if (!realtimeMuted) setRealtimeState('thinking');
+      } else if (type === 'response.done') {
+        realtimeResponseDone = true;
+        if (!realtimeOutputSources.size && !realtimeMuted) setRealtimeState('listening');
+      } else if (type === 'response.cancelled') {
+        stopRealtimePlayback(false);
+        if (!realtimeMuted) setRealtimeState('listening');
+      } else if (type === 'error') {
+        const message = event.error && event.error.message ? event.error.message : '实时模型返回错误';
+        setRealtimeState('error', message.slice(0, 30));
+      }
+    }
+
+    function handleRealtimeMessage(event) {
+      let payload;
+      try { payload = JSON.parse(event.data); } catch (_) { return; }
+      if (payload.demo_event === 'proxy.connected') sendRealtimeSessionUpdate();
+      else if (payload.demo_event === 'transcript.delta') handleRealtimeTranscript(payload);
+      else if (payload.demo_event === 'audio.delta') enqueueRealtimeAudio(payload.audio, Number(payload.sample_rate || 24000));
+      else if (payload.demo_event === 'upstream.event') handleRealtimeUpstreamEvent(payload.event || {});
+      else if (payload.demo_event === 'proxy.error') setRealtimeState('error', payload.message || '实时服务连接失败');
+    }
+
+    async function startRealtimeMicrophone() {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      realtimeMicStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      realtimeInputContext = new AudioContextClass();
+      realtimeInputSource = realtimeInputContext.createMediaStreamSource(realtimeMicStream);
+      realtimeInputProcessor = realtimeInputContext.createScriptProcessor(4096, 1, 1);
+      realtimeInputProcessor.onaudioprocess = (event) => {
+        const input = event.inputBuffer.getChannelData(0);
+        let energy = 0;
+        for (const sample of input) energy += sample * sample;
+        const level = realtimeMuted ? 0 : Math.min(1, Math.sqrt(energy / Math.max(1, input.length)) * 5);
+        $('realtime-chat').style.setProperty('--voice-level', level.toFixed(3));
+        if (!realtimeSendingAudio || realtimeMuted || !realtimeSocket || realtimeSocket.readyState !== WebSocket.OPEN) return;
+        const pcm = floatTo16BitPCM(downsample(input, realtimeInputContext.sampleRate, 16000));
+        realtimeSocket.send(JSON.stringify({ type: 'input_audio_buffer.append', audio: bytesToBase64(new Uint8Array(pcm.buffer)) }));
+      };
+      realtimeInputSource.connect(realtimeInputProcessor);
+      realtimeInputProcessor.connect(realtimeInputContext.destination);
+    }
+
+    function stopRealtimeInput() {
+      realtimeSendingAudio = false;
+      if (realtimeInputProcessor) { realtimeInputProcessor.disconnect(); realtimeInputProcessor = null; }
+      if (realtimeInputSource) { realtimeInputSource.disconnect(); realtimeInputSource = null; }
+      if (realtimeMicStream) { realtimeMicStream.getTracks().forEach((track) => track.stop()); realtimeMicStream = null; }
+      if (realtimeInputContext) { realtimeInputContext.close(); realtimeInputContext = null; }
+      $('realtime-chat').style.setProperty('--voice-level', '0');
+    }
+
+    async function startRealtimeConversation() {
+      if (isRealtimeActive()) return;
+      if (['connecting', 'recording', 'paused', 'finishing'].includes(recorderState)) { showToast('请先结束当前会议录音'); return; }
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { setRealtimeState('error', '当前浏览器不支持麦克风'); return; }
+      if (realtimeState === 'ended' || realtimeState === 'error') clearRealtimeMessages();
+      realtimeClosing = false;
+      realtimeMuted = false;
+      realtimeSessionConfigured = false;
+      realtimeResponseDone = false;
+      setRealtimeState('connecting');
+      try {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        realtimeOutputContext = new AudioContextClass({ sampleRate: 24000 });
+        await realtimeOutputContext.resume();
+        await startRealtimeMicrophone();
+        realtimeSocket = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/realtime`);
+        realtimeSocket.onmessage = handleRealtimeMessage;
+        realtimeSocket.onerror = () => setRealtimeState('error', '无法连接实时对话服务');
+        realtimeSocket.onclose = () => {
+          const manual = realtimeClosing;
+          realtimeSocket = null;
+          realtimeSessionConfigured = false;
+          stopRealtimeInput();
+          if (!manual && realtimeState !== 'ended') setRealtimeState('error', '实时对话连接已断开');
+        };
+      } catch (error) {
+        stopRealtimeInput();
+        if (realtimeOutputContext) { realtimeOutputContext.close(); realtimeOutputContext = null; }
+        setRealtimeState('error', error && error.name === 'NotAllowedError' ? '请允许使用麦克风' : '无法启动实时对话');
+      }
+    }
+
+    function toggleRealtimeMute() {
+      if (!isRealtimeActive() || realtimeState === 'connecting') return;
+      realtimeMuted = !realtimeMuted;
+      if (realtimeMuted) {
+        if (realtimeSocket && realtimeSocket.readyState === WebSocket.OPEN) realtimeSocket.send(JSON.stringify({ type: 'input_audio_buffer.clear' }));
+        setRealtimeState('muted');
+      } else {
+        setRealtimeState('listening');
+      }
+    }
+
+    function endRealtimeConversation() {
+      if (!isRealtimeActive()) return;
+      realtimeClosing = true;
+      realtimeMuted = false;
+      stopRealtimePlayback(false);
+      stopRealtimeInput();
+      if (realtimeSocket) {
+        realtimeSocket.onclose = null;
+        if (realtimeSocket.readyState === WebSocket.OPEN || realtimeSocket.readyState === WebSocket.CONNECTING) realtimeSocket.close();
+        realtimeSocket = null;
+      }
+      if (realtimeOutputContext) { realtimeOutputContext.close(); realtimeOutputContext = null; }
+      realtimeSessionConfigured = false;
+      setRealtimeState('ended');
     }
 
     function humanBytes(value) {
@@ -1884,6 +2342,16 @@
       link.download = `voicenote-${selectedVoiceId().replace(/[^A-Za-z0-9_-]/g, '-')}.${selectedTtsFormat}`;
       link.click();
     });
+    $('conversation-main').addEventListener('click', () => {
+      if (!isRealtimeActive()) startRealtimeConversation();
+      else if (realtimeState === 'speaking') {
+        stopRealtimePlayback(true);
+        setRealtimeState('listening', '已打断，可以继续说');
+      } else toggleRealtimeMute();
+    });
+    $('conversation-mute').addEventListener('click', toggleRealtimeMute);
+    $('conversation-end').addEventListener('click', endRealtimeConversation);
+    document.querySelectorAll('[data-conversation-prompt]').forEach((button) => button.addEventListener('click', () => sendRealtimeTextPrompt(button.dataset.conversationPrompt)));
     $('new-meeting').addEventListener('click', () => { if (switchProductView('meeting')) createNewMeeting(); });
     $('meeting-search').addEventListener('input', renderMeetingIndex);
     $('meeting-groups').addEventListener('click', (event) => {
@@ -1939,7 +2407,7 @@
       link.click();
     });
     window.addEventListener('beforeunload', (event) => {
-      if (!['recording', 'paused'].includes(recorderState)) return;
+      if (!['recording', 'paused'].includes(recorderState) && !isRealtimeActive()) return;
       event.preventDefault();
       event.returnValue = '';
     });
@@ -1962,8 +2430,10 @@
     };
     window.__demoGetState = () => ({ recorderState, activeTab, elapsedSeconds, transcript: transcriptText(), summary: $('summary-output').textContent });
     window.__demoStudioState = () => ({ activeProductView, voice: selectedVoiceId(), format: selectedTtsFormat, cloningConfigured: voiceCloningConfigured, audioReady: Boolean(ttsAudioUrl) });
+    window.__demoConversationState = () => ({ activeProductView, realtimeState, messages: realtimeMessages.map(({ role, text, final }) => ({ role, text, final })) });
 
     updateTtsCount();
+    setRealtimeState('idle');
     renderTranscript();
     refreshStatus();
     bootstrapAccess();

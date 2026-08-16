@@ -26,11 +26,13 @@ checks["exact_product_tabs"] = (
     and "实时摘要" in text
 )
 checks["top_level_workspaces_exist"] = (
-    text.count('<button class="product-tab') == 2
+    text.count('<button class="product-tab') == 3
     and 'id="meeting-product-tab"' in text
     and 'id="studio-product-tab"' in text
+    and 'id="conversation-product-tab"' in text
     and 'data-product-view="meeting"' in text
     and 'data-product-view="studio"' in text
+    and 'data-product-view="conversation"' in text
 )
 checks["voice_studio_tts_is_wired"] = all(
     marker in text
@@ -41,9 +43,22 @@ checks["voice_clone_is_configuration_aware"] = all(
     for marker in ('id="clone-capability"', 'id="create-cloned-voice"', "status.voice_cloning_configured", "fetch('/api/voice-cloning/create'", "DASHSCOPE_VOICE_API_KEY")
 )
 checks["studio_switch_guards_active_recording"] = (
-    "请先结束当前录音，再进入声音工作室" in text
+    "请先结束当前录音，再切换功能" in text
     and "['connecting', 'recording', 'paused', 'finishing'].includes(recorderState)" in text
 )
+checks["realtime_conversation_page_exists"] = all(
+    marker in text
+    for marker in ('id="realtime-chat"', 'id="conversation-messages"', 'id="conversation-main"', 'id="conversation-mute"', 'id="conversation-end"')
+)
+checks["realtime_conversation_audio_is_wired"] = all(
+    marker in text
+    for marker in ("/ws/realtime", "input_audio_buffer.append", "payload.demo_event === 'audio.delta'", "createBuffer(1, sampleCount, sampleRate)")
+)
+checks["realtime_conversation_supports_barge_in"] = all(
+    marker in text
+    for marker in ("input_audio_buffer.speech_started", "stopRealtimePlayback(false)", "type: 'response.cancel'")
+)
+checks["realtime_conversation_has_privacy_boundary"] = "声笺不保存对话音频" in text
 checks["transcript_and_summary_panels_exist"] = all(
     marker in text
     for marker in ('id="transcript-panel"', 'id="summary-panel"', 'id="transcript-list"', 'id="summary-output"')
@@ -72,7 +87,7 @@ checks["manual_title_has_priority"] = all(
     for marker in ("function markMeetingTitleManual", "meetingTitleMode === 'manual'", "titleAbortController.abort()")
 )
 checks["no_api_key_in_browser"] = all(name not in text for name in ("OPENAI_API_KEY", "DASHSCOPE_API_KEY", "Authorization: Bearer"))
-checks["other_model_labs_are_not_primary_tabs"] = all(label not in text for label in ("实时对话</button>", "语音转写</button>"))
+checks["legacy_model_labs_are_not_primary_tabs"] = "语音转写</button>" not in text
 checks["contract_helpers_exist"] = all(name in text for name in ("__demoInjectAsrScenario", "__demoInjectSummary", "__demoGetState"))
 checks["permission_error_is_handled"] = "NotAllowedError" in text and "未获得麦克风权限" in text
 checks["navigation_guard_exists"] = "beforeunload" in text
