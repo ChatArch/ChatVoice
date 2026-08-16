@@ -727,6 +727,7 @@ def _meeting_title_blocking(req: MeetingTitleRequest) -> dict[str, Any]:
         ],
         "temperature": 0.1,
         "max_tokens": 64,
+        "enable_thinking": False,
     }
     request = urllib.request.Request(
         _token_plan_base() + "/chat/completions",

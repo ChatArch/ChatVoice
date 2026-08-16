@@ -16,6 +16,7 @@ checks["title_route_exists"] = any(getattr(route, "path", None) == "/api/meeting
 checks["title_prefix_is_removed"] = main._normalize_meeting_title("会议标题：《实时转写产品方案讨论》。") == "实时转写产品方案讨论"
 checks["title_is_bounded"] = len(main._normalize_meeting_title("标题：" + "测试" * 30)) <= 28
 checks["request_is_bounded"] = main.MeetingTitleRequest.model_fields["transcript"].metadata[1].max_length == 4000
+checks["title_generation_disables_reasoning"] = '"enable_thinking": False' in Path(main.__file__).read_text(encoding="utf-8")
 checks["ok"] = all(bool(value) for key, value in checks.items() if key != "ok")
 print(json.dumps(checks, ensure_ascii=False, indent=2))
 raise SystemExit(0 if checks["ok"] else 1)
