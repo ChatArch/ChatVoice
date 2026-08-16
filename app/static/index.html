@@ -135,7 +135,10 @@
     .stream-status i { width: 5px; height: 5px; border-radius: 50%; background: #b5b7bc; }
     .stream-status.recording i { background: var(--green); }.stream-status.connecting i { background: var(--orange); }.stream-status.error i { background: var(--red); }
 
-    .transcript-list { min-height: 250px; }
+    .transcript-list { min-height: 0; }
+    .history-label { display: none; align-items: center; gap: 9px; margin: 3px 0 7px; color: #a0a2a7; font-size: 8px; font-weight: 680; letter-spacing: .06em; }
+    .history-label.visible { display: flex; }
+    .history-label::after { content: ""; height: 1px; flex: 1; background: #f0f0f1; }
     .transcript-block { display: grid; grid-template-columns: 30px 1fr; gap: 14px; padding: 15px 0; animation: fade-in .2s ease; }
     .speaker-dot { width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(145deg, #c7c7ff 0 48%, #e8e8ff 49%); }
     .transcript-block:nth-child(even) .speaker-dot { background: linear-gradient(145deg, #bce6ff 0 48%, #e4f5ff 49%); }
@@ -147,8 +150,16 @@
     .transcript-block.revisable p { color: #565861; }
     .transcript-block.revisable header em { background: #fff4df; color: #b3741d; }
     .transcript-block.demo header::after { content: "示例"; padding: 2px 5px; border-radius: 5px; background: #f2f2f3; color: #a0a2a7; font-size: 7px; }
-    .live-block { display: none; }
-    .live-block.visible { display: grid; }
+    .live-region { display: none; margin-top: 18px; }
+    .live-region.visible { display: block; }
+    .live-divider { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; color: #989aa0; font-size: 8px; font-weight: 690; letter-spacing: .06em; }
+    .live-divider::before, .live-divider::after { content: ""; height: 1px; flex: 1; background: #e9e9ec; }
+    .live-block { display: grid; grid-template-columns: 30px 1fr; gap: 14px; padding: 17px 18px; border: 1px solid #e5e5f4; border-radius: 17px; background: linear-gradient(145deg, #fafaff, #f7f7fb); box-shadow: 0 8px 26px rgba(62, 63, 116, .06); }
+    .live-block header { display: flex; align-items: center; gap: 8px; color: #8c8e94; font-size: 10px; }
+    .live-block header strong { color: #777980; font-size: 11px; }
+    .live-block header em { margin-left: 2px; padding: 3px 6px; border-radius: 6px; background: #eeeeff; color: var(--violet); font-style: normal; font-size: 8px; }
+    .live-block p { min-height: 1.8em; margin: 8px 0 0; color: #303138; font-size: 15px; line-height: 1.8; white-space: pre-wrap; word-break: break-word; }
+    .live-hint { display: flex; align-items: center; gap: 6px; margin-top: 8px; color: #a0a2a7; font-size: 8px; }
     .typing-caret { display: inline-block; width: 2px; height: 1.05em; margin-left: 3px; vertical-align: -.12em; background: var(--violet); animation: blink 1s steps(1) infinite; }
     .listening { display: flex; align-items: center; gap: 6px; margin-top: 10px; color: #96989e; font-size: 9px; }
     .listening > i { width: 5px; height: 5px; border-radius: 50%; background: var(--red); }
@@ -358,16 +369,20 @@
             <span id="latency-label">尚未连接</span>
           </div>
 
+          <div class="history-label" id="history-label">已确认记录</div>
           <div class="transcript-list" id="transcript-list"></div>
 
-          <article class="transcript-block live-block" id="live-block">
-            <span class="speaker-dot"></span>
-            <div>
-              <header><strong>说话人 1</strong><span>·</span><time id="live-time">00:00</time><em>正在识别</em></header>
-              <p id="live-text"><span class="typing-caret"></span></p>
-              <div class="listening"><i></i><span>正在聆听</span><b></b><b></b><b></b></div>
-            </div>
-          </article>
+          <section class="live-region" id="live-region" aria-label="实时识别内容">
+            <div class="live-divider"><span>实时识别</span></div>
+            <article class="live-block" id="live-block">
+              <span class="speaker-dot"></span>
+              <div>
+                <header><strong>说话人 1</strong><span>·</span><time id="live-time">00:00</time><em id="live-badge">正在识别</em></header>
+                <p id="live-text"><span class="typing-caret"></span></p>
+                <div class="listening" id="live-listening"><i></i><span id="live-hint">正在聆听，临时文字会根据上下文继续修正</span><b></b><b></b><b></b></div>
+              </div>
+            </article>
+          </section>
 
           <div class="empty-transcript" id="empty-transcript">
             <div><strong>等待第一段文字</strong><span>识别结果会自动出现在这里</span></div>
@@ -913,7 +928,9 @@
     }
 
     function renderTranscript() {
-      $('transcript-list').innerHTML = transcriptSegments.map((segment) => `
+      const historySegments = transcriptSegments.filter((segment) => !segment.liveDraft);
+      const liveSegment = [...transcriptSegments].reverse().find((segment) => segment.liveDraft);
+      $('transcript-list').innerHTML = historySegments.map((segment) => `
         <article class="transcript-block${segment.demo ? ' demo' : ''}${segment.revisable ? ' revisable' : ''}">
           <span class="speaker-dot"></span>
           <div>
@@ -922,9 +939,17 @@
           </div>
         </article>
       `).join('');
-      const hasFinalText = transcriptSegments.length > 0;
-      $('empty-transcript').classList.toggle('visible', !hasFinalText && recorderState !== 'recording');
-      $('live-block').classList.toggle('visible', recorderState === 'recording' || recorderState === 'connecting' || recorderState === 'paused');
+      const liveVisible = ['recording', 'connecting', 'paused', 'finishing'].includes(recorderState);
+      $('history-label').classList.toggle('visible', historySegments.length > 0 && !historySegments.every((segment) => segment.demo));
+      $('empty-transcript').classList.toggle('visible', !historySegments.length && !liveVisible);
+      $('live-region').classList.toggle('visible', liveVisible);
+      if (liveSegment) $('live-text').textContent = liveSegment.text;
+      $('live-badge').textContent = recorderState === 'paused' ? '已暂停' : recorderState === 'finishing' ? '正在提交' : recorderState === 'connecting' ? '正在连接' : '正在识别';
+      $('live-hint').textContent = recorderState === 'paused'
+        ? '录音已暂停，继续后会接着修正当前内容'
+        : recorderState === 'finishing'
+          ? '正在确认最后一段文字，完成后会并入上方记录'
+          : '正在聆听，临时文字会根据上下文继续修正';
       $('live-time').textContent = formatTime(elapsedSeconds);
     }
 
@@ -951,6 +976,7 @@
         time: meta.time || formatTime(elapsedSeconds),
         text: normalized,
         demo: false,
+        liveDraft: false,
       });
       $('live-text').innerHTML = '<span class="typing-caret"></span>';
       renderTranscript();
@@ -980,7 +1006,8 @@
         time: index === 0 ? '00:00' : formatTime(Math.max(0, Math.round(elapsedSeconds * index / sentences.length))),
         text: sentence,
         demo: false,
-        revisable: !final && index >= Math.max(0, sentences.length - 2),
+        liveDraft: !final && index === sentences.length - 1,
+        revisable: !final && index >= Math.max(0, sentences.length - 2) && index !== sentences.length - 1,
         revision,
       }));
       $('live-text').textContent = sentences[sentences.length - 1];
@@ -1004,6 +1031,9 @@
     }
 
     function updateRecorderUi(nextState, message) {
+      if (nextState === 'ended' || nextState === 'error') {
+        transcriptSegments = transcriptSegments.map((segment) => ({ ...segment, liveDraft: false, revisable: false }));
+      }
       recorderState = nextState;
       $('recording-console').className = `recording-console ${nextState}`;
       $('stream-status').className = `stream-status ${nextState}`;
@@ -1045,6 +1075,7 @@
         elapsedSeconds += 1;
         $('elapsed').textContent = formatTime(elapsedSeconds);
         $('live-time').textContent = formatTime(elapsedSeconds);
+        if (elapsedSeconds % 5 === 0) scheduleMeetingSave(200);
       }, 1000);
     }
 
@@ -1228,6 +1259,7 @@
       $('download-recording').disabled = true;
       $('download-recording').classList.remove('visible');
       clearSummaryContent();
+      $('live-text').innerHTML = '<span class="typing-caret"></span>';
       setActiveTab('transcript');
       updateRecorderUi('idle', announce ? '内容已清空，可以开始新录音' : '正在准备新录音…');
       if (persist && activeMeetingId) scheduleMeetingSave(0);
@@ -1250,6 +1282,7 @@
       sessionStartedAt = new Date();
       activeMeetingCreatedAt = activeMeetingCreatedAt || sessionStartedAt.toISOString();
       $('created-at').textContent = new Intl.DateTimeFormat('zh-CN', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(sessionStartedAt);
+      $('live-text').innerHTML = '<span class="typing-caret"></span>';
       updateRecorderUi('connecting');
       asrStreamWs = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/asr/stream`);
       asrStreamWs.onopen = async () => {
@@ -1305,7 +1338,7 @@
       stopCaptureGraph();
       if (asrStreamWs && asrStreamWs.readyState === WebSocket.OPEN) asrStreamWs.close();
       updateRecorderUi('ended', message || '录音与最后一段识别已完成');
-      scheduleMeetingSave(0);
+      saveActiveMeeting();
       if (transcriptText()) generateSummary();
     }
 
@@ -1461,7 +1494,7 @@
     };
     window.__demoApplyRevision = (text, revision = 1, final = false) => {
       applyTranscriptRevision(text, { revision, final });
-      return transcriptSegments.map(({ text: value, revisable }) => ({ text: value, revisable }));
+      return transcriptSegments.map(({ text: value, revisable, liveDraft }) => ({ text: value, revisable, liveDraft }));
     };
     window.__demoGetState = () => ({ recorderState, activeTab, elapsedSeconds, transcript: transcriptText(), summary: $('summary-output').textContent });
 

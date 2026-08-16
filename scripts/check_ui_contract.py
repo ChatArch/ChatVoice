@@ -53,6 +53,8 @@ checks["meeting_sidebar_exists"] = all(marker in text for marker in ('id="meetin
 checks["guest_storage_is_browser_only"] = "indexedDB.open" in text and "GUEST_STORE" in text and "X-Client-Id" not in text
 checks["account_mode_is_available"] = all(marker in text for marker in ('id="entry-dialog"', "/api/auth/${authMode}", "/api/auth/session", "/api/auth/logout"))
 checks["summary_reset_cancels_stale_request"] = all(marker in text for marker in ("summaryAbortController.abort()", "requestEpoch !== contentEpoch", "persist = true"))
+checks["live_text_is_separate_from_history"] = all(marker in text for marker in ('id="history-label"', 'id="live-region"', "filter((segment) => !segment.liveDraft)", "liveDraft: !final"))
+checks["finishing_preserves_live_text"] = "['recording', 'connecting', 'paused', 'finishing'].includes(recorderState)" in text and "nextState === 'ended' || nextState === 'error'" in text
 
 checks["ok"] = all(bool(value) for key, value in checks.items() if key != "ok")
 print(json.dumps(checks, ensure_ascii=False, indent=2))
