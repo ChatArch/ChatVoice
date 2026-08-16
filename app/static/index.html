@@ -208,6 +208,9 @@
     .meeting-header input { width: 100%; padding: 0; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: clamp(25px, 3.2vw, 38px); font-weight: 740; line-height: 1.25; letter-spacing: -.045em; }
     .meeting-meta { display: flex; align-items: center; gap: 8px; margin-top: 13px; color: var(--muted); font-size: 10px; }
     .meeting-meta > i { width: 3px; height: 3px; border-radius: 50%; background: #b7b8bc; }
+    .title-state { padding: 3px 7px; border-radius: 7px; background: #f0f0ff; color: var(--violet); font-size: 8px; font-weight: 680; }
+    .title-state.generating { background: #fff5e6; color: #b56d17; }
+    .title-state.manual { background: #f1f1f2; color: #888a90; }
     .clock-icon { width: 12px; height: 12px; border: 1.5px solid currentColor; border-radius: 50%; position: relative; }
     .clock-icon::before { content: ""; position: absolute; left: 5px; top: 2px; width: 1px; height: 4px; background: currentColor; }
     .clock-icon::after { content: ""; position: absolute; left: 5px; top: 5px; width: 3px; height: 1px; background: currentColor; transform: rotate(20deg); transform-origin: left center; }
@@ -464,6 +467,8 @@
           <span>网页录音</span>
           <i></i>
           <span id="channel-label">自动选择识别服务</span>
+          <i></i>
+          <span class="title-state" id="title-state">AI 可自动命名</span>
         </div>
       </header>
 
@@ -734,6 +739,10 @@
     let ttsAudioUrl = null;
     let voiceCloningConfigured = false;
     let ttsGenerating = false;
+    let meetingTitleMode = 'default';
+    let titleGenerationAttempted = false;
+    let titleGenerationTimer = null;
+    let titleAbortController = null;
 
     function escapeHtml(value) {
       return String(value || '').replace(/[&<>'"]/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
@@ -793,6 +802,70 @@
 
     function updateTtsCount() {
       $('tts-char-count').textContent = String($('tts-text').value.length);
+    }
+
+    function setMeetingTitleMode(mode, label = '') {
+      meetingTitleMode = mode;
+      $('title-state').className = `title-state${mode === 'generating' ? ' generating' : mode === 'manual' ? ' manual' : ''}`;
+      $('title-state').textContent = label || ({ default: 'AI 可自动命名', generating: '正在生成标题…', auto: 'AI 已命名', manual: '已手动命名' }[mode] || '');
+    }
+
+    function resetMeetingTitleGeneration(mode = 'default') {
+      clearTimeout(titleGenerationTimer);
+      titleGenerationTimer = null;
+      if (titleAbortController) titleAbortController.abort();
+      titleAbortController = null;
+      titleGenerationAttempted = mode !== 'default';
+      setMeetingTitleMode(mode);
+    }
+
+    function markMeetingTitleManual() {
+      clearTimeout(titleGenerationTimer);
+      titleGenerationTimer = null;
+      if (titleAbortController) titleAbortController.abort();
+      titleAbortController = null;
+      titleGenerationAttempted = true;
+      setMeetingTitleMode('manual');
+    }
+
+    function maybeGenerateMeetingTitle({ force = false } = {}) {
+      if (meetingTitleMode !== 'default' || (titleGenerationAttempted && !force)) return;
+      const transcript = transcriptText().replace(/\s+/g, ' ').trim();
+      const meaningfulLength = transcript.replace(/[^\p{L}\p{N}]/gu, '').length;
+      if (meaningfulLength < (force ? 12 : 36)) return;
+      clearTimeout(titleGenerationTimer);
+      titleGenerationTimer = setTimeout(() => generateMeetingTitle(transcript), force ? 0 : 900);
+    }
+
+    async function generateMeetingTitle(transcript) {
+      if (meetingTitleMode !== 'default') return;
+      titleGenerationAttempted = true;
+      const recordId = activeMeetingId;
+      const controller = new AbortController();
+      if (titleAbortController) titleAbortController.abort();
+      titleAbortController = controller;
+      setMeetingTitleMode('generating');
+      try {
+        const response = await fetch('/api/meeting-title', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({ transcript: transcript.slice(0, 2400) }),
+        });
+        if (!response.ok) throw new Error(await responseError(response, '标题生成失败'));
+        const payload = await response.json();
+        if (titleAbortController !== controller || activeMeetingId !== recordId || meetingTitleMode === 'manual') return;
+        const title = String(payload.title || '').trim();
+        if (!title) throw new Error('标题生成结果为空');
+        $('meeting-title').value = title;
+        setMeetingTitleMode('auto');
+        scheduleMeetingSave(0);
+      } catch (error) {
+        if (error.name === 'AbortError') return;
+        if (titleAbortController === controller && meetingTitleMode !== 'manual') setMeetingTitleMode('default', 'AI 命名稍后重试');
+      } finally {
+        if (titleAbortController === controller) titleAbortController = null;
+      }
     }
 
     function humanBytes(value) {
@@ -1121,6 +1194,7 @@
         elapsedSeconds = Number(meeting.duration_seconds || 0);
         $('elapsed').textContent = formatTime(elapsedSeconds);
         $('meeting-title').value = meeting.title || '新录音';
+        resetMeetingTitleGeneration('manual');
         $('created-at').textContent = new Intl.DateTimeFormat('zh-CN', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(meeting.created_at));
         summaryIsDemo = false;
         hasGeneratedSummary = Boolean(meeting.summary_content);
@@ -1158,6 +1232,7 @@
       activeMeetingId = createRecordId();
       activeMeetingCreatedAt = new Date().toISOString();
       $('meeting-title').value = '新录音';
+      resetMeetingTitleGeneration();
       $('created-at').textContent = new Intl.DateTimeFormat('zh-CN', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(activeMeetingCreatedAt));
       resetSession({ announce: false, persist: false });
       await saveActiveMeeting();
@@ -1342,6 +1417,7 @@
       renderTranscript();
       ensureActiveMeeting();
       scheduleMeetingSave();
+      maybeGenerateMeetingTitle();
       requestAnimationFrame(() => { $('content-scroll').scrollTop = $('content-scroll').scrollHeight; });
       maybeRefreshSummary();
     }
@@ -1374,6 +1450,7 @@
       renderTranscript();
       ensureActiveMeeting();
       scheduleMeetingSave(final ? 0 : 700);
+      maybeGenerateMeetingTitle({ force: final });
       $('latency-label').textContent = final ? '最终文字已确认' : `已回写第 ${revision} 版`;
       requestAnimationFrame(() => { $('content-scroll').scrollTop = $('content-scroll').scrollHeight; });
       if (final) maybeRefreshSummary();
@@ -1614,6 +1691,10 @@
       archiveChunks = [];
       transcriptSegments = [];
       showingDemo = false;
+      if (meetingTitleMode !== 'manual') {
+        $('meeting-title').value = '新录音';
+        resetMeetingTitleGeneration();
+      }
       elapsedSeconds = 0;
       $('elapsed').textContent = '00:00';
       $('download-recording').disabled = true;
@@ -1698,6 +1779,7 @@
       stopCaptureGraph();
       if (asrStreamWs && asrStreamWs.readyState === WebSocket.OPEN) asrStreamWs.close();
       updateRecorderUi('ended', message || '录音与最后一段识别已完成');
+      maybeGenerateMeetingTitle({ force: true });
       saveActiveMeeting();
       if (transcriptText()) generateSummary();
     }
@@ -1819,7 +1901,7 @@
       else document.body.classList.add('sidebar-collapsed');
     });
     $('sidebar-backdrop').addEventListener('click', closeSidebarOnSmallScreen);
-    $('meeting-title').addEventListener('input', () => { ensureActiveMeeting(); scheduleMeetingSave(); });
+    $('meeting-title').addEventListener('input', () => { markMeetingTitleManual(); ensureActiveMeeting(); scheduleMeetingSave(); });
     $('account-action').addEventListener('click', handleAccountAction);
     $('enter-guest').addEventListener('click', () => activateStorageMode('guest'));
     $('show-login').addEventListener('click', () => showEntryDialog('auth'));

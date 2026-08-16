@@ -63,6 +63,14 @@ checks["local_archive_recording_exists"] = "new MediaRecorder" in text and "down
 checks["recording_states_are_explicit"] = all(state in text for state in ("connecting", "recording", "paused", "finishing", "ended", "error"))
 checks["asr_channel_is_server_driven"] = "/api/asr/channels" in text and 'id="asr-channel"' in text
 checks["summary_endpoint_is_used"] = "/api/meeting-notes/polish" in text and 'id="generate-summary"' in text
+checks["meeting_title_is_auto_generated"] = all(
+    marker in text
+    for marker in ('id="title-state"', "fetch('/api/meeting-title'", "function maybeGenerateMeetingTitle", "AI 已命名")
+)
+checks["manual_title_has_priority"] = all(
+    marker in text
+    for marker in ("function markMeetingTitleManual", "meetingTitleMode === 'manual'", "titleAbortController.abort()")
+)
 checks["no_api_key_in_browser"] = all(name not in text for name in ("OPENAI_API_KEY", "DASHSCOPE_API_KEY", "Authorization: Bearer"))
 checks["other_model_labs_are_not_primary_tabs"] = all(label not in text for label in ("实时对话</button>", "语音转写</button>"))
 checks["contract_helpers_exist"] = all(name in text for name in ("__demoInjectAsrScenario", "__demoInjectSummary", "__demoGetState"))

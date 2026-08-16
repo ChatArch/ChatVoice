@@ -53,6 +53,7 @@ FUNASR_MODEL = os.getenv("FUNASR_MODEL", "iic/SenseVoiceSmall")
 FUNASR_GPU_DEVICE = os.getenv("FUNASR_GPU_DEVICE", "cuda:0")
 DEFAULT_ASR_CHANNEL = os.getenv("DEFAULT_ASR_CHANNEL", "funasr-gpu")
 MEETING_NOTES_MODEL = os.getenv("QWEN_MEETING_NOTES_MODEL", os.getenv("QWEN_CODING_PLAN_MODEL", "qwen3.7-plus"))
+MEETING_TITLE_MODEL = os.getenv("QWEN_MEETING_TITLE_MODEL", "qwen3.6-flash")
 ALLOWED_ASR_STREAM_SAMPLE_RATES = {8000, 16000, 24000, 48000}
 MIN_ASR_STREAM_CHUNK_SECONDS = 0.5
 MAX_ASR_STREAM_CHUNK_SECONDS = 10.0
@@ -122,6 +123,11 @@ class VoiceCloneRequest(BaseModel):
 class MeetingNotesRequest(BaseModel):
     transcript: str = Field(..., min_length=1, max_length=20000)
     instruction: str = Field("输出中文会议纪要：先给实时摘要，再给润色修复后的逐段记录、待办、风险和未决问题。", max_length=1000)
+    model: str | None = Field(default=None, max_length=120)
+
+
+class MeetingTitleRequest(BaseModel):
+    transcript: str = Field(..., min_length=1, max_length=4000)
     model: str | None = Field(default=None, max_length=120)
 
 
@@ -198,6 +204,10 @@ def _meeting_notes_model(req_model: str | None = None) -> str:
     )
 
 
+def _meeting_title_model(req_model: str | None = None) -> str:
+    return req_model or os.getenv("QWEN_MEETING_TITLE_MODEL") or MEETING_TITLE_MODEL
+
+
 def _safe_profile_summary() -> dict[str, Any]:
     profile = _read_profile()
     key = profile.get("OPENAI_API_KEY") or profile.get("DASHSCOPE_API_KEY") or ""
@@ -212,6 +222,7 @@ def _safe_profile_summary() -> dict[str, Any]:
         "voice_cloning_configured": bool(profile.get("DASHSCOPE_VOICE_API_KEY") or profile.get("DASHSCOPE_API_KEY")),
         "voice_cloning_provider": "dashscope-direct",
         "tts_model": TTS_MODEL,
+        "meeting_title_model": _meeting_title_model(),
         "realtime_model": REALTIME_MODEL,
         "asr_channels": ASR_CHANNELS,
         "asr_default_channel": DEFAULT_ASR_CHANNEL,
@@ -683,6 +694,63 @@ def _meeting_notes_blocking(req: MeetingNotesRequest) -> dict[str, Any]:
 async def meeting_notes_polish(req: MeetingNotesRequest) -> JSONResponse:
     try:
         result = await asyncio.to_thread(_meeting_notes_blocking, req)
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", "replace")[:700]
+        raise HTTPException(status_code=502, detail={"error_type": "HTTPError", "status": exc.code, "message": detail}) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail={"error_type": type(exc).__name__, "message": str(exc)[:700]}) from exc
+    return JSONResponse(result)
+
+
+def _normalize_meeting_title(value: str) -> str:
+    title = str(value or "").strip().splitlines()[0].strip()
+    title = re.sub(r"^(?:会议)?标题\s*[:：]\s*", "", title)
+    title = title.strip(" `#*\"'《》【】[]（）()")
+    title = re.sub(r"[。！？!?；;，,：:]+$", "", title).strip()
+    title = title.strip(" `#*\"'《》【】[]（）()")
+    title = re.sub(r"\s+", " ", title)
+    return title[:28] or "新录音"
+
+
+def _meeting_title_blocking(req: MeetingTitleRequest) -> dict[str, Any]:
+    key = _token_plan_key()
+    model = _meeting_title_model(req.model)
+    transcript = " ".join(req.transcript.split())[:2400]
+    payload = {
+        "model": model,
+        "messages": [
+            {
+                "role": "system",
+                "content": "你是会议标题编辑。根据转写生成一个具体、自然的中文标题，8到18个汉字；不要书名号、引号、句号、解释或‘会议标题’前缀，只输出标题。",
+            },
+            {"role": "user", "content": transcript},
+        ],
+        "temperature": 0.1,
+        "max_tokens": 64,
+    }
+    request = urllib.request.Request(
+        _token_plan_base() + "/chat/completions",
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json", "User-Agent": "qwen-audio-demo-meeting-title/0.1"},
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        body = json.loads(response.read().decode("utf-8"))
+    try:
+        content = body["choices"][0]["message"]["content"]
+    except Exception as exc:
+        raise RuntimeError("meeting title model returned an invalid response") from exc
+    return {"model": model, "title": _normalize_meeting_title(content), "raw_usage": body.get("usage")}
+
+
+@app.post("/api/meeting-title")
+async def meeting_title(req: MeetingTitleRequest) -> JSONResponse:
+    transcript = " ".join(req.transcript.split())
+    if not transcript:
+        raise HTTPException(status_code=400, detail="transcript is empty")
+    safe_req = MeetingTitleRequest(transcript=transcript, model=req.model)
+    try:
+        result = await asyncio.to_thread(_meeting_title_blocking, safe_req)
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", "replace")[:700]
         raise HTTPException(status_code=502, detail={"error_type": "HTTPError", "status": exc.code, "message": detail}) from exc
