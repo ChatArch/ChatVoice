@@ -721,7 +721,7 @@ def _meeting_title_blocking(req: MeetingTitleRequest) -> dict[str, Any]:
         "messages": [
             {
                 "role": "system",
-                "content": "你是会议标题编辑。根据转写生成一个具体、自然的中文标题，8到18个汉字；不要书名号、引号、句号、解释或‘会议标题’前缀，只输出标题。",
+                "content": "你是会议标题编辑。根据转写生成一个具体、自然的中文标题。硬性限制为8到18个汉字，超过18个即不合格；只保留核心主题和动作，例如‘实时转写与标题生成优化’。不要书名号、引号、句号、解释或‘会议标题’前缀，只输出标题。",
             },
             {"role": "user", "content": transcript},
         ],
