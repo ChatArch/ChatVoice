@@ -2,435 +2,813 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Qwen Token Plan Audio Demo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#ffffff" />
+  <title>声笺 · 实时会议记录</title>
   <style>
-    :root { color-scheme: dark; --bg:#07111f; --panel:#0f1b2d; --muted:#8ea1bf; --text:#edf5ff; --accent:#59d6ff; --good:#55e39b; --bad:#ff6b8b; --line:#20324d; --warn:#ffd166; }
+    :root {
+      --ink: #17181b;
+      --ink-soft: #666970;
+      --muted: #96989e;
+      --line: #ececee;
+      --panel: #ffffff;
+      --soft: #f6f6f7;
+      --violet: #696ae8;
+      --violet-soft: #eeeeff;
+      --green: #20a66e;
+      --red: #ff625e;
+      --orange: #e89b38;
+      --shadow: 0 28px 80px rgba(30, 34, 50, .12);
+    }
+
     * { box-sizing: border-box; }
-    body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: radial-gradient(circle at 20% 10%, #14345a, #07111f 42%), #07111f; color:var(--text); }
-    main { width:min(1180px, 94vw); margin:0 auto; padding:40px 0 56px; }
-    header { display:flex; justify-content:space-between; gap:20px; align-items:flex-start; margin-bottom:26px; }
-    h1 { margin:0 0 10px; font-size:32px; letter-spacing:-.03em; }
-    h2 { margin:0 0 12px; font-size:20px; }
-    h3 { margin:0 0 10px; font-size:16px; }
-    p { color:var(--muted); line-height:1.65; }
-    code { color:#d8f5ff; }
-    .pill { display:inline-flex; gap:8px; align-items:center; border:1px solid var(--line); background:#0a1628cc; border-radius:999px; padding:8px 12px; color:var(--muted); font-size:13px; }
-    .tabs { display:flex; gap:10px; flex-wrap:wrap; margin:0 0 18px; padding:8px; border:1px solid var(--line); border-radius:20px; background:#081629cc; }
-    .tab-button { border:1px solid #284466; border-radius:14px; padding:11px 15px; margin:0; color:#cfe4ff; background:#10223c; font-weight:800; cursor:pointer; }
-    .tab-button.active { color:#04111d; background:linear-gradient(135deg, var(--accent), #7effd4); border-color:transparent; }
-    .tab-panel { display:none; }
-    .tab-panel.active { display:block; }
-    .grid { display:grid; grid-template-columns: 1fr 1fr; gap:18px; }
-    .card { background:linear-gradient(180deg, #102039d9, #0c1729e6); border:1px solid var(--line); border-radius:22px; padding:22px; box-shadow:0 20px 60px #0006; }
-    .span2 { grid-column:1 / -1; }
-    label { display:block; color:#b9c7dc; font-size:13px; margin:14px 0 7px; }
-    textarea, select, input { width:100%; background:#071222; color:var(--text); border:1px solid #263a59; border-radius:14px; padding:12px 13px; font:inherit; outline:none; }
-    input[type="file"] { padding:10px; }
-    textarea { min-height:128px; resize:vertical; }
-    .chat-composer { border:1px solid #2b4a70; background:#06101f; border-radius:22px; padding:14px; box-shadow:inset 0 0 0 1px #ffffff05; }
-    .chat-composer textarea { min-height:118px; border:0; background:transparent; padding:2px 4px; resize:vertical; font-size:20px; line-height:1.6; }
-    .chat-composer textarea:focus { box-shadow:none; }
-    .composer-footer { display:flex; align-items:center; justify-content:space-between; gap:12px; padding-top:10px; border-top:1px solid #182a43; }
-    .composer-actions { display:flex; align-items:center; gap:8px; }
-    .composer-actions button { margin:0; }
-    .composer-status { color:#8ea1bf; font-size:13px; }
-    .voice-button { min-width:108px; border-radius:999px; margin:0; display:inline-flex; align-items:center; justify-content:center; gap:8px; }
-    .voice-button.recording { color:#25050b; background:linear-gradient(135deg,#ff6b8b,#ffd166); box-shadow:0 0 0 0 #ff6b8b88; animation:recordPulse 1.25s infinite; }
-    .voice-dot { width:9px; height:9px; border-radius:999px; background:currentColor; display:inline-block; }
-    button { border:0; border-radius:14px; padding:11px 15px; margin:10px 8px 0 0; color:#04111d; background:linear-gradient(135deg, var(--accent), #7effd4); font-weight:700; cursor:pointer; }
-    button.secondary { background:#162844; color:#d9e9ff; border:1px solid #2e4568; }
-    button.danger { background:#ff6b8b; color:#21030a; }
-    button:disabled { opacity:.45; cursor:not-allowed; }
-    .meta { margin-top:12px; font-size:13px; color:var(--muted); white-space:pre-wrap; }
-    .ok { color:var(--good); } .err { color:var(--bad); } .warn { color:var(--warn); }
-    audio { width:100%; margin-top:14px; }
-    pre { background:#06101f; border:1px solid #1e314d; border-radius:16px; padding:14px; overflow:auto; max-height:360px; color:#cfe4ff; font-size:12px; line-height:1.45; }
-    .meter { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
-    .tag { border:1px solid #284466; color:#bdd0e9; background:#0a1526; padding:5px 9px; border-radius:999px; font-size:12px; }
-    .board-head { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }
-    .board { min-height:240px; border-radius:20px; border:1px solid #27466d; background:linear-gradient(180deg, #07182c, #06101f); padding:18px; margin-top:14px; display:flex; flex-direction:column; gap:12px; }
-    .empty { color:#7390b7; font-size:18px; text-align:center; margin:auto; }
-    .utterance { display:grid; grid-template-columns:86px 1fr; gap:12px; align-items:start; animation:fadeIn .18s ease-out; }
-    .who { border-radius:999px; padding:7px 10px; text-align:center; font-weight:800; font-size:13px; border:1px solid #2a4d75; background:#0b1c32; color:#bfeaff; }
-    .who.user { color:#06131e; background:linear-gradient(135deg,#69e0ff,#78ffd2); border:0; }
-    .who.assistant { color:#051a10; background:linear-gradient(135deg,#55e39b,#cafc6b); border:0; }
-    .who.ambient { color:#211806; background:linear-gradient(135deg,#ffd166,#ffef9a); border:0; }
-    .bubble { border:1px solid #223c5d; background:#08172a; border-radius:17px; padding:13px 15px; min-height:52px; }
-    .bubble .text { font-size:24px; line-height:1.55; letter-spacing:.01em; white-space:pre-wrap; word-break:break-word; }
-    .raw-aside { margin-top:10px; color:#90a6c5; font-size:12px; line-height:1.45; border-left:2px solid #28486e; padding-left:9px; opacity:.70; }
-    .raw-aside b { color:#b8c9e2; font-weight:700; }
-    .bubble .sub { margin-top:8px; color:#7891b4; font-size:12px; }
-    .bubble.live { border-color:#48c9ff; box-shadow:0 0 0 1px #48c9ff33, 0 0 24px #48c9ff18; }
-    .caret { display:inline-block; width:9px; height:1.15em; margin-left:4px; vertical-align:-.18em; background:#67e8ff; animation:blink 1s infinite; }
-    .board-note { margin-top:10px; color:#91a8c8; font-size:13px; }
-    details.debug-details > summary { cursor:pointer; color:#d9e9ff; font-weight:800; }
-    details.debug-details:not([open]) { opacity:.82; }
-    .feature-list { margin:8px 0 0; padding-left:18px; color:#b9c7dc; line-height:1.7; }
-    @keyframes blink { 0%,45%{opacity:1;} 46%,100%{opacity:.12;} }
-    @keyframes recordPulse { 0%{box-shadow:0 0 0 0 #ff6b8b88;} 70%{box-shadow:0 0 0 12px #ff6b8b00;} 100%{box-shadow:0 0 0 0 #ff6b8b00;} }
-    @keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
-    @media (max-width: 860px) { .grid { grid-template-columns:1fr; } header { flex-direction:column; } .utterance { grid-template-columns:1fr; } .bubble .text { font-size:21px; } }
+    html, body { min-height: 100%; }
+    body {
+      margin: 0;
+      background: #f3f4f6;
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    button, input, select { font: inherit; color: inherit; }
+    button { cursor: pointer; }
+
+    .site-shell { min-height: 100vh; }
+    .site-bar {
+      height: 64px;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      gap: 20px;
+      padding: 0 26px;
+      border-bottom: 1px solid #e8e9eb;
+      background: rgba(248, 248, 249, .92);
+      backdrop-filter: blur(18px);
+    }
+    .brand { display: inline-flex; width: fit-content; align-items: center; gap: 9px; color: var(--ink); text-decoration: none; letter-spacing: -.03em; }
+    .brand-mark { width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; gap: 2px; border-radius: 8px; background: var(--ink); }
+    .brand-mark i { display: block; width: 2px; height: 7px; border-radius: 2px; background: #fff; }
+    .brand-mark i:nth-child(2) { height: 15px; }.brand-mark i:nth-child(3) { height: 11px; }.brand-mark i:nth-child(4) { height: 5px; }
+    .brand strong { font-size: 15px; }
+    .brand small { color: var(--muted); font-size: 9px; font-weight: 600; letter-spacing: .04em; }
+
+    .service-state { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 10px; }
+    .service-state i { width: 6px; height: 6px; border-radius: 50%; background: #b5b7bc; }
+    .service-state.ready { color: var(--green); }.service-state.ready i { background: var(--green); box-shadow: 0 0 0 4px rgba(32, 166, 110, .1); }
+    .service-state.error { color: var(--red); }.service-state.error i { background: var(--red); }
+
+    .utility-actions { display: flex; justify-content: flex-end; gap: 8px; }
+    .icon-button { width: 36px; height: 36px; padding: 0; display: grid; place-items: center; border: 1px solid #e7e7e9; border-radius: 12px; background: #fff; font-size: 12px; font-weight: 700; }
+    .icon-button:hover { background: #f8f8f9; }
+    .settings-icon { position: relative; width: 15px; height: 15px; border: 2px solid currentColor; border-radius: 50%; }
+    .settings-icon::after { content: ""; position: absolute; width: 4px; height: 4px; border-radius: 50%; background: currentColor; left: 3.5px; top: 3.5px; }
+
+    .recorder-shell {
+      position: relative;
+      width: min(960px, calc(100vw - 44px));
+      height: calc(100vh - 92px);
+      min-height: 660px;
+      margin: 14px auto;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      background: var(--panel);
+      border: 1px solid #e9e9eb;
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+    }
+
+    .meeting-header { padding: 39px 48px 20px; }
+    .meeting-header input { width: 100%; padding: 0; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: clamp(25px, 3.2vw, 38px); font-weight: 740; line-height: 1.25; letter-spacing: -.045em; }
+    .meeting-meta { display: flex; align-items: center; gap: 8px; margin-top: 13px; color: var(--muted); font-size: 10px; }
+    .meeting-meta > i { width: 3px; height: 3px; border-radius: 50%; background: #b7b8bc; }
+    .clock-icon { width: 12px; height: 12px; border: 1.5px solid currentColor; border-radius: 50%; position: relative; }
+    .clock-icon::before { content: ""; position: absolute; left: 5px; top: 2px; width: 1px; height: 4px; background: currentColor; }
+    .clock-icon::after { content: ""; position: absolute; left: 5px; top: 5px; width: 3px; height: 1px; background: currentColor; transform: rotate(20deg); transform-origin: left center; }
+
+    .content-tabs { display: flex; gap: 34px; padding: 0 48px; border-bottom: 1px solid var(--line); }
+    .content-tab { position: relative; padding: 15px 0 16px; border: 0; background: transparent; color: #85868c; font-size: 14px; font-weight: 680; }
+    .content-tab.active { color: var(--ink); }
+    .content-tab.active::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 3px; border-radius: 3px; background: var(--ink); }
+    .content-tab .live-tag { margin-left: 5px; padding: 2px 5px; border-radius: 5px; background: var(--violet-soft); color: var(--violet); font-size: 8px; vertical-align: 2px; }
+
+    .content-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 21px 48px 205px; scrollbar-width: thin; scrollbar-color: #ddd transparent; }
+    .tab-panel { display: none; width: min(100%, 760px); margin: 0 auto; }
+    .tab-panel.active { display: block; }
+    .stream-status { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; color: #9a9ca2; font-size: 9px; }
+    .stream-status span { display: flex; align-items: center; gap: 6px; }
+    .stream-status i { width: 5px; height: 5px; border-radius: 50%; background: #b5b7bc; }
+    .stream-status.recording i { background: var(--green); }.stream-status.connecting i { background: var(--orange); }.stream-status.error i { background: var(--red); }
+
+    .transcript-list { min-height: 250px; }
+    .transcript-block { display: grid; grid-template-columns: 30px 1fr; gap: 14px; padding: 15px 0; animation: fade-in .2s ease; }
+    .speaker-dot { width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(145deg, #c7c7ff 0 48%, #e8e8ff 49%); }
+    .transcript-block:nth-child(even) .speaker-dot { background: linear-gradient(145deg, #bce6ff 0 48%, #e4f5ff 49%); }
+    .transcript-block header { display: flex; align-items: center; gap: 8px; color: #8c8e94; font-size: 10px; }
+    .transcript-block header strong { color: #777980; font-size: 11px; }
+    .transcript-block header em { margin-left: 2px; padding: 3px 6px; border-radius: 6px; background: #f0f0ff; color: var(--violet); font-style: normal; font-size: 8px; }
+    .transcript-block p { margin: 8px 0 0; color: #24252a; font-size: 15px; line-height: 1.85; letter-spacing: .01em; white-space: pre-wrap; word-break: break-word; }
+    .transcript-block.demo { opacity: .72; }
+    .transcript-block.demo header::after { content: "示例"; padding: 2px 5px; border-radius: 5px; background: #f2f2f3; color: #a0a2a7; font-size: 7px; }
+    .live-block { display: none; }
+    .live-block.visible { display: grid; }
+    .typing-caret { display: inline-block; width: 2px; height: 1.05em; margin-left: 3px; vertical-align: -.12em; background: var(--violet); animation: blink 1s steps(1) infinite; }
+    .listening { display: flex; align-items: center; gap: 6px; margin-top: 10px; color: #96989e; font-size: 9px; }
+    .listening > i { width: 5px; height: 5px; border-radius: 50%; background: var(--red); }
+    .listening b { width: 3px; height: 3px; border-radius: 50%; background: currentColor; animation: bounce .8s ease-in-out infinite alternate; }
+    .listening b:nth-child(3) { animation-delay: -.25s; }.listening b:nth-child(4) { animation-delay: -.5s; }
+    .empty-transcript { display: none; min-height: 300px; place-items: center; text-align: center; color: var(--muted); }
+    .empty-transcript.visible { display: grid; }
+    .empty-transcript strong { display: block; margin-bottom: 7px; color: #64666c; font-size: 13px; }
+    .empty-transcript span { font-size: 10px; }
+
+    .summary-toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+    .summary-toolbar > div { display: flex; align-items: center; gap: 8px; color: #898b91; font-size: 10px; }
+    .ai-mark { display: grid; place-items: center; width: 25px; height: 25px; border-radius: 8px; background: var(--ink); color: #fff; font-size: 8px; font-weight: 760; }
+    .summary-actions { display: flex; gap: 7px; }
+    .summary-actions button { padding: 7px 10px; border: 1px solid var(--line); border-radius: 9px; background: #fff; color: #76787e; font-size: 9px; }
+    .summary-actions button:disabled { opacity: .45; cursor: not-allowed; }
+    .summary-lead { padding: 23px 25px; border-radius: 19px; background: #f6f6f8; }
+    .summary-lead small { color: var(--violet); font-size: 9px; font-weight: 720; }
+    .summary-lead h2 { max-width: 650px; margin: 12px 0 8px; font-size: clamp(20px, 2.8vw, 29px); line-height: 1.3; letter-spacing: -.035em; }
+    .summary-lead p { margin: 0; color: #7c7e84; font-size: 11px; line-height: 1.75; }
+    .summary-output { min-height: 170px; margin-top: 13px; padding: 21px 23px; border: 1px solid var(--line); border-radius: 17px; color: #4e5056; font-size: 12px; line-height: 1.85; white-space: pre-wrap; word-break: break-word; }
+    .summary-output.loading { color: var(--muted); }
+    .summary-output.error { color: #b84040; background: #fff8f8; border-color: #f4dada; }
+    .extension-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 13px; }
+    .extension-chip { padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; color: #85878d; font-size: 9px; background: #fff; }
+
+    .recording-console { position: absolute; left: 22px; right: 22px; bottom: 18px; padding: 18px 24px 17px; border: 1px solid #e7e7e9; border-radius: 24px; background: rgba(255, 255, 255, .95); backdrop-filter: blur(22px); box-shadow: 0 18px 55px rgba(27, 30, 44, .14); }
+    .waveform-wrap { position: relative; height: 48px; }
+    #recording-waveform { width: 100%; height: 48px; display: block; }
+    .waveform-placeholder { position: absolute; inset: 0; display: flex; align-items: center; gap: 3px; opacity: .72; mask-image: linear-gradient(90deg, transparent, black 4%, black 96%, transparent); }
+    .waveform-placeholder.hidden { display: none; }
+    .waveform-placeholder i { flex: 1 1 2px; min-width: 2px; max-width: 3px; height: var(--height); border-radius: 3px; background: #707278; transform-origin: center; animation: wave .8s ease-in-out infinite alternate; animation-delay: var(--delay); }
+    .recording-console.paused .waveform-placeholder i, .recording-console.ended .waveform-placeholder i, .recording-console.idle .waveform-placeholder i { animation-play-state: paused; opacity: .45; transform: scaleY(.45); }
+    .console-controls { display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: center; margin-top: 12px; }
+    .elapsed-time strong, .elapsed-time small { display: block; }
+    .elapsed-time strong { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 19px; letter-spacing: -.04em; }
+    .elapsed-time small { display: flex; align-items: center; gap: 5px; margin-top: 4px; color: #a0a2a7; font-size: 8px; }
+    .elapsed-time small i { width: 5px; height: 5px; border-radius: 50%; background: var(--green); }
+    .record-toggle { justify-self: center; width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; gap: 6px; border: 0; border-radius: 19px; background: var(--ink); color: #fff; box-shadow: 0 7px 22px rgba(21, 22, 27, .18); }
+    .record-toggle > i { width: 5px; height: 19px; border-radius: 5px; background: currentColor; }
+    .record-toggle .record-icon { width: 19px; height: 19px; border-radius: 50%; background: var(--red); box-shadow: 0 0 0 6px rgba(255, 98, 94, .12); }
+    .record-toggle .play-icon { width: 0; height: 0; margin-left: 4px; border-top: 10px solid transparent; border-bottom: 10px solid transparent; border-left: 16px solid currentColor; }
+    .finish-wrap { display: flex; justify-content: flex-end; gap: 8px; }
+    .finish-control, .download-control { min-width: 82px; height: 47px; border: 0; border-radius: 16px; background: #f5f5f6; color: #292a2f; font-size: 11px; font-weight: 680; }
+    .download-control { display: none; border: 1px solid var(--line); background: #fff; }
+    .download-control.visible { display: inline-block; }
+    .finish-control:disabled, .download-control:disabled { color: #a0a2a7; cursor: not-allowed; }
+
+    dialog { width: min(420px, calc(100vw - 32px)); padding: 0; border: 0; border-radius: 22px; color: var(--ink); box-shadow: 0 30px 90px rgba(20, 24, 38, .25); }
+    dialog::backdrop { background: rgba(22, 24, 30, .28); backdrop-filter: blur(4px); }
+    .settings-card { padding: 23px; }
+    .settings-card header { display: flex; align-items: center; justify-content: space-between; }
+    .settings-card h2 { margin: 0; font-size: 18px; letter-spacing: -.03em; }
+    .settings-card .close-dialog { width: 32px; height: 32px; border: 0; border-radius: 10px; background: var(--soft); }
+    .settings-card label { display: block; margin: 22px 0 8px; color: var(--ink-soft); font-size: 11px; font-weight: 650; }
+    .settings-card select { width: 100%; height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; outline: 0; }
+    .settings-card p { margin: 12px 0 0; color: var(--muted); font-size: 10px; line-height: 1.65; }
+
+    .toast { position: fixed; z-index: 50; left: 50%; bottom: 28px; transform: translate(-50%, 20px); max-width: min(440px, calc(100vw - 32px)); padding: 10px 14px; border-radius: 12px; background: #202126; color: #fff; opacity: 0; pointer-events: none; font-size: 10px; transition: .2s ease; }
+    .toast.visible { opacity: 1; transform: translate(-50%, 0); }
+
+    @keyframes blink { 50% { opacity: 0; } }
+    @keyframes bounce { to { transform: translateY(-4px); opacity: .35; } }
+    @keyframes wave { from { transform: scaleY(.42); } to { transform: scaleY(1); } }
+    @keyframes fade-in { from { opacity: 0; transform: translateY(5px); } }
+
+    @media (max-width: 680px) {
+      .site-shell { background: #fff; }
+      .site-bar { height: 60px; grid-template-columns: 1fr auto; padding: 0 17px; background: #fff; }
+      .brand small, .service-state { display: none; }
+      .utility-actions .language-button { display: none; }
+      .icon-button { width: 34px; height: 34px; border: 0; }
+      .recorder-shell { width: 100%; height: calc(100dvh - 60px); min-height: 590px; margin: 0; border: 0; border-radius: 0; box-shadow: none; }
+      .meeting-header { padding: 29px 22px 17px; }
+      .meeting-header input { font-size: 28px; }
+      .meeting-meta { gap: 6px; font-size: 9px; overflow: hidden; white-space: nowrap; }
+      .meeting-meta span:last-child, .meeting-meta i:last-of-type { display: none; }
+      .content-tabs { padding: 0 22px; gap: 30px; }
+      .content-tab { font-size: 13px; }
+      .content-scroll { padding: 16px 22px 190px; }
+      .transcript-block { grid-template-columns: 27px 1fr; gap: 11px; padding: 13px 0; }
+      .speaker-dot { width: 25px; height: 25px; }
+      .transcript-block p { font-size: 14px; line-height: 1.78; }
+      .transcript-block.demo:first-of-type { display: none; }
+      .recording-console { left: 10px; right: 10px; bottom: max(9px, env(safe-area-inset-bottom)); padding: 15px 16px 14px; border-radius: 22px; }
+      .waveform-wrap, #recording-waveform { height: 42px; }
+      .waveform-placeholder { gap: 2px; }
+      .waveform-placeholder i { min-width: 1px; }
+      .console-controls { margin-top: 10px; }
+      .elapsed-time strong { font-size: 17px; }
+      .elapsed-time small { display: none; }
+      .record-toggle { width: 52px; height: 52px; border-radius: 17px; }
+      .finish-control, .download-control { min-width: 68px; height: 44px; }
+      .summary-lead { padding: 20px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+    }
   </style>
 </head>
 <body>
-<main>
-  <header>
-    <div>
-      <h1>千问 Token Plan 音频 Demo</h1>
-      <p>后端读取服务器环境变量或私有 env 文件；浏览器只访问本地后端，不接触 API Key。</p>
-    </div>
-    <span class="pill" id="status-pill">检查中…</span>
-  </header>
+  <main class="site-shell">
+    <header class="site-bar">
+      <a class="brand" href="/" aria-label="声笺首页">
+        <span class="brand-mark"><i></i><i></i><i></i><i></i></span>
+        <strong>声笺</strong>
+        <small>VoiceNote</small>
+      </a>
 
-  <nav class="tabs" aria-label="演示分区">
-    <button class="tab-button active" type="button" data-tab="tts">语音合成</button>
-    <button class="tab-button" type="button" data-tab="realtime">实时对话</button>
-    <button class="tab-button" type="button" data-tab="asr">语音转写</button>
-  </nav>
+      <span class="service-state" id="service-state"><i></i><span>检查识别服务…</span></span>
 
-  <section class="tab-panel active" id="panel-tts" data-panel="tts">
-    <div class="grid">
-      <div class="card span2">
-        <h2>语音合成</h2>
-        <p>文本转语音；音色可选。该页包含基础语音合成和声音克隆。</p>
-        <label for="tts-text">文本</label>
-        <textarea id="tts-text">你好，这是千问 Token Plan 的网页语音合成 Demo。API Key 只在后端使用。</textarea>
-        <label for="voice">音色 / 声音 ID</label>
-        <select id="voice">
-          <option value="longanlingxin" selected>longanlingxin（官方示例音色）</option>
-          <option value="longanqian">longanqian</option>
-          <option value="longxiaochun">longxiaochun</option>
-          <option value="longxiaoxia">longxiaoxia</option>
-          <option value="longxiaobai">longxiaobai</option>
-        </select>
-        <button id="tts-run">生成 MP3</button>
-        <button class="secondary" id="tts-download" disabled>下载上一次音频</button>
-        <audio id="tts-audio" controls></audio>
-        <div class="meta" id="tts-meta"></div>
-      </div>
-      <div class="card span2" id="voice-cloning-card">
-        <h2>声音克隆</h2>
-        <p>通过后端调用 DashScope 语音注册接口。浏览器提交可公开访问的参考音频 URL，服务端创建声音 ID；随后可把声音 ID 放入上方音色框生成克隆音色。</p>
-        <div class="grid">
-          <div>
-            <label for="clone-audio-url">参考音频 URL（http/https）</label>
-            <input id="clone-audio-url" placeholder="https://example.com/reference.wav" />
-            <label for="clone-prefix">声音 ID 前缀</label>
-            <input id="clone-prefix" value="qwen_demo" />
-            <button id="clone-create">创建声音 ID</button>
-            <button class="secondary" id="clone-list">列出声音 ID</button>
-          </div>
-          <div>
-            <label>声音克隆结果</label>
-            <div class="meta" id="clone-meta">等待创建或查询。真实 API Key 只在后端使用。</div>
-          </div>
+      <nav class="utility-actions" aria-label="录音工具">
+        <button class="icon-button language-button" type="button" aria-label="当前语言">中</button>
+        <button class="icon-button" id="open-settings" type="button" aria-label="识别设置"><span class="settings-icon"></span></button>
+        <button class="icon-button" id="copy-transcript" type="button" aria-label="复制文字记录">•••</button>
+      </nav>
+    </header>
+
+    <section class="recorder-shell" id="recorder-shell">
+      <header class="meeting-header">
+        <input id="meeting-title" aria-label="录音标题" value="新录音" />
+        <div class="meeting-meta">
+          <span class="clock-icon"></span>
+          <span id="created-at">8 月 17 日 04:08</span>
+          <i></i>
+          <span>网页录音</span>
+          <i></i>
+          <span id="channel-label">自动选择识别服务</span>
         </div>
-      </div>
-    </div>
-  </section>
+      </header>
 
-  <section class="tab-panel" id="panel-realtime" data-panel="realtime">
-    <div class="grid">
-      <div class="card span2">
-        <h2>实时对话</h2>
-        <p>点一次开始，浏览器连续发送麦克风音频，后端用千问 Realtime 的 <code>server_vad</code> 自动判断说话轮次；不需要手动提交或发送静音。</p>
-        <button id="rt-live-toggle">开始实时对话</button>
-        <button class="secondary" id="rt-board-clear">清空实时对话面板</button>
-        <div class="meta" id="rt-meta">未连接</div>
-        <div class="meter" id="rt-tags"></div>
-      </div>
-      <div class="card span2">
-        <div class="board-head">
-          <div>
-            <h2>实时对话展示面板</h2>
-            <p>不是事件日志；只保留用户/千问最终可读文本。原始识别仅小字旁注。</p>
+      <nav class="content-tabs" role="tablist" aria-label="会议内容">
+        <button class="content-tab active" id="transcript-tab" data-tab="transcript" type="button" role="tab" aria-selected="true">文字记录 <span class="live-tag">实时</span></button>
+        <button class="content-tab" id="summary-tab" data-tab="summary" type="button" role="tab" aria-selected="false">实时摘要</button>
+      </nav>
+
+      <div class="content-scroll" id="content-scroll">
+        <section class="tab-panel active" id="transcript-panel" data-panel="transcript" role="tabpanel">
+          <div class="stream-status idle" id="stream-status">
+            <span><i></i><b id="status-message">点击下方按钮开始录音</b></span>
+            <span id="latency-label">尚未连接</span>
           </div>
-        </div>
-        <div class="board" id="realtime-board"><div class="empty">等待实时转写/文本增量…</div></div>
-        <div class="board-note" id="realtime-board-meta">监听实时转写/文本事件。</div>
-      </div>
-      <details class="card span2 debug-details" id="realtime-debug">
-        <summary>开发者调试事件日志（默认折叠）</summary>
-        <p>完整协议诊断，仅用于开发调试；用户主体验不依赖 JSON 日志。</p>
-        <pre id="log"></pre>
-      </details>
-    </div>
-  </section>
 
-  <section class="tab-panel" id="panel-asr" data-panel="asr">
-    <div class="grid">
-      <div class="card span2" id="asr-chat-card">
-        <h2>聊天输入框式语音转写</h2>
-        <p>Open WebUI 同款交互：输入框里只有一个麦克风按钮。点一下进入“录音中”，你说的话会像打字一样实时渲染到这个文本框里。</p>
-        <div class="chat-composer" id="asr-chat-composer">
-          <textarea id="asr-chat-input" placeholder="点右下角麦克风，说话内容会像打字一样出现在这里。"></textarea>
-          <div class="composer-footer">
-            <span class="composer-status" id="asr-chat-status">等待语音输入。</span>
-            <div class="composer-actions">
-              <button class="secondary" id="asr-chat-clear" type="button">清空</button>
-              <button id="asr-voice-button" class="voice-button" type="button" aria-pressed="false" title="开始语音输入">🎙️ 语音输入</button>
+          <div class="transcript-list" id="transcript-list"></div>
+
+          <article class="transcript-block live-block" id="live-block">
+            <span class="speaker-dot"></span>
+            <div>
+              <header><strong>说话人 1</strong><span>·</span><time id="live-time">00:00</time><em>正在识别</em></header>
+              <p id="live-text"><span class="typing-caret"></span></p>
+              <div class="listening"><i></i><span>正在聆听</span><b></b><b></b><b></b></div>
+            </div>
+          </article>
+
+          <div class="empty-transcript" id="empty-transcript">
+            <div><strong>等待第一段文字</strong><span>识别结果会自动出现在这里</span></div>
+          </div>
+        </section>
+
+        <section class="tab-panel" id="summary-panel" data-panel="summary" role="tabpanel">
+          <div class="summary-toolbar">
+            <div><span class="ai-mark">AI</span><span id="summary-state">示例摘要</span></div>
+            <div class="summary-actions">
+              <button id="generate-summary" type="button">更新摘要</button>
+              <button id="copy-summary" type="button">复制</button>
             </div>
           </div>
+
+          <article class="summary-lead">
+            <small>一句话摘要</small>
+            <h2 id="summary-title">前端以实时转写为核心，通过统一协议兼容不同语音识别服务。</h2>
+            <p>原始录音与实时识别彼此独立，后续摘要、待办和更多处理能力都消费标准化的转写结果。</p>
+          </article>
+
+          <div class="summary-output" id="summary-output">核心结论
+• 页面重点呈现实时时间轴、说话人和识别状态。
+• 浏览器只连接自己的后端，不接触供应商密钥。
+• 实时转写完成后，可继续生成摘要、行动项和后续工作流。
+
+下一步
+• 接入真实会议内容后，摘要会随转写结果持续更新。</div>
+
+          <div class="extension-row" aria-label="后续处理能力">
+            <span class="extension-chip">行动项</span>
+            <span class="extension-chip">风险与问题</span>
+            <span class="extension-chip">润色校对</span>
+            <span class="extension-chip">自定义工作流</span>
+          </div>
+        </section>
+      </div>
+
+      <footer class="recording-console idle" id="recording-console">
+        <div class="waveform-wrap">
+          <canvas id="recording-waveform" aria-label="实时音量波形"></canvas>
+          <div class="waveform-placeholder" id="waveform-placeholder" aria-hidden="true"></div>
         </div>
-        <details class="debug-details" id="asr-tech-details">
-          <summary>识别技术设置（默认折叠）</summary>
-          <label for="asr-channel">识别通道</label>
-          <select id="asr-channel">
-            <option value="funasr-gpu" selected>FunASR GPU（默认）</option>
-            <option value="funasr-cpu">FunASR CPU（fallback）</option>
-            <option value="stub-local">本地合同通道（smoke fallback）</option>
-          </select>
-          <div class="meta" id="asr-live-meta">后端通过 /ws/asr/stream 持续接收麦克风音频，并用默认 funasr-gpu 通道识别。</div>
-        </details>
-      </div>
-      <div class="card span2" id="meeting-notes-card">
-        <h2>会议纪要</h2>
-        <p>聊天输入框里的语音文字会自动保留到这里，下一步可做智能润色和实时摘要。模型默认从后端配置读取，可接 Qwen Coding Plan。</p>
-        <ul class="feature-list">
-          <li>实时转写：来自上方聊天输入框。</li>
-          <li>智能润色：修复口语、错字、断句。</li>
-          <li>实时摘要：输出摘要、待办、风险、未决问题。</li>
-        </ul>
-        <label for="meeting-transcript">下一步内容</label>
-        <textarea id="meeting-transcript" placeholder="实时转写完成后会自动留下文字，也可手动微调。"></textarea>
-        <button id="meeting-polish">生成会议纪要 / 摘要</button>
-        <div class="meta" id="meeting-meta">等待转写文本。</div>
-      </div>
-    </div>
-  </section>
-</main>
-<script>
-const $ = (id) => document.getElementById(id);
-const logEl = $('log');
-let lastAudioUrl = null;
-let ws = null;
-let audioContext = null;
-let micStream = null;
-let processor = null;
-let source = null;
-let micOn = false;
-let asrStreamWs = null;
-let asrStreamAudioContext = null;
-let asrStreamSource = null;
-let asrStreamProcessor = null;
-let asrStreamMicStream = null;
-let asrStreamMicOn = false;
-let asrLiveSegments = [];
 
-const boards = {
-  realtime: {lines: [], draft: {}, seq: 0, boardId: 'realtime-board', metaId: 'realtime-board-meta', empty: '等待实时转写/文本增量…'},
-};
+        <div class="console-controls">
+          <div class="elapsed-time">
+            <strong id="elapsed">00:00</strong>
+            <small><i></i><span id="local-save-status">录音尚未开始</span></small>
+          </div>
 
-function activateTab(tab) {
-  document.querySelectorAll('.tab-button').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tab));
-  document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.toggle('active', panel.dataset.panel === tab));
-}
-document.querySelectorAll('.tab-button').forEach(btn => btn.addEventListener('click', () => activateTab(btn.dataset.tab)));
+          <button class="record-toggle" id="record-toggle" type="button" aria-label="开始录音"><span class="record-icon"></span></button>
 
-function log(kind, obj) {
-  const printable = typeof obj === 'string' ? obj : JSON.stringify(obj);
-  const line = `[${new Date().toLocaleTimeString()}] ${kind} ` + printable;
-  logEl.textContent = line + '\n' + logEl.textContent;
-}
-function setRealtimeButtons(connected) { $('rt-live-toggle').textContent = connected ? '停止实时对话' : '开始实时对话'; }
-function roleLabel(role) {
-  if (role === 'user') return '你'; if (role === 'assistant') return '千问'; if (role === 'ambient') return '环境音'; return '文本';
-}
-function normalizeTranscriptText(text) { return String(text || '').replace(/\s+/g, '').trim(); }
-function collapseFillerForCompare(text) { return normalizeTranscriptText(text).replace(/[呃嗯啊额,，。.!！?？]/g, ''); }
-function sameTranscript(a, b) { return normalizeTranscriptText(a) === normalizeTranscriptText(b); }
-function similarTranscript(a, b) {
-  const x = collapseFillerForCompare(a), y = collapseFillerForCompare(b);
-  if (!x || !y) return false;
-  return x === y || x.includes(y) || y.includes(x);
-}
-function draftKey(ev, role) {
-  if (ev.item_id) return `${role}:item:${ev.item_id}`;
-  if (ev.response_id) return `${role}:response:${ev.response_id}`;
-  return `${role}:draft`;
-}
-function finalKey(ev, role, text) {
-  if (ev.item_id) return `${role}:item:${ev.item_id}`;
-  if (ev.response_id) return `${role}:response:${ev.response_id}`;
-  return `${role}:text:${normalizeTranscriptText(text).slice(0, 96)}`;
-}
-function findSimilarRawTranscript(state, key, role, text) {
-  for (let i = state.lines.length - 1; i >= Math.max(0, state.lines.length - 16); i--) {
-    const row = state.lines[i];
-    if (row.key === key) return row;
-    if (row.role === role && (sameTranscript(row.text, text) || similarTranscript(row.text, text) || similarTranscript(row.rawText || '', text))) return row;
-  }
-  return null;
-}
-function renderBoard(name) {
-  const state = boards[name];
-  const board = $(state.boardId);
-  board.innerHTML = '';
-  const rows = state.lines.slice(-24).map(x => ({...x, live:false}));
-  for (const draft of Object.values(state.draft)) if (draft && draft.text) rows.push({...draft, live:true, phase:'delta'});
-  if (!rows.length) { board.innerHTML = `<div class="empty">${state.empty}</div>`; return; }
-  for (const row of rows) {
-    const wrap = document.createElement('div'); wrap.className = 'utterance';
-    const who = document.createElement('div'); who.className = 'who ' + (row.role || 'unknown'); who.textContent = roleLabel(row.role);
-    const bubble = document.createElement('div'); bubble.className = 'bubble' + (row.live ? ' live' : '');
-    const text = document.createElement('div'); text.className = 'text'; text.textContent = row.text || '';
-    if (row.live) { const caret = document.createElement('span'); caret.className = 'caret'; text.appendChild(caret); }
-    bubble.appendChild(text);
-    if (row.rawText && !sameTranscript(row.rawText, row.text)) {
-      const raw = document.createElement('div'); raw.className = 'raw-aside'; raw.innerHTML = '<b>原始识别：</b>'; raw.appendChild(document.createTextNode(row.rawText)); bubble.appendChild(raw);
+          <div class="finish-wrap">
+            <button class="download-control" id="download-recording" type="button" disabled>下载</button>
+            <button class="finish-control" id="finish-recording" type="button" disabled>结束</button>
+          </div>
+        </div>
+      </footer>
+    </section>
+  </main>
+
+  <dialog id="settings-dialog">
+    <form class="settings-card" method="dialog">
+      <header><h2>识别设置</h2><button class="close-dialog" value="close" aria-label="关闭">×</button></header>
+      <label for="asr-channel">实时转写通道</label>
+      <select id="asr-channel"><option value="funasr-gpu">读取服务端配置中…</option></select>
+      <p>页面始终使用统一转写协议。未来接入阿里、火山、讯飞或 Whisper 服务时，录音页不需要改变。</p>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const demoSegments = [
+      { speaker: '说话人 1', time: '00:18', text: '我们先专注主要的会议录音体验，用户进入页面以后应该能够很快开始。', demo: true },
+      { speaker: '说话人 2', time: '01:26', text: '最基础的是实时转写，摘要和后续处理都建立在统一的文字结果之上。', demo: true },
+      { speaker: '说话人 1', time: '03:08', text: '后端可以接不同供应商，也可以切换成服务化的 Whisper，前端不需要知道这些差异。', demo: true },
+    ];
+    const placeholderHeights = [18,25,31,22,40,55,32,26,47,65,40,29,46,72,54,34,49,77,45,31,58,84,63,39,55,93,72,48,66,98,76,49,62,89,69,44,56,81,61,40,51,73,56,36,44,65,49,33,40,57,43,28,35,49,36,24,30,39,27,20,24,31,22,17];
+
+    let recorderState = 'idle';
+    let activeTab = 'transcript';
+    let elapsedSeconds = 0;
+    let timerId = null;
+    let sessionStartedAt = null;
+    let asrStreamWs = null;
+    let audioContext = null;
+    let audioSource = null;
+    let audioProcessor = null;
+    let audioAnalyser = null;
+    let microphoneStream = null;
+    let sendingAudio = false;
+    let animationFrameId = null;
+    let mediaRecorder = null;
+    let archiveChunks = [];
+    let recordingUrl = null;
+    let transcriptSegments = [...demoSegments];
+    let showingDemo = true;
+    let summaryIsDemo = true;
+    let summaryRunning = false;
+    let lastSummaryAt = 0;
+    let toastTimer = null;
+
+    function escapeHtml(value) {
+      return String(value || '').replace(/[&<>'"]/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
     }
-    const sub = document.createElement('div'); sub.className = 'sub'; sub.textContent = `${row.phase === 'final' ? '纠正/定稿' : '流式原始'} · ${row.source_type || 'transcript'} · ${row.time || ''}`;
-    bubble.appendChild(sub); wrap.appendChild(who); wrap.appendChild(bubble); board.appendChild(wrap);
-  }
-  board.scrollTop = board.scrollHeight;
-}
-function appendBoardEvent(boardName, ev) {
-  const state = boards[boardName];
-  const role = ev.role || 'unknown';
-  const text = ev.text || '';
-  if (!text) return;
-  const now = new Date().toLocaleTimeString();
-  if (ev.phase === 'delta') {
-    const key = draftKey(ev, role);
-    const current = state.draft[key] || {id:'draft-' + key, key, role, text:'', source_type: ev.source_type, time: now};
-    current.text = (current.text || '') + text; current.source_type = ev.source_type || current.source_type; current.time = now; state.draft[key] = current;
-  } else {
-    const key = finalKey(ev, role, text);
-    const dKey = draftKey(ev, role);
-    const draft = state.draft[dKey] || state.draft[key];
-    const rawText = ev.raw_text || (draft && draft.text ? draft.text : '');
-    const finalText = text || rawText;
-    delete state.draft[dKey]; delete state.draft[key];
-    const existing = findSimilarRawTranscript(state, key, role, finalText);
-    if (existing) {
-      if (!sameTranscript(existing.text, finalText)) { existing.rawText = existing.rawText || existing.text; existing.text = finalText; }
-      if (rawText && !sameTranscript(rawText, finalText)) existing.rawText = rawText;
-      existing.key = key; existing.source_type = ev.source_type || existing.source_type; existing.time = now;
-    } else if (finalText) {
-      state.lines.push({id: ++state.seq, key, role, text: finalText, rawText: sameTranscript(rawText, finalText) ? '' : rawText, phase:'final', source_type: ev.source_type, time: now});
+
+    function formatTime(seconds) {
+      const minutes = Math.floor(seconds / 60).toString().padStart(2, '0');
+      const remainder = Math.max(0, seconds % 60).toString().padStart(2, '0');
+      return `${minutes}:${remainder}`;
     }
-  }
-  $(state.metaId).textContent = `${roleLabel(role)} · ${ev.phase || 'delta'} · ${ev.source_type || 'unknown'} · ${now}`;
-  renderBoard(boardName);
-}
-function handleRealtimeEvent(payload) {
-  if (payload.demo_event === 'transcript.delta') { appendBoardEvent('realtime', payload); log('public-board.update', {role:payload.role, phase:payload.phase, source_type:payload.source_type}); return; }
-  if (payload.demo_event === 'upstream.event') { log('server.event', payload.event || {}); return; }
-  log('server.event', payload);
-}
-function handleAsrEvent(payload) {
-  const ev = payload.board_event || (payload.result && payload.result.board_event) || payload;
-  if (ev.demo_event === 'transcript.delta') {
-    const text = ev.text || (payload.result && payload.result.corrected_text) || '';
-    if (text) {
-      asrLiveSegments.push(text);
-      renderAsrLiveText();
+
+    function showToast(message) {
+      $('toast').textContent = message;
+      $('toast').classList.add('visible');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => $('toast').classList.remove('visible'), 2200);
     }
-  }
-  if (payload.result) $('asr-live-meta').textContent = `实时识别更新：${payload.result.corrected_text || ''}`;
-}
-function renderAsrLiveText() { const text = asrLiveSegments.join('\n'); $('asr-chat-input').value = text; $('asr-chat-input').style.height = ''; $('asr-chat-input').style.height = Math.min($('asr-chat-input').scrollHeight, 220) + 'px'; syncLiveTextToMeetingNotes(text); }
-function syncLiveTextToMeetingNotes(text) { $('meeting-transcript').value = text; }
-async function refreshStatus() {
-  try {
-    const r = await fetch('/api/status'); const j = await r.json();
-    $('status-pill').textContent = j.key_present && j.models_ok ? `就绪 · ${j.models.count} 个模型 · 转写通道 ${j.asr_default_channel}` : '配置需检查';
-    $('status-pill').className = 'pill ' + (j.key_present && j.models_ok ? 'ok' : 'err');
-    $('rt-tags').innerHTML = '';
-    [j.tts_model, j.realtime_model, j.asr_default_channel ? `转写通道 ${j.asr_default_channel}` : '转写通道待检查', j.base_host, j.key_present ? '服务端密钥已加载' : '服务端密钥缺失'].forEach(x => { const s = document.createElement('span'); s.className='tag'; s.textContent=x; $('rt-tags').appendChild(s); });
-    if (j.asr_default_channel) $('asr-channel').value = j.asr_default_channel;
-    log('status', {models_ok:j.models_ok, asr_default_channel:j.asr_default_channel, tts_model:j.tts_model, realtime_model:j.realtime_model});
-  } catch (e) { $('status-pill').textContent = '状态检查失败'; $('status-pill').className='pill err'; log('status.error', String(e)); }
-}
 
-$('tts-run').onclick = async () => {
-  $('tts-run').disabled = true; $('tts-meta').textContent = '生成中…';
-  try {
-    const r = await fetch('/api/tts', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({text:$('tts-text').value, voice:$('voice').value, format:'mp3'})});
-    if (!r.ok) throw new Error(await r.text());
-    const blob = await r.blob(); if (lastAudioUrl) URL.revokeObjectURL(lastAudioUrl); lastAudioUrl = URL.createObjectURL(blob); $('tts-audio').src = lastAudioUrl; $('tts-download').disabled = false;
-    const meta = {bytes: blob.size, request_id: r.headers.get('X-Qwen-Request-Id'), elapsed_ms: r.headers.get('X-Elapsed-Ms')}; $('tts-meta').textContent = JSON.stringify(meta, null, 2); log('tts.ok', meta);
-  } catch (e) { $('tts-meta').textContent = '失败：' + String(e); log('tts.error', String(e)); } finally { $('tts-run').disabled = false; }
-};
-$('tts-download').onclick = () => { if (!lastAudioUrl) return; const a = document.createElement('a'); a.href = lastAudioUrl; a.download = 'qwen-token-plan-tts.mp3'; a.click(); };
-$('clone-create').onclick = async () => {
-  $('clone-meta').textContent = '创建 voice id 中…';
-  try {
-    const r = await fetch('/api/voice-cloning/create', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({audio_url:$('clone-audio-url').value, prefix:$('clone-prefix').value})});
-    const j = await r.json(); if (!r.ok) throw new Error(JSON.stringify(j)); $('clone-meta').textContent = JSON.stringify(j, null, 2); if (j.voice_id) $('voice').value = j.voice_id;
-  } catch(e) { $('clone-meta').textContent = '声音克隆失败：' + String(e); }
-};
-$('clone-list').onclick = async () => {
-  try { const r = await fetch('/api/voice-cloning/list?prefix=' + encodeURIComponent($('clone-prefix').value)); const j = await r.json(); $('clone-meta').textContent = JSON.stringify(j, null, 2); }
-  catch(e) { $('clone-meta').textContent = '查询失败：' + String(e); }
-};
-$('rt-board-clear').onclick = () => { boards.realtime.lines = []; boards.realtime.draft = {}; boards.realtime.seq = 0; renderBoard('realtime'); $('realtime-board-meta').textContent = '已清空实时对话面板。'; log('realtime-board.clear', 'cleared'); };
-$('asr-chat-clear').onclick = () => { asrLiveSegments = []; renderAsrLiveText(); $('asr-chat-status').textContent = '已清空语音输入框。'; $('asr-live-meta').textContent = '已清空实时文字。'; };
+    function setupPlaceholderWave() {
+      $('waveform-placeholder').innerHTML = placeholderHeights.map((height, index) =>
+        `<i style="--height:${height}%;--delay:${(index % 15) * -0.055}s"></i>`
+      ).join('');
+    }
 
-function sendJson(obj, logIt=true) { if (!ws || ws.readyState !== WebSocket.OPEN) return; ws.send(JSON.stringify(obj)); if (logIt) log('client.send', obj); }
-function sessionUpdate() { sendJson({event_id:'web_demo_session_update_' + Date.now(), type:'session.update', session:{modalities:['text','audio'], voice:'longanqian', input_audio_format:'pcm', output_audio_format:'pcm', instructions:'请用简洁中文实时对话，并让可用的转写文本通过 transcript 事件返回。', turn_detection:{type:'server_vad', threshold:0.5, silence_duration_ms:800}}}); }
-async function startRealtimeLive() {
-  if (ws && ws.readyState === WebSocket.OPEN) return;
-  ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/realtime`);
-  ws.onopen = async () => { try { $('rt-meta').textContent='实时对话已连接，正在打开麦克风…'; setRealtimeButtons(true); log('ws.open', 'connected'); sessionUpdate(); await startMic(); } catch(e) { $('rt-meta').textContent='无法打开麦克风：请检查浏览器权限或输入设备。'; log('mic.error', String(e)); stopRealtimeLive(); } };
-  ws.onmessage = (ev) => { try { handleRealtimeEvent(JSON.parse(ev.data)); } catch { log('server.raw', ev.data); } };
-  ws.onerror = (ev) => { $('rt-meta').textContent='WebSocket 错误'; log('ws.error', ev.type); };
-  ws.onclose = () => { $('rt-meta').textContent='已断开'; setRealtimeButtons(false); stopMic(false); log('ws.close', 'closed'); };
-}
-function stopRealtimeLive() { stopMic(false); if (ws && ws.readyState === WebSocket.OPEN) ws.close(); else setRealtimeButtons(false); }
+    function renderTranscript() {
+      $('transcript-list').innerHTML = transcriptSegments.map((segment) => `
+        <article class="transcript-block${segment.demo ? ' demo' : ''}">
+          <span class="speaker-dot"></span>
+          <div>
+            <header><strong>${escapeHtml(segment.speaker)}</strong><span>·</span><time>${escapeHtml(segment.time)}</time></header>
+            <p>${escapeHtml(segment.text)}</p>
+          </div>
+        </article>
+      `).join('');
+      const hasFinalText = transcriptSegments.length > 0;
+      $('empty-transcript').classList.toggle('visible', !hasFinalText && recorderState !== 'recording');
+      $('live-block').classList.toggle('visible', recorderState === 'recording' || recorderState === 'connecting' || recorderState === 'paused');
+      $('live-time').textContent = formatTime(elapsedSeconds);
+    }
 
-function floatTo16BitPCM(input) { const output = new Int16Array(input.length); for (let i=0; i<input.length; i++) { const s = Math.max(-1, Math.min(1, input[i])); output[i] = s < 0 ? s * 0x8000 : s * 0x7fff; } return output; }
-function downsample(buffer, inRate, outRate=16000) { if (outRate === inRate) return buffer; const ratio = inRate / outRate, newLen = Math.round(buffer.length / ratio), out = new Float32Array(newLen); let offset = 0; for (let i=0; i<newLen; i++) { const next = Math.round((i+1)*ratio); let sum=0, count=0; for (; offset<next && offset<buffer.length; offset++) { sum += buffer[offset]; count++; } out[i]=sum/Math.max(1,count); } return out; }
-function bytesToBase64(bytes) { let bin=''; for (let i=0; i<bytes.length; i+=0x8000) bin += String.fromCharCode(...bytes.subarray(i, i+0x8000)); return btoa(bin); }
-async function startMic() {
-  if (!ws || ws.readyState !== WebSocket.OPEN) return; sessionUpdate(); micStream = await navigator.mediaDevices.getUserMedia({audio:true}); audioContext = new AudioContext(); source = audioContext.createMediaStreamSource(micStream); processor = audioContext.createScriptProcessor(4096, 1, 1);
-  processor.onaudioprocess = (e) => { if (!micOn || !ws || ws.readyState !== WebSocket.OPEN) return; const input = e.inputBuffer.getChannelData(0); const pcm = floatTo16BitPCM(downsample(input, audioContext.sampleRate, 16000)); sendJson({event_id:'web_demo_audio_' + Date.now(), type:'input_audio_buffer.append', audio: bytesToBase64(new Uint8Array(pcm.buffer))}, false); };
-  source.connect(processor); processor.connect(audioContext.destination); micOn = true; $('rt-meta').textContent='正在实时对话：麦克风音频连续发送，千问自动判断说话轮次。'; log('mic.start', {sampleRate: audioContext.sampleRate});
-}
-function stopMic() { micOn = false; if (processor) { processor.disconnect(); processor = null; } if (source) { source.disconnect(); source = null; } if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; } if (audioContext) { audioContext.close(); audioContext = null; } }
-$('rt-live-toggle').onclick = async () => { try { (ws && ws.readyState === WebSocket.OPEN) ? stopRealtimeLive() : await startRealtimeLive(); } catch(e) { $('rt-meta').textContent='实时对话失败：' + String(e); log('rt.live.error', String(e)); stopRealtimeLive(); } };
+    function transcriptText() {
+      return transcriptSegments.filter((segment) => !segment.demo).map((segment) => segment.text).join('\n');
+    }
 
-async function startAsrLive() {
-  if (asrStreamMicOn) return;
-  asrStreamWs = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/asr/stream`);
-  setAsrVoiceButton(false, '连接中…');
-  $('asr-chat-status').textContent='正在连接识别服务…';
-  asrStreamWs.onopen = async () => { try { asrStreamWs.send(JSON.stringify({type:'asr.stream.start', channel:$('asr-channel').value || 'funasr-gpu', sample_rate:16000, chunk_seconds:2})); $('asr-chat-status').textContent='正在打开麦克风…'; await startAsrStreamMic(); } catch(e) { $('asr-chat-status').textContent='无法打开麦克风：请检查浏览器权限或输入设备。'; stopAsrStreamMic(false); if (asrStreamWs && asrStreamWs.readyState === WebSocket.OPEN) asrStreamWs.close(); } };
-  asrStreamWs.onmessage = (ev) => { try { const j=JSON.parse(ev.data); if (j.demo_event === 'asr.stream.result') handleAsrEvent(j); else if (j.demo_event === 'asr.stream.backpressure') $('asr-live-meta').textContent='后端正在追赶识别，请继续说话或稍等…'; else if (j.demo_event === 'asr.stream.done') $('asr-live-meta').textContent='实时转写已完成，文字已留下。'; } catch { $('asr-live-meta').textContent = String(ev.data || ''); } };
-  asrStreamWs.onclose = () => { stopAsrStreamMic(false); $('asr-chat-status').textContent='已停止，文字已留在输入框。'; $('asr-live-meta').textContent='实时转写已停止，文字已留下。'; };
-  asrStreamWs.onerror = (ev) => { $('asr-chat-status').textContent='实时转写连接错误：' + ev.type; $('asr-live-meta').textContent='实时转写连接错误：' + ev.type; };
-}
-async function startAsrStreamMic() {
-  if (!asrStreamWs || asrStreamWs.readyState !== WebSocket.OPEN) return;
-  asrStreamMicStream = await navigator.mediaDevices.getUserMedia({audio:true}); asrStreamAudioContext = new AudioContext(); asrStreamSource = asrStreamAudioContext.createMediaStreamSource(asrStreamMicStream); asrStreamProcessor = asrStreamAudioContext.createScriptProcessor(4096, 1, 1);
-  asrStreamProcessor.onaudioprocess = (e) => { if (!asrStreamMicOn || !asrStreamWs || asrStreamWs.readyState !== WebSocket.OPEN) return; const input=e.inputBuffer.getChannelData(0); const pcm=floatTo16BitPCM(downsample(input, asrStreamAudioContext.sampleRate, 16000)); asrStreamWs.send(JSON.stringify({type:'asr.stream.append', audio: bytesToBase64(new Uint8Array(pcm.buffer))})); };
-  asrStreamSource.connect(asrStreamProcessor); asrStreamProcessor.connect(asrStreamAudioContext.destination); asrStreamMicOn = true; setAsrVoiceButton(true); $('asr-chat-status').textContent='录音中，说话内容会实时出现在输入框。'; $('asr-live-meta').textContent='正在实时转写，文字会自动出现并保留到下一步内容。';
-}
-function setAsrVoiceButton(recording, label) { const b=$('asr-voice-button'); b.disabled = label === '连接中…'; b.classList.toggle('recording', recording); b.setAttribute('aria-pressed', recording ? 'true' : 'false'); b.title = recording ? '停止语音输入' : '开始语音输入'; b.innerHTML = recording ? '<span class="voice-dot"></span>录音中' : `🎙️ ${label || '语音输入'}`; }
-function stopAsrStreamMic(finish=true) { asrStreamMicOn=false; if (asrStreamProcessor) { asrStreamProcessor.disconnect(); asrStreamProcessor=null; } if (asrStreamSource) { asrStreamSource.disconnect(); asrStreamSource=null; } if (asrStreamMicStream) { asrStreamMicStream.getTracks().forEach(t=>t.stop()); asrStreamMicStream=null; } if (asrStreamAudioContext) { asrStreamAudioContext.close(); asrStreamAudioContext=null; } setAsrVoiceButton(false); if (finish && asrStreamWs && asrStreamWs.readyState === WebSocket.OPEN) { $('asr-chat-status').textContent='正在收尾识别，最后文字会自动留下…'; $('asr-live-meta').textContent='正在收尾识别，最后文字会自动留下…'; asrStreamWs.send(JSON.stringify({type:'asr.stream.finish'})); } }
-$('asr-voice-button').onclick = async () => { try { asrStreamMicOn ? stopAsrStreamMic(true) : await startAsrLive(); } catch(e) { $('asr-chat-status').textContent='实时转写失败：' + String(e); $('asr-live-meta').textContent='实时转写失败：' + String(e); stopAsrStreamMic(false); if (asrStreamWs && asrStreamWs.readyState === WebSocket.OPEN) asrStreamWs.close(); } };
-$('meeting-polish').onclick = async () => {
-  $('meeting-meta').textContent = '生成会议纪要中…';
-  try { const r = await fetch('/api/meeting-notes/polish', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({transcript:$('meeting-transcript').value})}); const j = await r.json(); if (!r.ok) throw new Error(JSON.stringify(j)); $('meeting-meta').textContent = j.content || JSON.stringify(j, null, 2); }
-  catch(e) { $('meeting-meta').textContent = '生成失败：' + String(e); }
-};
+    function clearDemoContent() {
+      if (!showingDemo) return;
+      showingDemo = false;
+      transcriptSegments = [];
+      summaryIsDemo = false;
+      $('summary-state').textContent = '等待实时内容';
+      $('summary-title').textContent = '录音开始后，摘要会根据最终转写片段持续更新。';
+      $('summary-output').textContent = '当前还没有可用于摘要的最终转写内容。';
+      renderTranscript();
+    }
 
-window.__demoInjectTranscript = (text='这是实时对话展示面板验收文本') => { appendBoardEvent('realtime', {demo_event:'transcript.delta', role:'user', phase:'final', text, source_type:'browser-test'}); return $('realtime-board').innerText; };
-window.__demoInjectDuplicateScenario = () => {
-  boards.realtime.lines = []; boards.realtime.draft = {}; boards.realtime.seq = 0;
-  handleRealtimeEvent({demo_event:'transcript.delta', role:'user', phase:'final', text:'我想嗯测试这个', item_id:'item_dup_raw', source_type:'conversation.item.input_audio_transcription.completed'});
-  handleRealtimeEvent({demo_event:'transcript.delta', role:'user', phase:'final', text:'我想测试这个。', item_id:'item_dup_corrected', source_type:'conversation.item.created'});
-  const boardText = $('realtime-board').innerText;
-  return {line_count: boards.realtime.lines.length, board_text: boardText, duplicate_count: (boardText.match(/我想测试这个/g) || []).length, raw_present: boardText.includes('原始识别'), corrected_present: boardText.includes('我想测试这个。')};
-};
-window.__demoInjectAsrScenario = () => {
-  asrLiveSegments = [];
-  handleAsrEvent({demo_event:'asr.stream.result', result:{corrected_text:'我想测试这个。'}, board_event:{demo_event:'transcript.delta', role:'user', phase:'final', text:'我想测试这个。', raw_text:'我想嗯测试这个', source_type:'asr.funasr-gpu'}});
-  return {text: $('asr-chat-input').value, next_step_text: $('meeting-transcript').value, corrected_present: $('asr-chat-input').value.includes('我想测试这个。')};
-};
+    function appendTranscript(text, meta = {}) {
+      const normalized = String(text || '').trim();
+      if (!normalized) return;
+      clearDemoContent();
+      const duplicate = transcriptSegments.some((segment) => segment.text === normalized);
+      if (duplicate) return;
+      transcriptSegments.push({
+        speaker: meta.speaker || '说话人 1',
+        time: meta.time || formatTime(elapsedSeconds),
+        text: normalized,
+        demo: false,
+      });
+      $('live-text').innerHTML = '<span class="typing-caret"></span>';
+      renderTranscript();
+      requestAnimationFrame(() => { $('content-scroll').scrollTop = $('content-scroll').scrollHeight; });
+      maybeRefreshSummary();
+    }
 
-refreshStatus(); renderBoard('realtime');
-</script>
+    function setActiveTab(tab) {
+      activeTab = tab;
+      document.querySelectorAll('.content-tab').forEach((button) => {
+        const selected = button.dataset.tab === tab;
+        button.classList.toggle('active', selected);
+        button.setAttribute('aria-selected', selected ? 'true' : 'false');
+      });
+      document.querySelectorAll('.tab-panel').forEach((panel) => panel.classList.toggle('active', panel.dataset.panel === tab));
+      if (tab === 'summary' && !summaryIsDemo && transcriptText() && !summaryRunning && !lastSummaryAt) generateSummary();
+    }
+
+    function updateRecorderUi(nextState, message) {
+      recorderState = nextState;
+      $('recording-console').className = `recording-console ${nextState}`;
+      $('stream-status').className = `stream-status ${nextState}`;
+      const label = message || {
+        idle: '点击下方按钮开始录音',
+        connecting: '正在连接识别服务…',
+        recording: '音频流正常',
+        paused: '录音与转写已暂停',
+        finishing: '正在完成最后一段识别…',
+        ended: '录音已结束',
+        error: '连接出现问题',
+      }[nextState] || nextState;
+      $('status-message').textContent = label;
+      $('latency-label').textContent = nextState === 'recording' ? '分段实时识别' : nextState === 'connecting' ? '正在建立连接' : nextState === 'error' ? '可重新开始' : '—';
+      $('record-toggle').disabled = nextState === 'connecting' || nextState === 'finishing';
+      $('finish-recording').disabled = !['recording', 'paused'].includes(nextState);
+      if (nextState === 'recording') {
+        $('record-toggle').innerHTML = '<i></i><i></i>';
+        $('record-toggle').setAttribute('aria-label', '暂停录音');
+        $('local-save-status').textContent = '原始录音本地保存中';
+      } else if (nextState === 'paused') {
+        $('record-toggle').innerHTML = '<span class="play-icon"></span>';
+        $('record-toggle').setAttribute('aria-label', '继续录音');
+        $('local-save-status').textContent = '录音已暂停';
+      } else {
+        $('record-toggle').innerHTML = '<span class="record-icon"></span>';
+        $('record-toggle').setAttribute('aria-label', nextState === 'ended' || nextState === 'error' ? '开始新录音' : '开始录音');
+        $('local-save-status').textContent = nextState === 'ended' ? '录音已保存在当前设备' : '录音尚未开始';
+      }
+      renderTranscript();
+    }
+
+    function startTimer() {
+      clearInterval(timerId);
+      timerId = setInterval(() => {
+        if (recorderState !== 'recording') return;
+        elapsedSeconds += 1;
+        $('elapsed').textContent = formatTime(elapsedSeconds);
+        $('live-time').textContent = formatTime(elapsedSeconds);
+      }, 1000);
+    }
+
+    function stopTimer() { clearInterval(timerId); timerId = null; }
+
+    function chooseRecorderMimeType() {
+      if (!window.MediaRecorder) return '';
+      const types = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm'];
+      return types.find((type) => MediaRecorder.isTypeSupported(type)) || '';
+    }
+
+    function startArchiveRecording(stream) {
+      if (!window.MediaRecorder) return;
+      archiveChunks = [];
+      const mimeType = chooseRecorderMimeType();
+      mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      mediaRecorder.ondataavailable = (event) => { if (event.data && event.data.size) archiveChunks.push(event.data); };
+      mediaRecorder.onstop = () => {
+        if (!archiveChunks.length) return;
+        if (recordingUrl) URL.revokeObjectURL(recordingUrl);
+        const blob = new Blob(archiveChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+        recordingUrl = URL.createObjectURL(blob);
+        $('download-recording').disabled = false;
+        $('download-recording').classList.add('visible');
+      };
+      mediaRecorder.start(1000);
+    }
+
+    function floatTo16BitPCM(input) {
+      const output = new Int16Array(input.length);
+      for (let index = 0; index < input.length; index += 1) {
+        const sample = Math.max(-1, Math.min(1, input[index]));
+        output[index] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+      }
+      return output;
+    }
+
+    function downsample(buffer, inputRate, outputRate = 16000) {
+      if (outputRate === inputRate) return buffer;
+      const ratio = inputRate / outputRate;
+      const result = new Float32Array(Math.round(buffer.length / ratio));
+      let offset = 0;
+      for (let index = 0; index < result.length; index += 1) {
+        const next = Math.round((index + 1) * ratio);
+        let sum = 0;
+        let count = 0;
+        for (; offset < next && offset < buffer.length; offset += 1) { sum += buffer[offset]; count += 1; }
+        result[index] = sum / Math.max(1, count);
+      }
+      return result;
+    }
+
+    function bytesToBase64(bytes) {
+      let binary = '';
+      for (let index = 0; index < bytes.length; index += 0x8000) binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
+      return btoa(binary);
+    }
+
+    function drawWaveform() {
+      if (!audioAnalyser) return;
+      const canvas = $('recording-waveform');
+      const ratio = Math.max(1, window.devicePixelRatio || 1);
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
+      if (canvas.width !== Math.round(width * ratio) || canvas.height !== Math.round(height * ratio)) {
+        canvas.width = Math.round(width * ratio);
+        canvas.height = Math.round(height * ratio);
+      }
+      const context = canvas.getContext('2d');
+      context.setTransform(ratio, 0, 0, ratio, 0, 0);
+      context.clearRect(0, 0, width, height);
+      const samples = new Uint8Array(audioAnalyser.frequencyBinCount);
+      audioAnalyser.getByteFrequencyData(samples);
+      const bars = Math.max(28, Math.floor(width / 7));
+      const gap = 3;
+      const barWidth = Math.max(2, (width - gap * (bars - 1)) / bars);
+      context.fillStyle = '#66686e';
+      for (let index = 0; index < bars; index += 1) {
+        const sourceIndex = Math.floor(index / bars * samples.length * .72);
+        const amplitude = recorderState === 'paused' ? 4 : Math.max(4, samples[sourceIndex] / 255 * (height - 4));
+        context.beginPath();
+        context.roundRect(index * (barWidth + gap), (height - amplitude) / 2, barWidth, amplitude, Math.min(2, barWidth / 2));
+        context.fill();
+      }
+      animationFrameId = requestAnimationFrame(drawWaveform);
+    }
+
+    async function startMicrophoneCapture() {
+      microphoneStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      audioContext = new AudioContext();
+      audioSource = audioContext.createMediaStreamSource(microphoneStream);
+      audioAnalyser = audioContext.createAnalyser();
+      audioAnalyser.fftSize = 256;
+      audioAnalyser.smoothingTimeConstant = .72;
+      audioProcessor = audioContext.createScriptProcessor(4096, 1, 1);
+      audioProcessor.onaudioprocess = (event) => {
+        if (!sendingAudio || !asrStreamWs || asrStreamWs.readyState !== WebSocket.OPEN) return;
+        const input = event.inputBuffer.getChannelData(0);
+        const pcm = floatTo16BitPCM(downsample(input, audioContext.sampleRate, 16000));
+        asrStreamWs.send(JSON.stringify({ type: 'asr.stream.append', audio: bytesToBase64(new Uint8Array(pcm.buffer)) }));
+      };
+      audioSource.connect(audioAnalyser);
+      audioSource.connect(audioProcessor);
+      audioProcessor.connect(audioContext.destination);
+      $('waveform-placeholder').classList.add('hidden');
+      startArchiveRecording(microphoneStream);
+      drawWaveform();
+    }
+
+    function stopCaptureGraph() {
+      sendingAudio = false;
+      if (animationFrameId) cancelAnimationFrame(animationFrameId);
+      animationFrameId = null;
+      if (audioProcessor) { audioProcessor.disconnect(); audioProcessor = null; }
+      if (audioSource) { audioSource.disconnect(); audioSource = null; }
+      audioAnalyser = null;
+      if (microphoneStream) { microphoneStream.getTracks().forEach((track) => track.stop()); microphoneStream = null; }
+      if (audioContext) { audioContext.close(); audioContext = null; }
+      $('waveform-placeholder').classList.remove('hidden');
+    }
+
+    function handleAsrEvent(payload) {
+      if (payload.demo_event === 'asr.stream.result') {
+        const boardEvent = payload.board_event || (payload.result && payload.result.board_event) || {};
+        const text = boardEvent.text || (payload.result && payload.result.corrected_text) || '';
+        appendTranscript(text, { time: formatTime(elapsedSeconds), speaker: '说话人 1' });
+        $('latency-label').textContent = '已收到最终片段';
+      } else if (payload.demo_event === 'asr.stream.backpressure') {
+        $('latency-label').textContent = '识别服务正在追赶';
+      } else if (payload.demo_event === 'asr.stream.error') {
+        updateRecorderUi('error', payload.message || '实时转写失败，可重新开始');
+      } else if (payload.demo_event === 'asr.stream.done') {
+        finishSessionUi();
+      }
+    }
+
+    async function startRecordingSession() {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        updateRecorderUi('error', '当前浏览器不支持麦克风录音');
+        return;
+      }
+      clearDemoContent();
+      if (recordingUrl) { URL.revokeObjectURL(recordingUrl); recordingUrl = null; }
+      $('download-recording').disabled = true;
+      $('download-recording').classList.remove('visible');
+      elapsedSeconds = 0;
+      $('elapsed').textContent = '00:00';
+      sessionStartedAt = new Date();
+      $('created-at').textContent = new Intl.DateTimeFormat('zh-CN', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(sessionStartedAt);
+      updateRecorderUi('connecting');
+      asrStreamWs = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/asr/stream`);
+      asrStreamWs.onopen = async () => {
+        try {
+          asrStreamWs.send(JSON.stringify({ type: 'asr.stream.start', channel: $('asr-channel').value || 'funasr-gpu', sample_rate: 16000, chunk_seconds: 2 }));
+          await startMicrophoneCapture();
+          sendingAudio = true;
+          updateRecorderUi('recording');
+          startTimer();
+        } catch (error) {
+          stopCaptureGraph();
+          if (asrStreamWs && asrStreamWs.readyState === WebSocket.OPEN) asrStreamWs.close();
+          updateRecorderUi('error', error && error.name === 'NotAllowedError' ? '未获得麦克风权限，请在浏览器设置中允许' : '无法打开麦克风，请检查输入设备');
+        }
+      };
+      asrStreamWs.onmessage = (event) => { try { handleAsrEvent(JSON.parse(event.data)); } catch (_) {} };
+      asrStreamWs.onerror = () => updateRecorderUi('error', '无法连接实时转写服务');
+      asrStreamWs.onclose = () => { if (recorderState === 'recording' || recorderState === 'connecting') updateRecorderUi('error', '实时转写连接已断开'); };
+    }
+
+    function pauseRecording() {
+      sendingAudio = false;
+      if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.pause();
+      updateRecorderUi('paused');
+    }
+
+    function resumeRecording() {
+      sendingAudio = true;
+      if (mediaRecorder && mediaRecorder.state === 'paused') mediaRecorder.resume();
+      updateRecorderUi('recording');
+    }
+
+    function finishRecording() {
+      if (!['recording', 'paused'].includes(recorderState)) return;
+      updateRecorderUi('finishing');
+      stopTimer();
+      sendingAudio = false;
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+      stopCaptureGraph();
+      if (asrStreamWs && asrStreamWs.readyState === WebSocket.OPEN) asrStreamWs.send(JSON.stringify({ type: 'asr.stream.finish' }));
+      else finishSessionUi();
+      setTimeout(() => { if (recorderState === 'finishing') finishSessionUi(); }, 5000);
+    }
+
+    function finishSessionUi() {
+      stopTimer();
+      stopCaptureGraph();
+      if (asrStreamWs && asrStreamWs.readyState === WebSocket.OPEN) asrStreamWs.close();
+      updateRecorderUi('ended');
+      if (transcriptText()) generateSummary();
+    }
+
+    async function generateSummary() {
+      const text = transcriptText();
+      if (!text) { showToast('还没有可用于摘要的真实转写内容'); return; }
+      if (summaryRunning) return;
+      summaryRunning = true;
+      summaryIsDemo = false;
+      $('summary-state').textContent = '正在更新摘要…';
+      $('summary-output').className = 'summary-output loading';
+      $('summary-output').textContent = '正在从最终转写片段提炼摘要、行动项和未决问题…';
+      $('generate-summary').disabled = true;
+      try {
+        const response = await fetch('/api/meeting-notes/polish', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ transcript: text, instruction: '请输出中文实时会议摘要：包括一句话摘要、核心结论、行动项、风险与未决问题。只根据输入文本，不编造。' }),
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.detail && payload.detail.message ? payload.detail.message : '摘要服务暂不可用');
+        $('summary-output').className = 'summary-output';
+        $('summary-output').textContent = payload.content || '摘要服务未返回内容。';
+        $('summary-title').textContent = '摘要已根据当前最终转写片段更新。';
+        $('summary-state').textContent = '刚刚更新';
+        lastSummaryAt = Date.now();
+      } catch (error) {
+        $('summary-output').className = 'summary-output error';
+        $('summary-output').textContent = `摘要生成失败：${error.message || String(error)}`;
+        $('summary-state').textContent = '更新失败';
+      } finally {
+        summaryRunning = false;
+        $('generate-summary').disabled = false;
+      }
+    }
+
+    function maybeRefreshSummary() {
+      if (activeTab !== 'summary' || summaryRunning) return;
+      if (Date.now() - lastSummaryAt < 15000) return;
+      generateSummary();
+    }
+
+    async function refreshStatus() {
+      try {
+        const response = await fetch('/api/status');
+        const status = await response.json();
+        const channelsResponse = await fetch('/api/asr/channels');
+        const channelsData = await channelsResponse.json();
+        const select = $('asr-channel');
+        select.innerHTML = '';
+        Object.entries(channelsData.channels || {}).forEach(([id, channel]) => {
+          const option = document.createElement('option');
+          option.value = id;
+          option.textContent = channel.label || id;
+          select.appendChild(option);
+        });
+        select.value = channelsData.default || status.asr_default_channel || 'funasr-gpu';
+        const selected = select.options[select.selectedIndex];
+        $('channel-label').textContent = selected ? selected.textContent.replace(/（.*?）/g, '').trim() : '自动选择识别服务';
+        $('service-state').className = 'service-state ready';
+        $('service-state').querySelector('span').textContent = '识别服务已连接';
+      } catch (_) {
+        $('service-state').className = 'service-state error';
+        $('service-state').querySelector('span').textContent = '服务状态不可用';
+      }
+    }
+
+    document.querySelectorAll('.content-tab').forEach((button) => button.addEventListener('click', () => setActiveTab(button.dataset.tab)));
+    $('record-toggle').addEventListener('click', () => {
+      if (recorderState === 'recording') pauseRecording();
+      else if (recorderState === 'paused') resumeRecording();
+      else startRecordingSession();
+    });
+    $('finish-recording').addEventListener('click', finishRecording);
+    $('open-settings').addEventListener('click', () => $('settings-dialog').showModal());
+    $('asr-channel').addEventListener('change', () => {
+      const option = $('asr-channel').options[$('asr-channel').selectedIndex];
+      $('channel-label').textContent = option ? option.textContent.replace(/（.*?）/g, '').trim() : '自动选择识别服务';
+    });
+    $('generate-summary').addEventListener('click', generateSummary);
+    $('copy-summary').addEventListener('click', async () => {
+      await navigator.clipboard.writeText($('summary-output').textContent || '');
+      showToast('摘要已复制');
+    });
+    $('copy-transcript').addEventListener('click', async () => {
+      const text = transcriptSegments.map((segment) => `${segment.time} ${segment.speaker}\n${segment.text}`).join('\n\n');
+      await navigator.clipboard.writeText(text);
+      showToast('文字记录已复制');
+    });
+    $('download-recording').addEventListener('click', () => {
+      if (!recordingUrl) return;
+      const link = document.createElement('a');
+      link.href = recordingUrl;
+      link.download = `meeting-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.${mediaRecorder && mediaRecorder.mimeType.includes('mp4') ? 'm4a' : 'webm'}`;
+      link.click();
+    });
+    window.addEventListener('beforeunload', (event) => {
+      if (!['recording', 'paused'].includes(recorderState)) return;
+      event.preventDefault();
+      event.returnValue = '';
+    });
+
+    window.__demoInjectAsrScenario = (text = '我想测试这个实时转写页面。') => {
+      clearDemoContent();
+      appendTranscript(text, { time: '00:06', speaker: '说话人 1' });
+      return { text: transcriptText(), segment_count: transcriptSegments.length, summary_ready: Boolean(transcriptText()) };
+    };
+    window.__demoInjectSummary = (text = '一句话摘要：这是会议录音页面的前端合同测试。') => {
+      summaryIsDemo = false;
+      $('summary-output').textContent = text;
+      $('summary-state').textContent = '测试更新';
+      return $('summary-output').textContent;
+    };
+    window.__demoGetState = () => ({ recorderState, activeTab, elapsedSeconds, transcript: transcriptText(), summary: $('summary-output').textContent });
+
+    setupPlaceholderWave();
+    renderTranscript();
+    refreshStatus();
+  </script>
 </body>
 </html>

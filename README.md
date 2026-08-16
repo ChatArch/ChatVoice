@@ -1,17 +1,18 @@
 # Qwen Token Plan Audio Demo
 
-A lightweight FastAPI + browser demo for Qwen Token Plan audio capabilities plus a GPU-first Open WebUI-style voice input composer.
+A lightweight FastAPI + browser meeting recorder with realtime transcription, local audio capture, and AI meeting notes. The existing Qwen Token Plan audio and GPU-first ASR APIs remain available behind the product UI.
 
 ## Features
 
 - **语音合成 (TTS)**: server-side proxy for `qwen-audio-3.0-tts-plus`, returning playable MP3/WAV audio.
 - **声音克隆**: server-side DashScope TTS v2 voice enrollment (`VoiceEnrollmentService`) creates reusable `voice_id` values; the browser never sees the API key.
 - **实时对话**: browser WebSocket -> FastAPI proxy -> Qwen `qwen-audio-3.0-realtime-plus` Realtime WebSocket.
-- **语音转写**: the browser ASR tab uses an Open WebUI-style chat input composer. Click the microphone button, it switches into `录音中`, and speech is rendered directly into the same text box like typing.
+- **会议录音首页**: a mobile-first recording surface with live transcript, waveform, pause/resume, finish, and local audio download.
+- **语音转写**: the recorder streams microphone PCM16 to the existing ASR WebSocket and appends normalized final segments to the timeline.
 - **GPU-first ASR**: default ASR channel is `funasr-gpu` (CUDA PyTorch + FunASR/SenseVoiceSmall worker). `funasr-cpu` remains an explicit fallback, and `stub-local` remains available for smoke tests.
 - **Realtime ASR WebSocket**: `WS /ws/asr/stream` accepts continuous PCM16 microphone frames and returns `demo_event=asr.stream.result` events that the page appends into the chat input composer.
-- **会议纪要**: voice-input text is automatically copied into the next-step text area, then sent to a server-side Qwen-compatible chat model for AI polish, repaired meeting notes, summary, action items, risks, and open questions.
-- **Separated tabs**: the browser has exactly three isolated tabs: `语音合成`, `实时对话`, and `语音转写`.
+- **会议纪要**: final transcript segments can be sent to a server-side Qwen-compatible model for summary, action items, risks, and open questions.
+- **Focused product UI**: the default page exposes exactly two product tabs, `文字记录` and `实时摘要`; TTS, voice cloning, and realtime conversation stay available as backend capabilities for later product work.
 
 ## Security model
 
