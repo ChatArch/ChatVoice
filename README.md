@@ -52,14 +52,18 @@ uvicorn app.main:app --host 127.0.0.1 --port 18087
 
 ## GPU ASR environment
 
-The main service venv stays lightweight. Real GPU ASR runs through an ignored project-local worker venv:
+Real GPU ASR uses an ignored project-local GPU venv. For low-latency streaming, install the web dependencies in the same venv and run Uvicorn with it so the model remains cached in process:
 
 ```bash
 python3 -m venv .venv-asr-gpu
 .venv-asr-gpu/bin/python -m pip install --upgrade pip setuptools wheel
 .venv-asr-gpu/bin/python -m pip install --index-url https://download.pytorch.org/whl/cu121 torch torchvision torchaudio
 .venv-asr-gpu/bin/python -m pip install funasr modelscope soundfile scipy librosa pydub ffmpeg-python
+.venv-asr-gpu/bin/python -m pip install -r requirements.txt
+.venv-asr-gpu/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 18087
 ```
+
+Running the web service from the lightweight `.venv` remains supported through the subprocess worker fallback, but each chunk may pay model startup cost and is not recommended for interactive use.
 
 Recommended server env:
 
@@ -102,6 +106,7 @@ python3 scripts/check_transcript_extraction.py
 python3 scripts/check_asr_contract.py
 python3 scripts/check_asr_gpu_contract.py
 python3 scripts/smoke_asr_api.py --port 18097
+python3 scripts/check_meeting_e2e.py --base-url http://127.0.0.1:18087
 ```
 
 `smoke_demo.py` also exercises `/api/status`, `/api/tts`, and `/ws/realtime`, but it requires a valid server-side Token Plan key:
@@ -113,9 +118,9 @@ python3 scripts/smoke_demo.py --port 18087
 Browser-side regression helpers are available for manual dogfood:
 
 ```javascript
-window.__demoInjectTranscript('hello transcript board')
-window.__demoInjectDuplicateScenario()
 window.__demoInjectAsrScenario()
+window.__demoInjectSummary()
+window.__demoGetState()
 ```
 
 ## Known boundaries

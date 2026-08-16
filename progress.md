@@ -31,3 +31,5 @@
 - FunASR 进程内模型按设备缓存，避免每个自动分片重复冷启动模型
 - 服务端增加分片开始/完成、字数与耗时日志，不记录识别正文
 - 增加 `scripts/check_meeting_e2e.py`，以 Qwen TTS 音频验证自动分片、GPU ASR 文本相似度和 Qwen 摘要
+- Recall 已改用 GPU venv 直接运行 Web 服务；模型预热后每个 3 秒分片约 65–89 ms
+- 最终 Qwen TTS 端到端回归：14 秒音频自动生成 5 个分片，合并文字相似度 0.9624，Qwen 摘要成功
