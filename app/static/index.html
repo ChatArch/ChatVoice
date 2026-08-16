@@ -32,8 +32,43 @@
     }
     button, input, select { font: inherit; color: inherit; }
     button { cursor: pointer; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
-    .site-shell { min-height: 100vh; }
+    .site-shell { min-height: 100vh; padding-left: 252px; transition: padding-left .22s ease; }
+    .meeting-sidebar { position: fixed; z-index: 30; inset: 0 auto 0 0; width: 252px; display: flex; flex-direction: column; padding: 18px 14px 14px; border-right: 1px solid #e8e9eb; background: #fafafa; transition: transform .22s ease; }
+    .sidebar-header { height: 42px; display: flex; align-items: center; justify-content: space-between; padding: 0 8px; }
+    .sidebar-brand { display: inline-flex; align-items: center; gap: 9px; color: var(--ink); text-decoration: none; font-size: 15px; font-weight: 760; }
+    .sidebar-collapse { width: 31px; height: 31px; border: 1px solid #e4e4e6; border-radius: 10px; background: #fff; color: #777980; }
+    .new-meeting { width: 100%; height: 43px; margin-top: 14px; padding: 0 13px; display: flex; align-items: center; gap: 10px; border: 0; border-radius: 12px; background: #f0f0f1; text-align: left; font-size: 12px; font-weight: 690; }
+    .new-meeting i { font-style: normal; font-size: 19px; font-weight: 380; }
+    .meeting-search { position: relative; margin-top: 8px; }
+    .meeting-search::before { content: "⌕"; position: absolute; left: 13px; top: 8px; color: #777980; font-size: 20px; line-height: 1; }
+    .meeting-search input { width: 100%; height: 40px; padding: 0 12px 0 38px; border: 0; border-radius: 11px; outline: 0; background: transparent; font-size: 11px; }
+    .meeting-search input:focus { background: #f1f1f2; }
+    .sidebar-label { margin: 19px 9px 8px; color: #85878c; font-size: 10px; font-weight: 720; }
+    .meeting-groups { flex: 1; min-height: 0; overflow-y: auto; }
+    .meeting-group-title { margin: 15px 9px 6px; color: #a0a2a7; font-size: 9px; font-weight: 680; }
+    .meeting-item { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px; margin: 2px 0; border-radius: 12px; }
+    .meeting-item.active { background: #eaeaec; }
+    .meeting-open { min-width: 0; padding: 10px 8px 10px 12px; border: 0; background: transparent; text-align: left; }
+    .meeting-open strong, .meeting-open small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .meeting-open strong { font-size: 11px; font-weight: 650; }
+    .meeting-open small { margin-top: 4px; color: #999ba0; font-size: 8px; }
+    .meeting-delete { width: 28px; height: 28px; margin-right: 5px; border: 0; border-radius: 9px; background: transparent; color: #a0a2a7; opacity: 0; }
+    .meeting-item:hover .meeting-delete, .meeting-item.active .meeting-delete { opacity: 1; }
+    .meeting-delete:hover { background: #fff; color: #b64646; }
+    .meeting-empty { margin: 28px 12px; color: #a0a2a7; font-size: 9px; line-height: 1.7; text-align: center; }
+    .account-card { margin-top: 10px; padding: 11px; display: grid; grid-template-columns: 29px 1fr auto; align-items: center; gap: 9px; border: 1px solid #e7e7e9; border-radius: 13px; background: #fff; }
+    .account-avatar { width: 29px; height: 29px; display: grid; place-items: center; border-radius: 9px; background: var(--ink); color: #fff; font-size: 10px; font-weight: 750; }
+    .account-copy { min-width: 0; }
+    .account-copy strong, .account-copy small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .account-copy strong { font-size: 10px; }
+    .account-copy small { margin-top: 3px; color: #9a9ca2; font-size: 8px; }
+    .account-action { padding: 6px 8px; border: 0; border-radius: 8px; background: #f3f3f4; font-size: 8px; }
+    .sidebar-footnote { margin: 9px 8px 2px; color: #b0b1b5; font-size: 8px; line-height: 1.55; }
+    .sidebar-backdrop { display: none; }
+    body.sidebar-collapsed .site-shell { padding-left: 0; }
+    body.sidebar-collapsed .meeting-sidebar { transform: translateX(-100%); }
     .site-bar {
       height: 64px;
       display: grid;
@@ -65,7 +100,7 @@
 
     .recorder-shell {
       position: relative;
-      width: min(960px, calc(100vw - 44px));
+      width: min(960px, calc(100% - 44px));
       height: calc(100vh - 92px);
       min-height: 660px;
       margin: 14px auto;
@@ -172,12 +207,51 @@
     .settings-card select { width: 100%; height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; outline: 0; }
     .settings-card p { margin: 12px 0 0; color: var(--muted); font-size: 10px; line-height: 1.65; }
 
+    #entry-dialog { width: min(720px, calc(100vw - 32px)); }
+    #entry-dialog[open] { animation: fade-in .2s ease; }
+    .access-card { padding: 30px; }
+    .access-brand { display: flex; align-items: center; gap: 10px; }
+    .access-brand strong { font-size: 15px; }
+    .access-card h2 { margin: 27px 0 8px; font-size: clamp(24px, 4vw, 34px); letter-spacing: -.045em; }
+    .access-intro { margin: 0; color: var(--ink-soft); font-size: 11px; line-height: 1.7; }
+    .mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 13px; margin-top: 23px; }
+    .mode-card { min-height: 173px; padding: 21px; border: 1px solid #e5e5e8; border-radius: 18px; background: #fff; text-align: left; transition: transform .15s ease, border-color .15s ease; }
+    .mode-card:hover { transform: translateY(-2px); border-color: #babbe9; }
+    .mode-card.primary { background: #222329; color: #fff; border-color: #222329; }
+    .mode-icon { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 11px; background: #f1f1f3; color: #42434a; font-size: 16px; }
+    .mode-card.primary .mode-icon { background: rgba(255,255,255,.12); color: #fff; }
+    .mode-card strong { display: block; margin-top: 20px; font-size: 14px; }
+    .mode-card span { display: block; margin-top: 7px; color: #898b91; font-size: 9px; line-height: 1.65; }
+    .mode-card.primary span { color: #c4c5ca; }
+    .privacy-note { margin: 16px 2px 0; color: #a0a2a7; font-size: 8px; line-height: 1.6; }
+    .auth-view { max-width: 410px; margin: 0 auto; }
+    .auth-back { margin: 0 0 20px; padding: 0; border: 0; background: transparent; color: #777980; font-size: 10px; }
+    .auth-tabs { display: flex; gap: 4px; margin: 20px 0 16px; padding: 4px; border-radius: 11px; background: #f1f1f3; }
+    .auth-tab { flex: 1; height: 35px; border: 0; border-radius: 8px; background: transparent; color: #777980; font-size: 10px; }
+    .auth-tab.active { background: #fff; color: var(--ink); box-shadow: 0 2px 8px rgba(20,24,38,.07); font-weight: 680; }
+    .auth-form label { display: block; margin: 13px 0 7px; color: #5f6168; font-size: 9px; font-weight: 650; }
+    .auth-form input { width: 100%; height: 44px; padding: 0 13px; border: 1px solid #dfdfe2; border-radius: 11px; outline: 0; }
+    .auth-form input:focus { border-color: var(--violet); box-shadow: 0 0 0 3px rgba(105,106,232,.09); }
+    .auth-submit { width: 100%; height: 44px; margin-top: 18px; border: 0; border-radius: 12px; background: var(--ink); color: #fff; font-size: 10px; font-weight: 680; }
+    .auth-submit:disabled { opacity: .55; cursor: wait; }
+    .auth-message { min-height: 18px; margin: 10px 0 0; color: #b84040; font-size: 9px; }
+    [hidden] { display: none !important; }
+
     .toast { position: fixed; z-index: 50; left: 50%; bottom: 28px; transform: translate(-50%, 20px); max-width: min(440px, calc(100vw - 32px)); padding: 10px 14px; border-radius: 12px; background: #202126; color: #fff; opacity: 0; pointer-events: none; font-size: 10px; transition: .2s ease; }
     .toast.visible { opacity: 1; transform: translate(-50%, 0); }
 
     @keyframes blink { 50% { opacity: 0; } }
     @keyframes bounce { to { transform: translateY(-4px); opacity: .35; } }
     @keyframes fade-in { from { opacity: 0; transform: translateY(5px); } }
+
+    @media (max-width: 900px) {
+      .site-shell { padding-left: 0; }
+      .meeting-sidebar { width: min(286px, calc(100vw - 44px)); transform: translateX(-100%); box-shadow: 24px 0 70px rgba(20, 24, 38, .15); }
+      body.sidebar-open .meeting-sidebar { transform: translateX(0); }
+      .sidebar-backdrop { position: fixed; z-index: 29; inset: 0; display: block; border: 0; background: rgba(23, 24, 29, .24); opacity: 0; pointer-events: none; transition: opacity .2s ease; }
+      body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
+      body.sidebar-collapsed .meeting-sidebar { transform: translateX(-100%); }
+    }
 
     @media (max-width: 680px) {
       .site-shell { background: #fff; }
@@ -205,6 +279,10 @@
       .record-toggle { width: 52px; height: 52px; border-radius: 17px; }
       .finish-control, .download-control, .reset-control { min-width: 58px; height: 44px; }
       .summary-lead { padding: 20px; }
+      .access-card { padding: 24px 19px; }
+      .mode-grid { grid-template-columns: 1fr; }
+      .mode-card { min-height: 137px; }
+      .mode-card strong { margin-top: 14px; }
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -214,6 +292,30 @@
 </head>
 <body>
   <main class="site-shell">
+    <aside class="meeting-sidebar" id="meeting-sidebar" aria-label="会议记录管理">
+      <header class="sidebar-header">
+        <a class="sidebar-brand" href="/" aria-label="声笺首页">
+          <span class="brand-mark"><i></i><i></i><i></i><i></i></span>
+          <span>声笺</span>
+        </a>
+        <button class="sidebar-collapse" id="collapse-sidebar" type="button" aria-label="收起会议记录">‹</button>
+      </header>
+
+      <button class="new-meeting" id="new-meeting" type="button"><i>＋</i><span>新会议</span></button>
+      <label class="meeting-search"><span class="sr-only">搜索会议记录</span><input id="meeting-search" type="search" placeholder="搜索会议记录" /></label>
+      <p class="sidebar-label">会议记录</p>
+      <nav class="meeting-groups" id="meeting-groups" aria-label="历史会议">
+        <p class="meeting-empty">暂时没有会议记录<br />开始录音后会自动保存在这里</p>
+      </nav>
+      <div class="account-card">
+        <span class="account-avatar" id="account-avatar">访</span>
+        <span class="account-copy"><strong id="account-name">选择使用方式</strong><small id="account-storage">尚未进入</small></span>
+        <button class="account-action" id="account-action" type="button">选择</button>
+      </div>
+      <p class="sidebar-footnote" id="storage-note">访客记录仅保存在浏览器；登录后才会同步到服务器。原始录音默认不上传保存。</p>
+    </aside>
+    <button class="sidebar-backdrop" id="sidebar-backdrop" type="button" aria-label="关闭会议记录"></button>
+
     <header class="site-bar">
       <a class="brand" href="/" aria-label="声笺首页">
         <span class="brand-mark"><i></i><i></i><i></i><i></i></span>
@@ -224,6 +326,7 @@
       <span class="service-state" id="service-state"><i></i><span>检查识别服务…</span></span>
 
       <nav class="utility-actions" aria-label="录音工具">
+        <button class="icon-button" id="toggle-sidebar" type="button" aria-label="打开会议记录">☰</button>
         <button class="icon-button language-button" type="button" aria-label="当前语言">中</button>
         <button class="icon-button" id="open-settings" type="button" aria-label="识别设置"><span class="settings-icon"></span></button>
         <button class="icon-button" id="copy-transcript" type="button" aria-label="复制文字记录">•••</button>
@@ -283,7 +386,7 @@
           <article class="summary-lead">
             <small>一句话摘要</small>
             <h2 id="summary-title">前端以实时转写为核心，通过统一协议兼容不同语音识别服务。</h2>
-            <p>原始录音与实时识别彼此独立，后续摘要、待办和更多处理能力都消费标准化的转写结果。</p>
+            <p id="summary-description">原始录音与实时识别彼此独立，后续摘要、待办和更多处理能力都消费标准化的转写结果。</p>
           </article>
 
           <div class="summary-output" id="summary-output">核心结论
@@ -336,10 +439,49 @@
     </form>
   </dialog>
 
+  <dialog id="entry-dialog" aria-labelledby="entry-title">
+    <section class="access-card">
+      <div class="access-brand"><span class="brand-mark"><i></i><i></i><i></i><i></i></span><strong>声笺 VoiceNote</strong></div>
+      <div id="mode-view">
+        <h2 id="entry-title">选择记录保存方式</h2>
+        <p class="access-intro">两种方式都可以使用实时转写与 AI 摘要；区别只在于会议记录保存在哪里。</p>
+        <div class="mode-grid">
+          <button class="mode-card primary" id="enter-guest" type="button">
+            <span class="mode-icon">⌂</span><strong>访客使用</strong><span>记录仅保存在当前浏览器，不写入声笺数据库。适合快速体验与临时会议。</span>
+          </button>
+          <button class="mode-card" id="show-login" type="button">
+            <span class="mode-icon">◎</span><strong>登录账号</strong><span>转写和摘要保存到服务器，可在不同设备查看和继续整理。</span>
+          </button>
+        </div>
+        <p class="privacy-note">隐私提示：访客模式下，音频与文字仍会临时发送给转写和摘要服务处理，但声笺服务器不会持久化会议内容。</p>
+      </div>
+      <div class="auth-view" id="auth-view" hidden>
+        <button class="auth-back" id="auth-back" type="button">← 返回使用方式</button>
+        <h2>账号同步</h2>
+        <p class="access-intro">首版支持用户名或邮箱登录；密码仅以加盐哈希保存。</p>
+        <div class="auth-tabs" role="tablist">
+          <button class="auth-tab active" type="button" data-auth-mode="login">登录</button>
+          <button class="auth-tab" type="button" data-auth-mode="register">创建账号</button>
+        </div>
+        <form class="auth-form" id="auth-form">
+          <label for="auth-account">用户名或邮箱</label>
+          <input id="auth-account" name="account" autocomplete="username" minlength="3" maxlength="80" required placeholder="name@example.com" />
+          <label for="auth-password">密码</label>
+          <input id="auth-password" name="password" type="password" autocomplete="current-password" minlength="8" maxlength="128" required placeholder="至少 8 位" />
+          <button class="auth-submit" id="auth-submit" type="submit">登录并同步</button>
+          <p class="auth-message" id="auth-message" role="status"></p>
+        </form>
+      </div>
+    </section>
+  </dialog>
+
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script>
     const $ = (id) => document.getElementById(id);
+    const GUEST_DB_NAME = 'voicenote-guest-v1';
+    const GUEST_STORE = 'meetings';
+    const createRecordId = () => (crypto.randomUUID ? crypto.randomUUID() : `meeting-${Date.now()}-${Math.random().toString(16).slice(2)}`).replace(/[^A-Za-z0-9_-]/g, '');
     const demoSegments = [
       { speaker: '说话人 1', time: '00:18', text: '我们先专注主要的会议录音体验，用户进入页面以后应该能够很快开始。', demo: true },
       { speaker: '说话人 2', time: '01:26', text: '最基础的是实时转写，摘要和后续处理都建立在统一的文字结果之上。', demo: true },
@@ -365,10 +507,23 @@
     let showingDemo = true;
     let summaryIsDemo = true;
     let summaryRunning = false;
+    let hasGeneratedSummary = false;
     let lastSummaryAt = 0;
     let toastTimer = null;
     let finishFallbackTimer = null;
     let waveformLevels = [];
+    let meetingIndex = [];
+    let activeMeetingId = null;
+    let activeMeetingCreatedAt = null;
+    let meetingSaveTimer = null;
+    let meetingSaveChain = Promise.resolve();
+    let summaryAbortController = null;
+    let contentEpoch = 0;
+    let storageMode = null;
+    let authUser = null;
+    let csrfToken = '';
+    let authMode = 'login';
+    let guestDbPromise = null;
 
     function escapeHtml(value) {
       return String(value || '').replace(/[&<>'"]/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
@@ -385,6 +540,376 @@
       $('toast').classList.add('visible');
       clearTimeout(toastTimer);
       toastTimer = setTimeout(() => $('toast').classList.remove('visible'), 2200);
+    }
+
+    function meetingHeaders(write = false) {
+      const headers = { 'Content-Type': 'application/json' };
+      if (write && csrfToken) headers['X-CSRF-Token'] = csrfToken;
+      return headers;
+    }
+
+    function openGuestDb() {
+      if (guestDbPromise) return guestDbPromise;
+      guestDbPromise = new Promise((resolve, reject) => {
+        const request = indexedDB.open(GUEST_DB_NAME, 1);
+        request.onupgradeneeded = () => {
+          const db = request.result;
+          if (!db.objectStoreNames.contains(GUEST_STORE)) {
+            const store = db.createObjectStore(GUEST_STORE, { keyPath: 'id' });
+            store.createIndex('updated_at', 'updated_at');
+          }
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error || new Error('浏览器存储不可用'));
+      });
+      return guestDbPromise;
+    }
+
+    async function guestDbRequest(mode, operation) {
+      const db = await openGuestDb();
+      return new Promise((resolve, reject) => {
+        const transaction = db.transaction(GUEST_STORE, mode);
+        const request = operation(transaction.objectStore(GUEST_STORE));
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error || new Error('浏览器存储操作失败'));
+      });
+    }
+
+    async function listStoredMeetings() {
+      if (storageMode === 'guest') {
+        const rows = await guestDbRequest('readonly', (store) => store.getAll());
+        return rows.sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at))).map(meetingMetaFromRecord);
+      }
+      const response = await fetch('/api/meetings');
+      if (response.status === 401) throw new Error('登录已过期');
+      if (!response.ok) throw new Error('会议列表不可用');
+      return (await response.json()).meetings || [];
+    }
+
+    async function getStoredMeeting(meetingId) {
+      if (storageMode === 'guest') return guestDbRequest('readonly', (store) => store.get(meetingId));
+      const response = await fetch(`/api/meetings/${encodeURIComponent(meetingId)}`);
+      if (response.status === 401) throw new Error('登录已过期');
+      if (!response.ok) throw new Error('会议读取失败');
+      return response.json();
+    }
+
+    async function putStoredMeeting(meetingId, payload, targetMode = storageMode, targetCsrfToken = csrfToken) {
+      if (targetMode === 'guest') {
+        const localRecord = { id: meetingId, ...payload, preview: payload.transcript_segments.map((segment) => segment.text).join(' ').slice(0, 120) };
+        await guestDbRequest('readwrite', (store) => store.put(localRecord));
+        return localRecord;
+      }
+      const response = await fetch(`/api/meetings/${encodeURIComponent(meetingId)}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': targetCsrfToken }, body: JSON.stringify(payload),
+      });
+      if (response.status === 401) throw new Error('登录已过期');
+      if (!response.ok) throw new Error('会议保存失败');
+      return response.json();
+    }
+
+    async function removeStoredMeeting(meetingId) {
+      if (storageMode === 'guest') return guestDbRequest('readwrite', (store) => store.delete(meetingId));
+      const response = await fetch(`/api/meetings/${encodeURIComponent(meetingId)}`, { method: 'DELETE', headers: meetingHeaders(true) });
+      if (!response.ok) throw new Error('删除失败');
+      return response.json();
+    }
+
+    function cancelSummaryWork() {
+      contentEpoch += 1;
+      if (summaryAbortController) summaryAbortController.abort();
+      summaryAbortController = null;
+      summaryRunning = false;
+      $('generate-summary').disabled = false;
+    }
+
+    function clearSummaryContent() {
+      summaryIsDemo = false;
+      hasGeneratedSummary = false;
+      lastSummaryAt = 0;
+      $('summary-state').textContent = '等待实时内容';
+      $('summary-title').textContent = '录音开始后，摘要会根据最终转写片段持续更新。';
+      $('summary-description').textContent = '完成转写后，将在这里生成摘要、行动项和未决问题。';
+      $('summary-output').className = 'summary-output';
+      $('summary-output').textContent = '当前还没有可用于摘要的最终转写内容。';
+    }
+
+    function meetingMetaFromRecord(record) {
+      return {
+        id: record.id,
+        title: record.title || '新录音',
+        created_at: record.created_at,
+        updated_at: record.updated_at,
+        duration_seconds: Number(record.duration_seconds || 0),
+        preview: record.preview || '',
+      };
+    }
+
+    function renderMeetingIndex() {
+      const query = $('meeting-search').value.trim().toLowerCase();
+      const filtered = meetingIndex.filter((meeting) => `${meeting.title} ${meeting.preview}`.toLowerCase().includes(query));
+      if (!filtered.length) {
+        $('meeting-groups').innerHTML = `<p class="meeting-empty">${query ? '没有匹配的会议记录' : '暂时没有会议记录<br />开始录音后会自动保存在这里'}</p>`;
+        return;
+      }
+      const todayKey = new Date().toDateString();
+      const groups = [
+        ['今天', filtered.filter((meeting) => new Date(meeting.created_at).toDateString() === todayKey)],
+        ['更早', filtered.filter((meeting) => new Date(meeting.created_at).toDateString() !== todayKey)],
+      ];
+      $('meeting-groups').innerHTML = groups.filter(([, meetings]) => meetings.length).map(([label, meetings]) => `
+        <section>
+          <h2 class="meeting-group-title">${label}</h2>
+          ${meetings.map((meeting) => `
+            <div class="meeting-item${meeting.id === activeMeetingId ? ' active' : ''}" data-meeting-id="${escapeHtml(meeting.id)}">
+              <button class="meeting-open" type="button" data-meeting-id="${escapeHtml(meeting.id)}">
+                <strong>${escapeHtml(meeting.title || '新录音')}</strong>
+                <small>${escapeHtml(meeting.preview || `${formatTime(meeting.duration_seconds)} · 暂无文字`)}</small>
+              </button>
+              <button class="meeting-delete" type="button" data-delete-meeting="${escapeHtml(meeting.id)}" aria-label="删除 ${escapeHtml(meeting.title || '会议')}">×</button>
+            </div>
+          `).join('')}
+        </section>
+      `).join('');
+    }
+
+    async function fetchMeetingIndex() {
+      if (!storageMode) return;
+      try {
+        meetingIndex = await listStoredMeetings();
+        renderMeetingIndex();
+      } catch (error) {
+        $('meeting-groups').innerHTML = `<p class="meeting-empty">${escapeHtml(error.message || '会议记录暂时无法加载')}</p>`;
+      }
+    }
+
+    function ensureActiveMeeting() {
+      if (activeMeetingId) return;
+      activeMeetingId = createRecordId();
+      activeMeetingCreatedAt = new Date().toISOString();
+    }
+
+    async function saveActiveMeeting() {
+      if (!storageMode || !activeMeetingId || showingDemo) return;
+      clearTimeout(meetingSaveTimer);
+      meetingSaveTimer = null;
+      const recordId = activeMeetingId;
+      const targetMode = storageMode;
+      const targetCsrfToken = csrfToken;
+      const payload = {
+        title: $('meeting-title').value.trim() || '新录音',
+        created_at: activeMeetingCreatedAt || new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        duration_seconds: elapsedSeconds,
+        transcript_segments: transcriptSegments.filter((segment) => !segment.demo).map((segment) => ({ speaker: segment.speaker, time: segment.time, text: segment.text })),
+        summary_title: hasGeneratedSummary ? $('summary-title').textContent : '',
+        summary_content: hasGeneratedSummary ? $('summary-output').textContent : '',
+      };
+      meetingSaveChain = meetingSaveChain.catch(() => {}).then(async () => {
+        try {
+          const saved = await putStoredMeeting(recordId, payload, targetMode, targetCsrfToken);
+          if (recordId === activeMeetingId && targetMode === storageMode) {
+            const meta = meetingMetaFromRecord(saved);
+            meetingIndex = [meta, ...meetingIndex.filter((meeting) => meeting.id !== meta.id)];
+            renderMeetingIndex();
+          }
+        } catch (error) {
+          if (targetMode === storageMode) showToast(error.message || '会议记录暂未保存，请稍后重试');
+        }
+      });
+      return meetingSaveChain;
+    }
+
+    function scheduleMeetingSave(delay = 700) {
+      if (!activeMeetingId || showingDemo) return;
+      clearTimeout(meetingSaveTimer);
+      meetingSaveTimer = setTimeout(saveActiveMeeting, delay);
+    }
+
+    function closeSidebarOnSmallScreen() {
+      document.body.classList.remove('sidebar-open');
+    }
+
+    async function openMeeting(meetingId) {
+      if (['recording', 'paused', 'connecting', 'finishing'].includes(recorderState)) {
+        showToast('请先结束当前录音');
+        return;
+      }
+      cancelSummaryWork();
+      try {
+        const meeting = await getStoredMeeting(meetingId);
+        if (!meeting) throw new Error('会议记录不存在');
+        activeMeetingId = meeting.id;
+        activeMeetingCreatedAt = meeting.created_at;
+        showingDemo = false;
+        transcriptSegments = (meeting.transcript_segments || []).map((segment) => ({ ...segment, demo: false, revisable: false }));
+        elapsedSeconds = Number(meeting.duration_seconds || 0);
+        $('elapsed').textContent = formatTime(elapsedSeconds);
+        $('meeting-title').value = meeting.title || '新录音';
+        $('created-at').textContent = new Intl.DateTimeFormat('zh-CN', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(meeting.created_at));
+        summaryIsDemo = false;
+        hasGeneratedSummary = Boolean(meeting.summary_content);
+        lastSummaryAt = hasGeneratedSummary ? Date.now() : 0;
+        if (hasGeneratedSummary) {
+          $('summary-state').textContent = '已保存摘要';
+          $('summary-title').textContent = meeting.summary_title || '会议摘要';
+          $('summary-output').className = 'summary-output';
+          $('summary-output').textContent = meeting.summary_content;
+          $('summary-description').textContent = '摘要与行动项已根据这条会议记录生成。';
+        } else {
+          clearSummaryContent();
+        }
+        if (recordingUrl) URL.revokeObjectURL(recordingUrl);
+        recordingUrl = null;
+        $('download-recording').disabled = true;
+        $('download-recording').classList.remove('visible');
+        updateRecorderUi('ended', '已打开会议记录');
+        renderTranscript();
+        renderMeetingIndex();
+        setActiveTab('transcript');
+        closeSidebarOnSmallScreen();
+      } catch (error) {
+        showToast(error.message || '无法打开这条会议记录');
+      }
+    }
+
+    async function createNewMeeting({ announce = true } = {}) {
+      if (['recording', 'paused', 'connecting', 'finishing'].includes(recorderState)) {
+        showToast('请先结束当前录音');
+        return;
+      }
+      if (!storageMode) return showEntryDialog();
+      if (activeMeetingId && !showingDemo) await saveActiveMeeting();
+      activeMeetingId = createRecordId();
+      activeMeetingCreatedAt = new Date().toISOString();
+      $('meeting-title').value = '新录音';
+      $('created-at').textContent = new Intl.DateTimeFormat('zh-CN', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(activeMeetingCreatedAt));
+      resetSession({ announce: false, persist: false });
+      await saveActiveMeeting();
+      updateRecorderUi('idle', announce ? '新会议已建立，可以开始录音' : '点击下方按钮开始录音');
+      closeSidebarOnSmallScreen();
+    }
+
+    async function deleteMeetingRecord(meetingId) {
+      const meeting = meetingIndex.find((item) => item.id === meetingId);
+      if (!confirm(`删除“${meeting?.title || '这条会议记录'}”？此操作不可恢复。`)) return;
+      try {
+        if (activeMeetingId === meetingId) {
+          clearTimeout(meetingSaveTimer);
+          meetingSaveTimer = null;
+          await meetingSaveChain.catch(() => {});
+        }
+        await removeStoredMeeting(meetingId);
+        meetingIndex = meetingIndex.filter((item) => item.id !== meetingId);
+        if (activeMeetingId === meetingId) {
+          activeMeetingId = null;
+          activeMeetingCreatedAt = null;
+          await createNewMeeting({ announce: false });
+        }
+        renderMeetingIndex();
+      } catch (error) {
+        showToast(error.message || '会议记录删除失败');
+      }
+    }
+
+    function updateAccountUi() {
+      const loggedIn = storageMode === 'account' && authUser;
+      $('account-avatar').textContent = loggedIn ? String(authUser.display_name || authUser.account || '账').slice(0, 1).toUpperCase() : '访';
+      $('account-name').textContent = loggedIn ? (authUser.display_name || authUser.account) : storageMode === 'guest' ? '访客模式' : '选择使用方式';
+      $('account-storage').textContent = loggedIn ? '服务器同步' : storageMode === 'guest' ? '仅此浏览器' : '尚未进入';
+      $('account-action').textContent = loggedIn ? '退出' : storageMode === 'guest' ? '登录' : '选择';
+      $('storage-note').textContent = loggedIn
+        ? '文字和摘要已绑定账号保存在服务器；原始录音默认仍不上传保存。'
+        : '访客记录仅保存在当前浏览器；音频与文字只在处理请求中临时经过服务器。';
+    }
+
+    function setAuthMode(mode) {
+      authMode = mode === 'register' ? 'register' : 'login';
+      document.querySelectorAll('.auth-tab').forEach((button) => button.classList.toggle('active', button.dataset.authMode === authMode));
+      $('auth-submit').textContent = authMode === 'register' ? '创建账号并同步' : '登录并同步';
+      $('auth-password').autocomplete = authMode === 'register' ? 'new-password' : 'current-password';
+      $('auth-message').textContent = '';
+    }
+
+    function showEntryDialog(view = 'mode') {
+      $('mode-view').hidden = view === 'auth';
+      $('auth-view').hidden = view !== 'auth';
+      if (view === 'auth') setAuthMode('login');
+      if (!$('entry-dialog').open) $('entry-dialog').showModal();
+      if (view === 'auth') setTimeout(() => $('auth-account').focus(), 0);
+    }
+
+    async function activateStorageMode(mode, user = null, nextCsrfToken = '') {
+      clearTimeout(meetingSaveTimer);
+      meetingSaveTimer = null;
+      if (storageMode && activeMeetingId && !showingDemo) await saveActiveMeeting();
+      await meetingSaveChain.catch(() => {});
+      storageMode = mode;
+      authUser = user;
+      csrfToken = nextCsrfToken;
+      activeMeetingId = null;
+      activeMeetingCreatedAt = null;
+      meetingIndex = [];
+      cancelSummaryWork();
+      $('entry-dialog').close();
+      updateAccountUi();
+      resetSession({ announce: false, persist: false });
+      $('meeting-title').value = '新录音';
+      await fetchMeetingIndex();
+      if (meetingIndex.length) await openMeeting(meetingIndex[0].id);
+      else await createNewMeeting({ announce: false });
+      showToast(mode === 'guest' ? '已进入访客模式，记录只保存在本浏览器' : '登录成功，会议记录将同步到服务器');
+    }
+
+    async function submitAuth(event) {
+      event.preventDefault();
+      const account = $('auth-account').value.trim();
+      const password = $('auth-password').value;
+      $('auth-submit').disabled = true;
+      $('auth-message').textContent = '';
+      try {
+        const response = await fetch(`/api/auth/${authMode}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ account, password }),
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(typeof payload.detail === 'string' ? payload.detail : '登录失败，请检查输入');
+        $('auth-form').reset();
+        await activateStorageMode('account', payload.user, payload.csrf_token || '');
+      } catch (error) {
+        $('auth-message').textContent = error.message || '登录服务暂不可用';
+      } finally {
+        $('auth-submit').disabled = false;
+      }
+    }
+
+    async function bootstrapAccess() {
+      updateAccountUi();
+      try {
+        const response = await fetch('/api/auth/session');
+        const payload = await response.json();
+        if (payload.authenticated) {
+          await activateStorageMode('account', payload.user, payload.csrf_token || '');
+          return;
+        }
+      } catch (_) {}
+      showEntryDialog();
+    }
+
+    async function handleAccountAction() {
+      if (storageMode !== 'account') {
+        showEntryDialog('auth');
+        return;
+      }
+      if (!confirm('退出账号并切换到访客模式？服务器中的会议记录不会被删除。')) return;
+      try {
+        await saveActiveMeeting();
+        const response = await fetch('/api/auth/logout', { method: 'POST', headers: meetingHeaders(true) });
+        if (!response.ok) throw new Error('退出失败');
+      } catch (error) {
+        showToast(error.message || '暂时无法退出账号');
+        return;
+      }
+      await activateStorageMode('guest');
     }
 
     function renderTranscript() {
@@ -411,10 +936,7 @@
       if (!showingDemo) return;
       showingDemo = false;
       transcriptSegments = [];
-      summaryIsDemo = false;
-      $('summary-state').textContent = '等待实时内容';
-      $('summary-title').textContent = '录音开始后，摘要会根据最终转写片段持续更新。';
-      $('summary-output').textContent = '当前还没有可用于摘要的最终转写内容。';
+      clearSummaryContent();
       renderTranscript();
     }
 
@@ -432,6 +954,8 @@
       });
       $('live-text').innerHTML = '<span class="typing-caret"></span>';
       renderTranscript();
+      ensureActiveMeeting();
+      scheduleMeetingSave();
       requestAnimationFrame(() => { $('content-scroll').scrollTop = $('content-scroll').scrollHeight; });
       maybeRefreshSummary();
     }
@@ -461,6 +985,8 @@
       }));
       $('live-text').textContent = sentences[sentences.length - 1];
       renderTranscript();
+      ensureActiveMeeting();
+      scheduleMeetingSave(final ? 0 : 700);
       $('latency-label').textContent = final ? '最终文字已确认' : `已回写第 ${revision} 版`;
       requestAnimationFrame(() => { $('content-scroll').scrollTop = $('content-scroll').scrollHeight; });
       if (final) maybeRefreshSummary();
@@ -675,7 +1201,8 @@
       }
     }
 
-    function resetSession({ announce = true } = {}) {
+    function resetSession({ announce = true, persist = true } = {}) {
+      cancelSummaryWork();
       clearTimeout(finishFallbackTimer);
       finishFallbackTimer = null;
       stopTimer();
@@ -696,19 +1223,14 @@
       archiveChunks = [];
       transcriptSegments = [];
       showingDemo = false;
-      summaryIsDemo = false;
-      summaryRunning = false;
-      lastSummaryAt = 0;
       elapsedSeconds = 0;
       $('elapsed').textContent = '00:00';
       $('download-recording').disabled = true;
       $('download-recording').classList.remove('visible');
-      $('summary-state').textContent = '等待实时内容';
-      $('summary-title').textContent = '录音开始后，摘要会根据最终转写片段持续更新。';
-      $('summary-output').className = 'summary-output';
-      $('summary-output').textContent = '当前还没有可用于摘要的最终转写内容。';
+      clearSummaryContent();
       setActiveTab('transcript');
       updateRecorderUi('idle', announce ? '内容已清空，可以开始新录音' : '正在准备新录音…');
+      if (persist && activeMeetingId) scheduleMeetingSave(0);
     }
 
     async function startRecordingSession() {
@@ -716,14 +1238,17 @@
         updateRecorderUi('error', '当前浏览器不支持麦克风录音');
         return;
       }
-      if (recorderState === 'ended' || recorderState === 'error') resetSession({ announce: false });
+      if (!storageMode) { showEntryDialog(); return; }
+      if (recorderState === 'ended' || recorderState === 'error') await createNewMeeting({ announce: false });
       clearDemoContent();
+      ensureActiveMeeting();
       if (recordingUrl) { URL.revokeObjectURL(recordingUrl); recordingUrl = null; }
       $('download-recording').disabled = true;
       $('download-recording').classList.remove('visible');
       elapsedSeconds = 0;
       $('elapsed').textContent = '00:00';
       sessionStartedAt = new Date();
+      activeMeetingCreatedAt = activeMeetingCreatedAt || sessionStartedAt.toISOString();
       $('created-at').textContent = new Intl.DateTimeFormat('zh-CN', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(sessionStartedAt);
       updateRecorderUi('connecting');
       asrStreamWs = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/asr/stream`);
@@ -780,6 +1305,7 @@
       stopCaptureGraph();
       if (asrStreamWs && asrStreamWs.readyState === WebSocket.OPEN) asrStreamWs.close();
       updateRecorderUi('ended', message || '录音与最后一段识别已完成');
+      scheduleMeetingSave(0);
       if (transcriptText()) generateSummary();
     }
 
@@ -787,6 +1313,10 @@
       const text = transcriptText();
       if (!text) { showToast('还没有可用于摘要的真实转写内容'); return; }
       if (summaryRunning) return;
+      const requestEpoch = contentEpoch;
+      const controller = new AbortController();
+      if (summaryAbortController) summaryAbortController.abort();
+      summaryAbortController = controller;
       summaryRunning = true;
       summaryIsDemo = false;
       $('summary-state').textContent = '正在更新摘要…';
@@ -797,22 +1327,31 @@
         const response = await fetch('/api/meeting-notes/polish', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
           body: JSON.stringify({ transcript: text, instruction: '请输出中文实时会议摘要：包括一句话摘要、核心结论、行动项、风险与未决问题。只根据输入文本，不编造。' }),
         });
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.detail && payload.detail.message ? payload.detail.message : '摘要服务暂不可用');
+        if (requestEpoch !== contentEpoch || summaryAbortController !== controller) return;
         $('summary-output').className = 'summary-output';
         $('summary-output').textContent = payload.content || '摘要服务未返回内容。';
         $('summary-title').textContent = '摘要已根据当前最终转写片段更新。';
+        $('summary-description').textContent = '摘要与行动项已根据当前会议文字生成。';
         $('summary-state').textContent = '刚刚更新';
+        hasGeneratedSummary = true;
         lastSummaryAt = Date.now();
+        scheduleMeetingSave(0);
       } catch (error) {
+        if (error.name === 'AbortError' || requestEpoch !== contentEpoch) return;
         $('summary-output').className = 'summary-output error';
         $('summary-output').textContent = `摘要生成失败：${error.message || String(error)}`;
         $('summary-state').textContent = '更新失败';
       } finally {
-        summaryRunning = false;
-        $('generate-summary').disabled = false;
+        if (summaryAbortController === controller) {
+          summaryAbortController = null;
+          summaryRunning = false;
+          $('generate-summary').disabled = false;
+        }
       }
     }
 
@@ -848,6 +1387,31 @@
     }
 
     document.querySelectorAll('.content-tab').forEach((button) => button.addEventListener('click', () => setActiveTab(button.dataset.tab)));
+    $('new-meeting').addEventListener('click', () => createNewMeeting());
+    $('meeting-search').addEventListener('input', renderMeetingIndex);
+    $('meeting-groups').addEventListener('click', (event) => {
+      const deleteButton = event.target.closest('[data-delete-meeting]');
+      if (deleteButton) { deleteMeetingRecord(deleteButton.dataset.deleteMeeting); return; }
+      const openButton = event.target.closest('[data-meeting-id]');
+      if (openButton) openMeeting(openButton.dataset.meetingId);
+    });
+    $('toggle-sidebar').addEventListener('click', () => {
+      if (matchMedia('(max-width: 900px)').matches) document.body.classList.toggle('sidebar-open');
+      else document.body.classList.toggle('sidebar-collapsed');
+    });
+    $('collapse-sidebar').addEventListener('click', () => {
+      if (matchMedia('(max-width: 900px)').matches) closeSidebarOnSmallScreen();
+      else document.body.classList.add('sidebar-collapsed');
+    });
+    $('sidebar-backdrop').addEventListener('click', closeSidebarOnSmallScreen);
+    $('meeting-title').addEventListener('input', () => { ensureActiveMeeting(); scheduleMeetingSave(); });
+    $('account-action').addEventListener('click', handleAccountAction);
+    $('enter-guest').addEventListener('click', () => activateStorageMode('guest'));
+    $('show-login').addEventListener('click', () => showEntryDialog('auth'));
+    $('auth-back').addEventListener('click', () => showEntryDialog('mode'));
+    document.querySelectorAll('.auth-tab').forEach((button) => button.addEventListener('click', () => setAuthMode(button.dataset.authMode)));
+    $('auth-form').addEventListener('submit', submitAuth);
+    $('entry-dialog').addEventListener('cancel', (event) => event.preventDefault());
     $('record-toggle').addEventListener('click', () => {
       if (recorderState === 'recording') pauseRecording();
       else if (recorderState === 'paused') resumeRecording();
@@ -890,6 +1454,7 @@
     };
     window.__demoInjectSummary = (text = '一句话摘要：这是会议录音页面的前端合同测试。') => {
       summaryIsDemo = false;
+      hasGeneratedSummary = true;
       $('summary-output').textContent = text;
       $('summary-state').textContent = '测试更新';
       return $('summary-output').textContent;
@@ -902,6 +1467,7 @@
 
     renderTranscript();
     refreshStatus();
+    bootstrapAccess();
   </script>
 </body>
 </html>

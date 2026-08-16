@@ -12,6 +12,8 @@ A lightweight FastAPI + browser meeting recorder with realtime transcription, lo
 - **GPU-first ASR**: default ASR channel is `funasr-gpu` (CUDA PyTorch + FunASR/SenseVoiceSmall worker). `funasr-cpu` remains an explicit fallback, and `stub-local` remains available for smoke tests.
 - **Realtime ASR WebSocket**: `WS /ws/asr/stream` accepts continuous PCM16 microphone frames and returns cumulative revision events. The page replaces the current hypothesis in place, then commits a final version when recording ends.
 - **会议纪要**: final transcript segments can be sent to a server-side Qwen-compatible model for summary, action items, risks, and open questions.
+- **双模式会议历史**: guests keep meeting text and summaries only in browser IndexedDB; signed-in accounts sync records through authenticated server storage.
+- **账号登录**: first-party username/email registration and login with salted PBKDF2 password hashes, HttpOnly session cookies, and CSRF-protected record writes.
 - **Focused product UI**: the default page exposes exactly two product tabs, `文字记录` and `实时摘要`; TTS, voice cloning, and realtime conversation stay available as backend capabilities for later product work.
 
 ## Security model
@@ -20,6 +22,8 @@ A lightweight FastAPI + browser meeting recorder with realtime transcription, lo
 - Set the key only on the server via `OPENAI_API_KEY` or `DASHSCOPE_API_KEY`.
 - Optional local env-file loading is available with `QWEN_TOKEN_PLAN_ENV_FILE=/path/to/local.env`.
 - Do not commit real `.env` files, model caches, probe output, audio files, or runtime logs.
+- Guest meeting records never enter the meeting database. Audio/transcript data still passes through the ASR/summary service while a request is processed.
+- Raw recording blobs are not uploaded by the meeting-history feature; the current page keeps them only for local download.
 
 ## Quick start
 
@@ -86,6 +90,8 @@ Model cache is written to `playground/model-cache/`, which is ignored by Git.
 - `WS /ws/asr/stream`: bounded PCM16 stream used by the recorder. Results include `stream.revision`, `stream.revision_scope=session`, `stream.replace=true`, and `stream.final`; clients should upsert rather than append revisions.
 - `WS /ws/realtime`: browser-to-backend Realtime proxy; upstream events are normalized into `demo_event=transcript.delta` for the Realtime board.
 - `POST /api/meeting-notes/polish`: Qwen-compatible chat completion endpoint for transcript polish + realtime summary structure.
+- `POST /api/auth/register`, `POST /api/auth/login`, `GET /api/auth/session`, `POST /api/auth/logout`: account/session lifecycle.
+- `GET|PUT|DELETE /api/meetings[/<id>]`: authenticated meeting record storage. Writes require the session CSRF token.
 
 ### Public ASR stream limits
 
@@ -105,6 +111,7 @@ python3 scripts/check_ui_contract.py
 python3 scripts/check_transcript_extraction.py
 python3 scripts/check_asr_contract.py
 python3 scripts/check_asr_gpu_contract.py
+python3 scripts/check_meeting_storage_contract.py
 python3 scripts/smoke_asr_api.py --port 18097
 python3 scripts/check_meeting_e2e.py --base-url http://127.0.0.1:18087
 ```

@@ -4,13 +4,16 @@ import asyncio
 import base64
 import binascii
 import hashlib
+import hmac
 import io
 import json
 import logging
 import math
 import os
 import re
+import secrets
 import shutil
+import sqlite3
 import subprocess
 import tempfile
 import threading
@@ -18,13 +21,15 @@ import time
 import urllib.error
 import urllib.request
 import wave
+from contextlib import closing
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
 import dashscope
 from dashscope.audio.tts_v2 import AudioFormat, SpeechSynthesizer
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from pydantic import BaseModel, Field
@@ -85,11 +90,16 @@ logger = logging.getLogger("qwen_audio_demo")
 _FUNASR_MODELS: dict[tuple[str, str], Any] = {}
 _FUNASR_MODEL_LOCKS: dict[tuple[str, str], threading.Lock] = {}
 _FUNASR_CACHE_LOCK = threading.Lock()
+MEETING_DB_PATH = Path(os.getenv("MEETING_DB_PATH", str(PROJECT_ROOT / "playground" / "meetings.sqlite3"))).expanduser()
+_MEETING_DB_LOCK = threading.Lock()
+AUTH_COOKIE_NAME = "meeting_session"
+AUTH_SESSION_DAYS = 30
+PASSWORD_ITERATIONS = 310_000
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://127.0.0.1", "http://localhost", "http://127.0.0.1:18087", "http://localhost:18087"],
     allow_credentials=False,
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
 )
 
@@ -112,6 +122,27 @@ class MeetingNotesRequest(BaseModel):
     transcript: str = Field(..., min_length=1, max_length=20000)
     instruction: str = Field("输出中文会议纪要：先给实时摘要，再给润色修复后的逐段记录、待办、风险和未决问题。", max_length=1000)
     model: str | None = Field(default=None, max_length=120)
+
+
+class StoredTranscriptSegment(BaseModel):
+    speaker: str = Field("说话人 1", max_length=80)
+    time: str = Field("00:00", max_length=20)
+    text: str = Field(..., min_length=1, max_length=5000)
+
+
+class MeetingRecordInput(BaseModel):
+    title: str = Field("新录音", max_length=120)
+    created_at: str = Field(..., min_length=1, max_length=64)
+    updated_at: str = Field(..., min_length=1, max_length=64)
+    duration_seconds: int = Field(0, ge=0, le=24 * 60 * 60)
+    transcript_segments: list[StoredTranscriptSegment] = Field(default_factory=list, max_length=500)
+    summary_title: str = Field("", max_length=500)
+    summary_content: str = Field("", max_length=20000)
+
+
+class AccountCredentials(BaseModel):
+    account: str = Field(..., min_length=3, max_length=80)
+    password: str = Field(..., min_length=8, max_length=128)
 
 
 def _read_profile() -> dict[str, str]:
@@ -227,6 +258,306 @@ def status() -> JSONResponse:
         result["models_ok"] = False
         result["models_error"] = type(exc).__name__ + ": " + str(exc)[:300]
     return JSONResponse(result)
+
+
+def _validated_record_key(value: str, label: str) -> str:
+    normalized = str(value or "").strip()
+    if not re.fullmatch(r"[A-Za-z0-9_-]{8,80}", normalized):
+        raise HTTPException(status_code=400, detail=f"invalid {label}")
+    return normalized
+
+
+def _normalized_account(value: str) -> str:
+    account = value.strip().casefold()
+    if not re.fullmatch(r"[a-z0-9][a-z0-9_.+@-]{2,79}", account):
+        raise HTTPException(status_code=400, detail="账号需为 3–80 位字母、数字或 @ . _ + -")
+    return account
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _iso_utc(value: datetime | None = None) -> str:
+    return (value or _utc_now()).isoformat()
+
+
+def _password_hash(password: str, salt: bytes) -> bytes:
+    return hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, PASSWORD_ITERATIONS)
+
+
+def _meeting_db() -> sqlite3.Connection:
+    MEETING_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    connection = sqlite3.connect(MEETING_DB_PATH, timeout=10)
+    connection.row_factory = sqlite3.Row
+    connection.execute("PRAGMA journal_mode=WAL")
+    connection.execute("PRAGMA foreign_keys=ON")
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS accounts (
+            id TEXT PRIMARY KEY,
+            account TEXT NOT NULL UNIQUE,
+            display_name TEXT NOT NULL,
+            password_salt BLOB NOT NULL,
+            password_hash BLOB NOT NULL,
+            created_at TEXT NOT NULL
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS auth_sessions (
+            token_hash TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            csrf_token TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES accounts(id) ON DELETE CASCADE
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS meeting_records (
+            owner_id TEXT NOT NULL,
+            meeting_id TEXT NOT NULL,
+            title TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            duration_seconds INTEGER NOT NULL DEFAULT 0,
+            transcript_json TEXT NOT NULL DEFAULT '[]',
+            summary_title TEXT NOT NULL DEFAULT '',
+            summary_content TEXT NOT NULL DEFAULT '',
+            preview TEXT NOT NULL DEFAULT '',
+            PRIMARY KEY (owner_id, meeting_id)
+        )
+        """
+    )
+    connection.commit()
+    return connection
+
+
+def _create_auth_session(connection: sqlite3.Connection, user_id: str) -> tuple[str, str]:
+    token = secrets.token_urlsafe(32)
+    csrf_token = secrets.token_urlsafe(24)
+    now = _utc_now()
+    connection.execute(
+        "INSERT INTO auth_sessions (token_hash, user_id, csrf_token, created_at, expires_at) VALUES (?, ?, ?, ?, ?)",
+        (hashlib.sha256(token.encode("utf-8")).hexdigest(), user_id, csrf_token, _iso_utc(now), _iso_utc(now + timedelta(days=AUTH_SESSION_DAYS))),
+    )
+    return token, csrf_token
+
+
+def _auth_row(request: Request, *, required: bool = True) -> sqlite3.Row | None:
+    token = request.cookies.get(AUTH_COOKIE_NAME, "")
+    if not token:
+        if required:
+            raise HTTPException(status_code=401, detail="请先登录")
+        return None
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
+        row = connection.execute(
+            """
+            SELECT s.token_hash, s.user_id, s.csrf_token, s.expires_at, a.account, a.display_name
+            FROM auth_sessions AS s JOIN accounts AS a ON a.id = s.user_id
+            WHERE s.token_hash = ?
+            """,
+            (token_hash,),
+        ).fetchone()
+        if row and datetime.fromisoformat(row["expires_at"]) <= _utc_now():
+            connection.execute("DELETE FROM auth_sessions WHERE token_hash = ?", (token_hash,))
+            connection.commit()
+            row = None
+    if row is None and required:
+        raise HTTPException(status_code=401, detail="登录已过期，请重新登录")
+    return row
+
+
+def _require_csrf(request: Request, auth: sqlite3.Row) -> None:
+    supplied = request.headers.get("X-CSRF-Token", "")
+    if not supplied or not hmac.compare_digest(supplied, auth["csrf_token"]):
+        raise HTTPException(status_code=403, detail="无效的请求令牌")
+
+
+def _auth_payload(row: sqlite3.Row, csrf_token: str | None = None) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "authenticated": True,
+        "user": {"id": row["user_id"] if "user_id" in row.keys() else row["id"], "account": row["account"], "display_name": row["display_name"]},
+    }
+    if csrf_token is not None:
+        payload["csrf_token"] = csrf_token
+    return payload
+
+
+def _set_auth_cookie(response: JSONResponse, request: Request, token: str) -> None:
+    forwarded_proto = request.headers.get("x-forwarded-proto", "").split(",", 1)[0].strip()
+    response.set_cookie(
+        AUTH_COOKIE_NAME,
+        token,
+        max_age=AUTH_SESSION_DAYS * 24 * 60 * 60,
+        httponly=True,
+        secure=request.url.scheme == "https" or forwarded_proto == "https",
+        samesite="lax",
+        path="/",
+    )
+
+
+@app.post("/api/auth/register")
+def register(credentials: AccountCredentials, request: Request) -> JSONResponse:
+    account = _normalized_account(credentials.account)
+    salt = secrets.token_bytes(16)
+    user_id = "usr_" + secrets.token_urlsafe(18)
+    display_name = account.split("@", 1)[0][:40]
+    with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
+        try:
+            connection.execute(
+                "INSERT INTO accounts (id, account, display_name, password_salt, password_hash, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (user_id, account, display_name, salt, _password_hash(credentials.password, salt), _iso_utc()),
+            )
+        except sqlite3.IntegrityError as exc:
+            raise HTTPException(status_code=409, detail="该账号已存在") from exc
+        token, csrf_token = _create_auth_session(connection, user_id)
+        connection.commit()
+    response = JSONResponse({"authenticated": True, "user": {"id": user_id, "account": account, "display_name": display_name}, "csrf_token": csrf_token})
+    _set_auth_cookie(response, request, token)
+    return response
+
+
+@app.post("/api/auth/login")
+def login(credentials: AccountCredentials, request: Request) -> JSONResponse:
+    account = _normalized_account(credentials.account)
+    with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
+        row = connection.execute("SELECT * FROM accounts WHERE account = ?", (account,)).fetchone()
+        valid = bool(row and hmac.compare_digest(row["password_hash"], _password_hash(credentials.password, row["password_salt"])))
+        if not valid:
+            raise HTTPException(status_code=401, detail="账号或密码不正确")
+        token, csrf_token = _create_auth_session(connection, row["id"])
+        connection.commit()
+    response = JSONResponse({"authenticated": True, "user": {"id": row["id"], "account": row["account"], "display_name": row["display_name"]}, "csrf_token": csrf_token})
+    _set_auth_cookie(response, request, token)
+    return response
+
+
+@app.get("/api/auth/session")
+def auth_session(request: Request) -> JSONResponse:
+    row = _auth_row(request, required=False)
+    return JSONResponse(_auth_payload(row, row["csrf_token"]) if row else {"authenticated": False})
+
+
+@app.post("/api/auth/logout")
+def logout(request: Request) -> JSONResponse:
+    row = _auth_row(request)
+    _require_csrf(request, row)
+    with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
+        connection.execute("DELETE FROM auth_sessions WHERE token_hash = ?", (row["token_hash"],))
+        connection.commit()
+    response = JSONResponse({"authenticated": False})
+    response.delete_cookie(AUTH_COOKIE_NAME, path="/")
+    return response
+
+
+def _meeting_row_payload(row: sqlite3.Row, include_content: bool) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "id": row["meeting_id"],
+        "title": row["title"],
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
+        "duration_seconds": row["duration_seconds"],
+        "preview": row["preview"],
+    }
+    if include_content:
+        try:
+            payload["transcript_segments"] = json.loads(row["transcript_json"])
+        except Exception:
+            payload["transcript_segments"] = []
+        payload["summary_title"] = row["summary_title"]
+        payload["summary_content"] = row["summary_content"]
+    return payload
+
+
+@app.get("/api/meetings")
+def list_meetings(request: Request) -> JSONResponse:
+    owner_id = _auth_row(request)["user_id"]
+    with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
+        rows = connection.execute(
+            "SELECT * FROM meeting_records WHERE owner_id = ? ORDER BY updated_at DESC LIMIT 100",
+            (owner_id,),
+        ).fetchall()
+    return JSONResponse({"meetings": [_meeting_row_payload(row, False) for row in rows]})
+
+
+@app.get("/api/meetings/{meeting_id}")
+def get_meeting(meeting_id: str, request: Request) -> JSONResponse:
+    owner_id = _auth_row(request)["user_id"]
+    record_id = _validated_record_key(meeting_id, "meeting id")
+    with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
+        row = connection.execute(
+            "SELECT * FROM meeting_records WHERE owner_id = ? AND meeting_id = ?",
+            (owner_id, record_id),
+        ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="meeting not found")
+    return JSONResponse(_meeting_row_payload(row, True))
+
+
+@app.put("/api/meetings/{meeting_id}")
+def upsert_meeting(meeting_id: str, record: MeetingRecordInput, request: Request) -> JSONResponse:
+    auth = _auth_row(request)
+    _require_csrf(request, auth)
+    owner_id = auth["user_id"]
+    record_id = _validated_record_key(meeting_id, "meeting id")
+    segments = [segment.model_dump() for segment in record.transcript_segments]
+    preview = " ".join(segment["text"] for segment in segments)[:120]
+    with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
+        connection.execute(
+            """
+            INSERT INTO meeting_records (
+                owner_id, meeting_id, title, created_at, updated_at, duration_seconds,
+                transcript_json, summary_title, summary_content, preview
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(owner_id, meeting_id) DO UPDATE SET
+                title = excluded.title,
+                updated_at = excluded.updated_at,
+                duration_seconds = excluded.duration_seconds,
+                transcript_json = excluded.transcript_json,
+                summary_title = excluded.summary_title,
+                summary_content = excluded.summary_content,
+                preview = excluded.preview
+            """,
+            (
+                owner_id,
+                record_id,
+                record.title.strip() or "新录音",
+                record.created_at,
+                record.updated_at,
+                record.duration_seconds,
+                json.dumps(segments, ensure_ascii=False),
+                record.summary_title,
+                record.summary_content,
+                preview,
+            ),
+        )
+        connection.commit()
+        row = connection.execute(
+            "SELECT * FROM meeting_records WHERE owner_id = ? AND meeting_id = ?",
+            (owner_id, record_id),
+        ).fetchone()
+    return JSONResponse(_meeting_row_payload(row, True))
+
+
+@app.delete("/api/meetings/{meeting_id}")
+def delete_meeting(meeting_id: str, request: Request) -> JSONResponse:
+    auth = _auth_row(request)
+    _require_csrf(request, auth)
+    owner_id = auth["user_id"]
+    record_id = _validated_record_key(meeting_id, "meeting id")
+    with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
+        cursor = connection.execute(
+            "DELETE FROM meeting_records WHERE owner_id = ? AND meeting_id = ?",
+            (owner_id, record_id),
+        )
+        connection.commit()
+    return JSONResponse({"deleted": cursor.rowcount > 0, "id": record_id})
 
 
 @app.post("/api/tts")

@@ -49,6 +49,10 @@ checks["other_model_labs_are_not_primary_tabs"] = all(label not in text for labe
 checks["contract_helpers_exist"] = all(name in text for name in ("__demoInjectAsrScenario", "__demoInjectSummary", "__demoGetState"))
 checks["permission_error_is_handled"] = "NotAllowedError" in text and "未获得麦克风权限" in text
 checks["navigation_guard_exists"] = "beforeunload" in text
+checks["meeting_sidebar_exists"] = all(marker in text for marker in ('id="meeting-sidebar"', 'id="new-meeting"', 'id="meeting-search"', 'id="meeting-groups"'))
+checks["guest_storage_is_browser_only"] = "indexedDB.open" in text and "GUEST_STORE" in text and "X-Client-Id" not in text
+checks["account_mode_is_available"] = all(marker in text for marker in ('id="entry-dialog"', "/api/auth/${authMode}", "/api/auth/session", "/api/auth/logout"))
+checks["summary_reset_cancels_stale_request"] = all(marker in text for marker in ("summaryAbortController.abort()", "requestEpoch !== contentEpoch", "persist = true"))
 
 checks["ok"] = all(bool(value) for key, value in checks.items() if key != "ok")
 print(json.dumps(checks, ensure_ascii=False, indent=2))

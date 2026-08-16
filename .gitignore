@@ -25,6 +25,8 @@ playground/smoke-demo-*.json
 playground/check-*.json
 playground/public-*-verify.json
 playground/public-entry-verify-*.txt
+playground/*.sqlite3
+playground/*.sqlite3-*
 *.mp3
 *.wav
 *.webm
