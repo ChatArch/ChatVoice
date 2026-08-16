@@ -141,10 +141,9 @@
     .recording-console { position: absolute; left: 22px; right: 22px; bottom: 18px; padding: 18px 24px 17px; border: 1px solid #e7e7e9; border-radius: 24px; background: rgba(255, 255, 255, .95); backdrop-filter: blur(22px); box-shadow: 0 18px 55px rgba(27, 30, 44, .14); }
     .waveform-wrap { position: relative; height: 48px; }
     #recording-waveform { width: 100%; height: 48px; display: block; }
-    .waveform-placeholder { position: absolute; inset: 0; display: flex; align-items: center; gap: 3px; opacity: .72; mask-image: linear-gradient(90deg, transparent, black 4%, black 96%, transparent); }
+    .waveform-placeholder { position: absolute; inset: 0; display: flex; align-items: center; opacity: .72; }
     .waveform-placeholder.hidden { display: none; }
-    .waveform-placeholder i { flex: 1 1 2px; min-width: 2px; max-width: 3px; height: var(--height); border-radius: 3px; background: #707278; transform-origin: center; animation: wave .8s ease-in-out infinite alternate; animation-delay: var(--delay); }
-    .recording-console.paused .waveform-placeholder i, .recording-console.ended .waveform-placeholder i, .recording-console.idle .waveform-placeholder i { animation-play-state: paused; opacity: .45; transform: scaleY(.45); }
+    .waveform-placeholder::before { content: ""; width: 100%; height: 2px; border-radius: 2px; background: linear-gradient(90deg, transparent, #d2d3d7 8%, #d2d3d7 92%, transparent); }
     .console-controls { display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: center; margin-top: 12px; }
     .elapsed-time strong, .elapsed-time small { display: block; }
     .elapsed-time strong { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 19px; letter-spacing: -.04em; }
@@ -155,10 +154,11 @@
     .record-toggle .record-icon { width: 19px; height: 19px; border-radius: 50%; background: var(--red); box-shadow: 0 0 0 6px rgba(255, 98, 94, .12); }
     .record-toggle .play-icon { width: 0; height: 0; margin-left: 4px; border-top: 10px solid transparent; border-bottom: 10px solid transparent; border-left: 16px solid currentColor; }
     .finish-wrap { display: flex; justify-content: flex-end; gap: 8px; }
-    .finish-control, .download-control { min-width: 82px; height: 47px; border: 0; border-radius: 16px; background: #f5f5f6; color: #292a2f; font-size: 11px; font-weight: 680; }
-    .download-control { display: none; border: 1px solid var(--line); background: #fff; }
-    .download-control.visible { display: inline-block; }
-    .finish-control:disabled, .download-control:disabled { color: #a0a2a7; cursor: not-allowed; }
+    .finish-control, .download-control, .reset-control { min-width: 72px; height: 47px; border: 0; border-radius: 16px; background: #f5f5f6; color: #292a2f; font-size: 11px; font-weight: 680; }
+    .download-control, .reset-control { display: none; border: 1px solid var(--line); background: #fff; }
+    .download-control.visible, .reset-control.visible { display: inline-block; }
+    .finish-control.hidden { display: none; }
+    .finish-control:disabled, .download-control:disabled, .reset-control:disabled { color: #a0a2a7; cursor: not-allowed; }
 
     dialog { width: min(420px, calc(100vw - 32px)); padding: 0; border: 0; border-radius: 22px; color: var(--ink); box-shadow: 0 30px 90px rgba(20, 24, 38, .25); }
     dialog::backdrop { background: rgba(22, 24, 30, .28); backdrop-filter: blur(4px); }
@@ -175,7 +175,6 @@
 
     @keyframes blink { 50% { opacity: 0; } }
     @keyframes bounce { to { transform: translateY(-4px); opacity: .35; } }
-    @keyframes wave { from { transform: scaleY(.42); } to { transform: scaleY(1); } }
     @keyframes fade-in { from { opacity: 0; transform: translateY(5px); } }
 
     @media (max-width: 680px) {
@@ -198,13 +197,11 @@
       .transcript-block.demo:first-of-type { display: none; }
       .recording-console { left: 10px; right: 10px; bottom: max(9px, env(safe-area-inset-bottom)); padding: 15px 16px 14px; border-radius: 22px; }
       .waveform-wrap, #recording-waveform { height: 42px; }
-      .waveform-placeholder { gap: 2px; }
-      .waveform-placeholder i { min-width: 1px; }
       .console-controls { margin-top: 10px; }
       .elapsed-time strong { font-size: 17px; }
       .elapsed-time small { display: none; }
       .record-toggle { width: 52px; height: 52px; border-radius: 17px; }
-      .finish-control, .download-control { min-width: 68px; height: 44px; }
+      .finish-control, .download-control, .reset-control { min-width: 58px; height: 44px; }
       .summary-lead { padding: 20px; }
     }
 
@@ -319,6 +316,7 @@
           <button class="record-toggle" id="record-toggle" type="button" aria-label="开始录音"><span class="record-icon"></span></button>
 
           <div class="finish-wrap">
+            <button class="reset-control" id="reset-recording" type="button">清空</button>
             <button class="download-control" id="download-recording" type="button" disabled>下载</button>
             <button class="finish-control" id="finish-recording" type="button" disabled>结束</button>
           </div>
@@ -345,8 +343,6 @@
       { speaker: '说话人 2', time: '01:26', text: '最基础的是实时转写，摘要和后续处理都建立在统一的文字结果之上。', demo: true },
       { speaker: '说话人 1', time: '03:08', text: '后端可以接不同供应商，也可以切换成服务化的 Whisper，前端不需要知道这些差异。', demo: true },
     ];
-    const placeholderHeights = [18,25,31,22,40,55,32,26,47,65,40,29,46,72,54,34,49,77,45,31,58,84,63,39,55,93,72,48,66,98,76,49,62,89,69,44,56,81,61,40,51,73,56,36,44,65,49,33,40,57,43,28,35,49,36,24,30,39,27,20,24,31,22,17];
-
     let recorderState = 'idle';
     let activeTab = 'transcript';
     let elapsedSeconds = 0;
@@ -369,6 +365,7 @@
     let summaryRunning = false;
     let lastSummaryAt = 0;
     let toastTimer = null;
+    let finishFallbackTimer = null;
 
     function escapeHtml(value) {
       return String(value || '').replace(/[&<>'"]/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
@@ -385,12 +382,6 @@
       $('toast').classList.add('visible');
       clearTimeout(toastTimer);
       toastTimer = setTimeout(() => $('toast').classList.remove('visible'), 2200);
-    }
-
-    function setupPlaceholderWave() {
-      $('waveform-placeholder').innerHTML = placeholderHeights.map((height, index) =>
-        `<i style="--height:${height}%;--delay:${(index % 15) * -0.055}s"></i>`
-      ).join('');
     }
 
     function renderTranscript() {
@@ -470,6 +461,8 @@
       $('latency-label').textContent = nextState === 'recording' ? '分段实时识别' : nextState === 'connecting' ? '正在建立连接' : nextState === 'error' ? '可重新开始' : '—';
       $('record-toggle').disabled = nextState === 'connecting' || nextState === 'finishing';
       $('finish-recording').disabled = !['recording', 'paused'].includes(nextState);
+      $('finish-recording').classList.toggle('hidden', nextState === 'ended' || nextState === 'error');
+      $('reset-recording').classList.toggle('visible', nextState === 'ended' || nextState === 'error');
       if (nextState === 'recording') {
         $('record-toggle').innerHTML = '<i></i><i></i>';
         $('record-toggle').setAttribute('aria-label', '暂停录音');
@@ -564,15 +557,23 @@
       const context = canvas.getContext('2d');
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
       context.clearRect(0, 0, width, height);
-      const samples = new Uint8Array(audioAnalyser.frequencyBinCount);
-      audioAnalyser.getByteFrequencyData(samples);
+      const samples = new Uint8Array(audioAnalyser.fftSize);
+      audioAnalyser.getByteTimeDomainData(samples);
+      let energy = 0;
+      for (const sample of samples) {
+        const centered = (sample - 128) / 128;
+        energy += centered * centered;
+      }
+      const rms = Math.sqrt(energy / samples.length);
+      const silent = rms < .022;
       const bars = Math.max(28, Math.floor(width / 7));
       const gap = 3;
       const barWidth = Math.max(2, (width - gap * (bars - 1)) / bars);
       context.fillStyle = '#66686e';
       for (let index = 0; index < bars; index += 1) {
-        const sourceIndex = Math.floor(index / bars * samples.length * .72);
-        const amplitude = recorderState === 'paused' ? 4 : Math.max(4, samples[sourceIndex] / 255 * (height - 4));
+        const sourceIndex = Math.floor(index / bars * samples.length);
+        const localLevel = Math.abs(samples[sourceIndex] - 128) / 128;
+        const amplitude = recorderState === 'paused' || silent ? 2 : Math.max(2, Math.min(height - 4, localLevel * height * 2.4));
         context.beginPath();
         context.roundRect(index * (barWidth + gap), (height - amplitude) / 2, barWidth, amplitude, Math.min(2, barWidth / 2));
         context.fill();
@@ -585,7 +586,7 @@
       audioContext = new AudioContext();
       audioSource = audioContext.createMediaStreamSource(microphoneStream);
       audioAnalyser = audioContext.createAnalyser();
-      audioAnalyser.fftSize = 256;
+      audioAnalyser.fftSize = 512;
       audioAnalyser.smoothingTimeConstant = .72;
       audioProcessor = audioContext.createScriptProcessor(4096, 1, 1);
       audioProcessor.onaudioprocess = (event) => {
@@ -629,11 +630,48 @@
       }
     }
 
+    function resetSession({ announce = true } = {}) {
+      clearTimeout(finishFallbackTimer);
+      finishFallbackTimer = null;
+      stopTimer();
+      sendingAudio = false;
+      if (asrStreamWs) {
+        asrStreamWs.onclose = null;
+        if (asrStreamWs.readyState === WebSocket.OPEN || asrStreamWs.readyState === WebSocket.CONNECTING) asrStreamWs.close();
+        asrStreamWs = null;
+      }
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.onstop = null;
+        mediaRecorder.stop();
+      }
+      mediaRecorder = null;
+      stopCaptureGraph();
+      if (recordingUrl) URL.revokeObjectURL(recordingUrl);
+      recordingUrl = null;
+      archiveChunks = [];
+      transcriptSegments = [];
+      showingDemo = false;
+      summaryIsDemo = false;
+      summaryRunning = false;
+      lastSummaryAt = 0;
+      elapsedSeconds = 0;
+      $('elapsed').textContent = '00:00';
+      $('download-recording').disabled = true;
+      $('download-recording').classList.remove('visible');
+      $('summary-state').textContent = '等待实时内容';
+      $('summary-title').textContent = '录音开始后，摘要会根据最终转写片段持续更新。';
+      $('summary-output').className = 'summary-output';
+      $('summary-output').textContent = '当前还没有可用于摘要的最终转写内容。';
+      setActiveTab('transcript');
+      updateRecorderUi('idle', announce ? '内容已清空，可以开始新录音' : '正在准备新录音…');
+    }
+
     async function startRecordingSession() {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         updateRecorderUi('error', '当前浏览器不支持麦克风录音');
         return;
       }
+      if (recorderState === 'ended' || recorderState === 'error') resetSession({ announce: false });
       clearDemoContent();
       if (recordingUrl) { URL.revokeObjectURL(recordingUrl); recordingUrl = null; }
       $('download-recording').disabled = true;
@@ -646,7 +684,7 @@
       asrStreamWs = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/asr/stream`);
       asrStreamWs.onopen = async () => {
         try {
-          asrStreamWs.send(JSON.stringify({ type: 'asr.stream.start', channel: $('asr-channel').value || 'funasr-gpu', sample_rate: 16000, chunk_seconds: 2 }));
+          asrStreamWs.send(JSON.stringify({ type: 'asr.stream.start', channel: $('asr-channel').value || 'funasr-gpu', sample_rate: 16000, chunk_seconds: 3 }));
           await startMicrophoneCapture();
           sendingAudio = true;
           updateRecorderUi('recording');
@@ -683,14 +721,20 @@
       stopCaptureGraph();
       if (asrStreamWs && asrStreamWs.readyState === WebSocket.OPEN) asrStreamWs.send(JSON.stringify({ type: 'asr.stream.finish' }));
       else finishSessionUi();
-      setTimeout(() => { if (recorderState === 'finishing') finishSessionUi(); }, 5000);
+      clearTimeout(finishFallbackTimer);
+      finishFallbackTimer = setTimeout(() => {
+        if (recorderState !== 'finishing') return;
+        finishSessionUi('最后一段识别等待超时，录音仍已保存在本地');
+      }, 90000);
     }
 
-    function finishSessionUi() {
+    function finishSessionUi(message = '') {
+      clearTimeout(finishFallbackTimer);
+      finishFallbackTimer = null;
       stopTimer();
       stopCaptureGraph();
       if (asrStreamWs && asrStreamWs.readyState === WebSocket.OPEN) asrStreamWs.close();
-      updateRecorderUi('ended');
+      updateRecorderUi('ended', message || '录音与最后一段识别已完成');
       if (transcriptText()) generateSummary();
     }
 
@@ -765,6 +809,7 @@
       else startRecordingSession();
     });
     $('finish-recording').addEventListener('click', finishRecording);
+    $('reset-recording').addEventListener('click', () => resetSession());
     $('open-settings').addEventListener('click', () => $('settings-dialog').showModal());
     $('asr-channel').addEventListener('change', () => {
       const option = $('asr-channel').options[$('asr-channel').selectedIndex];
@@ -806,7 +851,6 @@
     };
     window.__demoGetState = () => ({ recorderState, activeTab, elapsedSeconds, transcript: transcriptText(), summary: $('summary-output').textContent });
 
-    setupPlaceholderWave();
     renderTranscript();
     refreshStatus();
   </script>

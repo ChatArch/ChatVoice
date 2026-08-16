@@ -13,6 +13,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -81,6 +82,9 @@ ASR_CHANNELS: dict[str, dict[str, Any]] = {
 
 app = FastAPI(title="Qwen Token Plan Audio + GPU ASR Demo", version="0.3.0")
 logger = logging.getLogger("qwen_audio_demo")
+_FUNASR_MODELS: dict[tuple[str, str], Any] = {}
+_FUNASR_MODEL_LOCKS: dict[tuple[str, str], threading.Lock] = {}
+_FUNASR_CACHE_LOCK = threading.Lock()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://127.0.0.1", "http://localhost", "http://127.0.0.1:18087", "http://localhost:18087"],
@@ -461,6 +465,28 @@ def _funasr_worker_python(device: str) -> Path | None:
     return None
 
 
+def _get_cached_funasr_model(model_name: str, device: str) -> tuple[Any, threading.Lock]:
+    """Load one in-process model per device and serialize inference on it."""
+    key = (model_name, device)
+    with _FUNASR_CACHE_LOCK:
+        model = _FUNASR_MODELS.get(key)
+        model_lock = _FUNASR_MODEL_LOCKS.setdefault(key, threading.Lock())
+        if model is None:
+            from funasr import AutoModel  # type: ignore
+
+            started = time.monotonic()
+            logger.info("FunASR model loading model=%s device=%s", model_name, device)
+            model = AutoModel(model=model_name, device=device, disable_update=True)
+            _FUNASR_MODELS[key] = model
+            logger.info(
+                "FunASR model ready model=%s device=%s elapsed_ms=%d",
+                model_name,
+                device,
+                round((time.monotonic() - started) * 1000),
+            )
+    return model, model_lock
+
+
 def _funasr_asr(audio_bytes: bytes, filename: str, channel: str, device: str) -> dict[str, Any]:
     source_path = _write_upload_to_temp(audio_bytes, filename)
     try:
@@ -472,10 +498,9 @@ def _funasr_asr(audio_bytes: bytes, filename: str, channel: str, device: str) ->
         os.environ.setdefault("HF_HOME", str(cache_root / "huggingface"))
         os.environ.setdefault("TRANSFORMERS_CACHE", str(cache_root / "transformers"))
         try:
-            from funasr import AutoModel  # type: ignore
-
-            model = AutoModel(model=model_name, device=device, disable_update=True)
-            result = model.generate(input=str(wav_path), language="zh", use_itn=True)
+            model, model_lock = _get_cached_funasr_model(model_name, device)
+            with model_lock:
+                result = model.generate(input=str(wav_path), language="zh", use_itn=True)
             raw_text = _extract_funasr_text(result)
             meta = {
                 "engine": "funasr",
@@ -652,11 +677,27 @@ class AsrStreamSession:
 
 
 async def _send_asr_stream_result(client: WebSocket, session: AsrStreamSession, index: int, wav_bytes: bytes, final: bool = False) -> None:
+    started = time.monotonic()
+    logger.info(
+        "ASR stream chunk started channel=%s index=%d audio_bytes=%d final=%s",
+        session.channel,
+        index,
+        len(wav_bytes),
+        final,
+    )
     result = await asyncio.to_thread(transcribe_audio_bytes, session.channel, wav_bytes, f"stream-chunk-{index}.wav", True)
     result["stream"] = {"chunk_index": index, "final": final, "sample_rate": session.sample_rate}
     result["board_event"]["source_type"] = f"asr.stream.{session.channel}"
     result["board_event"]["item_id"] = f"asr-stream-{index}"
     await client.send_json({"demo_event": "asr.stream.result", "result": result, "board_event": result["board_event"]})
+    logger.info(
+        "ASR stream chunk completed channel=%s index=%d text_chars=%d elapsed_ms=%d final=%s",
+        session.channel,
+        index,
+        len(str(result.get("corrected_text") or "")),
+        round((time.monotonic() - started) * 1000),
+        final,
+    )
 
 
 async def _close_asr_stream_policy(client: WebSocket, message: str, code: int = 1008) -> None:
@@ -700,6 +741,12 @@ async def asr_stream(client: WebSocket) -> None:
                     except (TypeError, ValueError) as exc:
                         await _close_asr_stream_policy(client, str(exc), 1008)
                         break
+                    logger.info(
+                        "ASR stream session started channel=%s sample_rate=%d chunk_seconds=%.2f",
+                        session.channel,
+                        session.sample_rate,
+                        session.chunk_seconds,
+                    )
                     await client.send_json({"demo_event": "asr.stream.started", "channel": session.channel, "sample_rate": session.sample_rate, "chunk_seconds": session.chunk_seconds})
                     continue
                 if msg_type == "asr.stream.append":
