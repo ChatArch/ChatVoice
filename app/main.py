@@ -147,6 +147,20 @@ class MeetingRecordInput(BaseModel):
     summary_content: str = Field("", max_length=20000)
 
 
+class StoredConversationMessage(BaseModel):
+    role: str = Field(..., pattern="^(user|assistant)$")
+    text: str = Field(..., min_length=1, max_length=5000)
+
+
+class ConversationRecordInput(BaseModel):
+    title: str = Field("新对话", max_length=120)
+    model: str = Field(REALTIME_MODEL, min_length=1, max_length=120)
+    voice: str = Field(DEFAULT_VOICE, min_length=1, max_length=80)
+    created_at: str = Field(..., min_length=1, max_length=64)
+    updated_at: str = Field(..., min_length=1, max_length=64)
+    messages: list[StoredConversationMessage] = Field(default_factory=list, max_length=200)
+
+
 class AccountCredentials(BaseModel):
     account: str = Field(..., min_length=3, max_length=80)
     password: str = Field(..., min_length=8, max_length=128)
@@ -244,6 +258,26 @@ def _fetch_models() -> dict[str, Any]:
     return {"count": len(ids), "model_ids": ids}
 
 
+def _realtime_model_allowed(model: str) -> bool:
+    if not re.fullmatch(r"qwen-audio-[A-Za-z0-9._-]*realtime[A-Za-z0-9._-]*", model):
+        return False
+    configured = [value.strip() for value in os.getenv("QWEN_REALTIME_MODELS", "").split(",") if value.strip()]
+    return not configured or model in configured
+
+
+def _realtime_model_label(model: str) -> str:
+    known = {"qwen-audio-3.0-realtime-plus": "Qwen Audio 3.0 Realtime Plus"}
+    return known.get(model, model.replace("qwen-audio-", "Qwen Audio ").replace("-realtime-", " Realtime ").title())
+
+
+def _available_realtime_models() -> list[dict[str, str]]:
+    model_ids = _fetch_models().get("model_ids", [])
+    available = [model for model in model_ids if isinstance(model, str) and _realtime_model_allowed(model)]
+    if not available:
+        available = [REALTIME_MODEL]
+    return [{"id": model, "label": _realtime_model_label(model)} for model in dict.fromkeys(available)]
+
+
 def _tts_blocking(req: TTSRequest) -> dict[str, Any]:
     key = _token_plan_key()
     dashscope.api_key = key
@@ -283,6 +317,17 @@ def status() -> JSONResponse:
         result["models_ok"] = False
         result["models_error"] = type(exc).__name__ + ": " + str(exc)[:300]
     return JSONResponse(result)
+
+
+@app.get("/api/realtime/models")
+def realtime_models() -> JSONResponse:
+    try:
+        models = _available_realtime_models()
+    except Exception as exc:
+        logger.warning("Realtime model discovery failed: %s", type(exc).__name__)
+        models = [{"id": REALTIME_MODEL, "label": _realtime_model_label(REALTIME_MODEL)}]
+    default_model = REALTIME_MODEL if any(item["id"] == REALTIME_MODEL for item in models) else models[0]["id"]
+    return JSONResponse({"default": default_model, "models": models})
 
 
 def _validated_record_key(value: str, label: str) -> str:
@@ -355,6 +400,22 @@ def _meeting_db() -> sqlite3.Connection:
             summary_content TEXT NOT NULL DEFAULT '',
             preview TEXT NOT NULL DEFAULT '',
             PRIMARY KEY (owner_id, meeting_id)
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS conversation_records (
+            owner_id TEXT NOT NULL,
+            conversation_id TEXT NOT NULL,
+            title TEXT NOT NULL,
+            model TEXT NOT NULL,
+            voice TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            messages_json TEXT NOT NULL DEFAULT '[]',
+            preview TEXT NOT NULL DEFAULT '',
+            PRIMARY KEY (owner_id, conversation_id)
         )
         """
     )
@@ -500,6 +561,24 @@ def _meeting_row_payload(row: sqlite3.Row, include_content: bool) -> dict[str, A
     return payload
 
 
+def _conversation_row_payload(row: sqlite3.Row, include_content: bool) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "id": row["conversation_id"],
+        "title": row["title"],
+        "model": row["model"],
+        "voice": row["voice"],
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
+        "preview": row["preview"],
+    }
+    if include_content:
+        try:
+            payload["messages"] = json.loads(row["messages_json"])
+        except Exception:
+            payload["messages"] = []
+    return payload
+
+
 @app.get("/api/meetings")
 def list_meetings(request: Request) -> JSONResponse:
     owner_id = _auth_row(request)["user_id"]
@@ -579,6 +658,88 @@ def delete_meeting(meeting_id: str, request: Request) -> JSONResponse:
     with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
         cursor = connection.execute(
             "DELETE FROM meeting_records WHERE owner_id = ? AND meeting_id = ?",
+            (owner_id, record_id),
+        )
+        connection.commit()
+    return JSONResponse({"deleted": cursor.rowcount > 0, "id": record_id})
+
+
+@app.get("/api/conversations")
+def list_conversations(request: Request) -> JSONResponse:
+    owner_id = _auth_row(request)["user_id"]
+    with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
+        rows = connection.execute(
+            "SELECT * FROM conversation_records WHERE owner_id = ? ORDER BY updated_at DESC LIMIT 100",
+            (owner_id,),
+        ).fetchall()
+    return JSONResponse({"conversations": [_conversation_row_payload(row, False) for row in rows]})
+
+
+@app.get("/api/conversations/{conversation_id}")
+def get_conversation(conversation_id: str, request: Request) -> JSONResponse:
+    owner_id = _auth_row(request)["user_id"]
+    record_id = _validated_record_key(conversation_id, "conversation id")
+    with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
+        row = connection.execute(
+            "SELECT * FROM conversation_records WHERE owner_id = ? AND conversation_id = ?",
+            (owner_id, record_id),
+        ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="conversation not found")
+    return JSONResponse(_conversation_row_payload(row, True))
+
+
+@app.put("/api/conversations/{conversation_id}")
+def upsert_conversation(conversation_id: str, record: ConversationRecordInput, request: Request) -> JSONResponse:
+    auth = _auth_row(request)
+    _require_csrf(request, auth)
+    owner_id = auth["user_id"]
+    record_id = _validated_record_key(conversation_id, "conversation id")
+    messages = [message.model_dump() for message in record.messages]
+    preview = next((message["text"] for message in reversed(messages) if message["text"].strip()), "")[:120]
+    with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
+        connection.execute(
+            """
+            INSERT INTO conversation_records (
+                owner_id, conversation_id, title, model, voice, created_at, updated_at, messages_json, preview
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(owner_id, conversation_id) DO UPDATE SET
+                title = excluded.title,
+                model = excluded.model,
+                voice = excluded.voice,
+                updated_at = excluded.updated_at,
+                messages_json = excluded.messages_json,
+                preview = excluded.preview
+            """,
+            (
+                owner_id,
+                record_id,
+                record.title.strip() or "新对话",
+                record.model,
+                record.voice,
+                record.created_at,
+                record.updated_at,
+                json.dumps(messages, ensure_ascii=False),
+                preview,
+            ),
+        )
+        connection.commit()
+        row = connection.execute(
+            "SELECT * FROM conversation_records WHERE owner_id = ? AND conversation_id = ?",
+            (owner_id, record_id),
+        ).fetchone()
+    return JSONResponse(_conversation_row_payload(row, True))
+
+
+@app.delete("/api/conversations/{conversation_id}")
+def delete_conversation(conversation_id: str, request: Request) -> JSONResponse:
+    auth = _auth_row(request)
+    _require_csrf(request, auth)
+    owner_id = auth["user_id"]
+    record_id = _validated_record_key(conversation_id, "conversation id")
+    with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
+        cursor = connection.execute(
+            "DELETE FROM conversation_records WHERE owner_id = ? AND conversation_id = ?",
             (owner_id, record_id),
         )
         connection.commit()
@@ -1372,12 +1533,17 @@ def _redact_event_for_browser_log(event: dict[str, Any]) -> dict[str, Any]:
 @app.websocket("/ws/realtime")
 async def realtime_proxy(client: WebSocket) -> None:
     await client.accept()
+    requested_model = client.query_params.get("model", REALTIME_MODEL).strip()
+    if not _realtime_model_allowed(requested_model):
+        await client.send_json({"demo_event": "proxy.error", "message": "不支持的实时模型"})
+        await client.close(code=1008)
+        return
     key = _token_plan_key()
-    upstream_url = f"{TOKEN_PLAN_REALTIME_WS}?model={REALTIME_MODEL}"
+    upstream_url = f"{TOKEN_PLAN_REALTIME_WS}?model={requested_model}"
     upstream = None
     try:
         upstream = await _connect_upstream(upstream_url, key)
-        await client.send_json({"demo_event": "proxy.connected", "upstream": "token-plan-api-ws-v1-realtime", "model": REALTIME_MODEL})
+        await client.send_json({"demo_event": "proxy.connected", "upstream": "token-plan-api-ws-v1-realtime", "model": requested_model})
 
         async def upstream_to_client() -> None:
             async for message in upstream:

@@ -59,6 +59,20 @@ checks["realtime_conversation_supports_barge_in"] = all(
     for marker in ("input_audio_buffer.speech_started", "stopRealtimePlayback(false)", "type: 'response.cancel'")
 )
 checks["realtime_conversation_has_privacy_boundary"] = "声笺不保存对话音频" in text
+checks["realtime_model_selector_is_server_driven"] = all(
+    marker in text for marker in ('id="conversation-model"', "fetch('/api/realtime/models'", "model=${encodeURIComponent(realtimeModel)}")
+)
+checks["realtime_conversation_history_is_wired"] = all(
+    marker in text
+    for marker in ("GUEST_CONVERSATION_STORE", "fetch('/api/conversations')", "function createNewConversation", "function openConversation", "function deleteConversationRecord")
+)
+checks["realtime_conversation_can_export"] = all(
+    marker in text for marker in ('id="conversation-export"', "function exportCurrentConversation", "text/markdown;charset=utf-8")
+)
+checks["user_turn_is_reserved_before_response"] = (
+    "function ensureUserRealtimeDraft" in text
+    and text.index("ensureUserRealtimeDraft();", text.index("input_audio_buffer.speech_started")) < text.index("response.created", text.index("input_audio_buffer.speech_started"))
+)
 checks["transcript_and_summary_panels_exist"] = all(
     marker in text
     for marker in ('id="transcript-panel"', 'id="summary-panel"', 'id="transcript-list"', 'id="summary-output"')

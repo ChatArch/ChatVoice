@@ -231,8 +231,12 @@
     .conversation-status.thinking { color: var(--orange); }.conversation-status.thinking i { background: var(--orange); }
     .conversation-status.speaking { color: var(--violet); }.conversation-status.speaking i { background: var(--violet); box-shadow: 0 0 0 4px rgba(105,106,232,.1); }
     .conversation-status.error { color: var(--red); }.conversation-status.error i { background: var(--red); }
-    .conversation-voice { height: 36px; padding: 0 29px 0 11px; border: 1px solid #e3e3e6; border-radius: 11px; outline: 0; background: #fff; color: #676970; font-size: 9px; }
-    .conversation-voice:disabled { opacity: .55; }
+    .conversation-select { height: 36px; max-width: 210px; padding: 0 29px 0 11px; border: 1px solid #e3e3e6; border-radius: 11px; outline: 0; background: #fff; color: #676970; font-size: 9px; }
+    .conversation-select:disabled { opacity: .55; }
+    .conversation-voice { max-width: 128px; }
+    .conversation-export { height: 36px; padding: 0 12px; border: 1px solid #e3e3e6; border-radius: 11px; background: #fff; color: #676970; font-size: 9px; }
+    .conversation-export:hover:not(:disabled) { border-color: #c8c8e8; color: var(--violet); }
+    .conversation-export:disabled { opacity: .45; cursor: not-allowed; }
     .conversation-scroll { position: absolute; inset: 77px 0 132px; overflow-y: auto; padding: 28px max(28px, calc((100% - 720px) / 2)); scrollbar-width: thin; scrollbar-color: #ddd transparent; }
     .conversation-intro { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; padding-bottom: 30px; text-align: center; }
     .conversation-intro[hidden] { display: none; }
@@ -485,7 +489,10 @@
       .conversation-header { height: 64px; padding: 0 14px 0 17px; }
       .conversation-title-mark { width: 31px; height: 31px; }
       .conversation-title small, .conversation-status { display: none; }
-      .conversation-voice { max-width: 105px; height: 34px; }
+      .conversation-select { max-width: 112px; height: 34px; padding-left: 8px; font-size: 8px; }
+      .conversation-voice { max-width: 85px; }
+      .conversation-export { width: 34px; height: 34px; overflow: hidden; padding: 0; font-size: 0; }
+      .conversation-export::before { content: "⇩"; font-size: 15px; }
       .conversation-scroll { inset: 64px 0 124px; padding: 20px 17px; }
       .conversation-orb-wrap { width: 165px; height: 165px; }
       .conversation-orb { width: 104px; height: 104px; }
@@ -514,9 +521,9 @@
         <button class="sidebar-collapse" id="collapse-sidebar" type="button" aria-label="收起会议记录">‹</button>
       </header>
 
-      <button class="new-meeting" id="new-meeting" type="button"><i>＋</i><span>新会议</span></button>
-      <label class="meeting-search"><span class="sr-only">搜索会议记录</span><input id="meeting-search" type="search" placeholder="搜索会议记录" /></label>
-      <p class="sidebar-label">会议记录</p>
+      <button class="new-meeting" id="new-meeting" type="button"><i>＋</i><span id="new-session-label">新会议</span></button>
+      <label class="meeting-search"><span class="sr-only" id="sidebar-search-label">搜索会议记录</span><input id="meeting-search" type="search" placeholder="搜索会议记录" /></label>
+      <p class="sidebar-label" id="sidebar-section-label">会议记录</p>
       <nav class="meeting-groups" id="meeting-groups" aria-label="历史会议">
         <p class="meeting-empty">暂时没有会议记录<br />开始录音后会自动保存在这里</p>
       </nav>
@@ -740,11 +747,15 @@
         </div>
         <div class="conversation-head-actions">
           <span class="conversation-status" id="conversation-status"><i></i><span>等待开始</span></span>
-          <label><span class="sr-only">助手音色</span><select class="conversation-voice" id="conversation-voice">
+          <label><span class="sr-only">实时模型</span><select class="conversation-select conversation-model" id="conversation-model" title="实时模型">
+            <option value="qwen-audio-3.0-realtime-plus">Qwen Audio 3.0 Realtime Plus</option>
+          </select></label>
+          <label><span class="sr-only">助手音色</span><select class="conversation-select conversation-voice" id="conversation-voice" title="助手音色">
             <option value="longanqian">龙安浅 · 自然</option>
             <option value="longanlingxin">龙安灵心 · 温暖</option>
             <option value="longanlufeng">龙安鲁风 · 明亮</option>
           </select></label>
+          <button class="conversation-export" id="conversation-export" type="button" disabled>导出</button>
         </div>
       </header>
 
@@ -825,7 +836,9 @@
   <script>
     const $ = (id) => document.getElementById(id);
     const GUEST_DB_NAME = 'voicenote-guest-v1';
+    const GUEST_DB_VERSION = 2;
     const GUEST_STORE = 'meetings';
+    const GUEST_CONVERSATION_STORE = 'conversations';
     const createRecordId = () => (crypto.randomUUID ? crypto.randomUUID() : `meeting-${Date.now()}-${Math.random().toString(16).slice(2)}`).replace(/[^A-Za-z0-9_-]/g, '');
     const demoSegments = [
       { speaker: '说话人 1', time: '00:18', text: '我们先专注主要的会议录音体验，用户进入页面以后应该能够很快开始。', demo: true },
@@ -896,6 +909,11 @@
     let realtimeSessionConfigured = false;
     let realtimeResponseDone = false;
     let pendingRealtimePrompt = '';
+    let conversationIndex = [];
+    let activeConversationId = null;
+    let activeConversationCreatedAt = null;
+    let conversationSaveTimer = null;
+    let conversationSaveChain = Promise.resolve();
 
     function escapeHtml(value) {
       return String(value || '').replace(/[&<>'"]/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
@@ -933,6 +951,8 @@
       });
       document.querySelectorAll('.meeting-only-action').forEach((button) => { button.hidden = view !== 'meeting'; });
       document.title = view === 'meeting' ? '声笺 · 实时会议记录' : view === 'studio' ? '声笺 · 声音工作室' : '声笺 · 实时对话';
+      $('meeting-search').value = '';
+      updateSidebarContext();
       closeSidebarOnSmallScreen();
       return true;
     }
@@ -1051,6 +1071,7 @@
       $('conversation-mute').disabled = !isRealtimeActive() || state === 'connecting';
       $('conversation-end').disabled = !isRealtimeActive();
       $('conversation-voice').disabled = isRealtimeActive();
+      $('conversation-model').disabled = isRealtimeActive();
       $('conversation-mute').querySelector('span:last-child').textContent = realtimeMuted ? '恢复声音' : '静音';
       $('conversation-mute').querySelector('.side-control-icon').textContent = realtimeMuted ? '○' : '⌁';
     }
@@ -1072,6 +1093,7 @@
           </div>
         </article>
       `).join('');
+      $('conversation-export').disabled = !realtimeMessages.some((message) => message.final && message.text.trim());
       requestAnimationFrame(() => { $('conversation-scroll').scrollTop = $('conversation-scroll').scrollHeight; });
     }
 
@@ -1106,6 +1128,8 @@
           if (!lastSameRole || lastSameRole.text !== text) realtimeMessages.push({ role, text, final: true, source });
         }
         realtimeDrafts[role] = null;
+        ensureActiveConversation();
+        scheduleConversationSave();
       } else {
         if (!draft || draft.final) {
           draftIndex = realtimeMessages.length;
@@ -1123,6 +1147,13 @@
       if (realtimeDrafts.assistant !== null) return;
       realtimeDrafts.assistant = realtimeMessages.length;
       realtimeMessages.push({ role: 'assistant', text: '', final: false, source: 'response.created' });
+      renderRealtimeMessages();
+    }
+
+    function ensureUserRealtimeDraft() {
+      if (realtimeDrafts.user !== null) return;
+      realtimeDrafts.user = realtimeMessages.length;
+      realtimeMessages.push({ role: 'user', text: '', final: false, source: 'speech_started' });
       renderRealtimeMessages();
     }
 
@@ -1188,6 +1219,8 @@
         return;
       }
       realtimeMessages.push({ role: 'user', text: normalized, final: true, source: 'input_text' });
+      ensureActiveConversation();
+      scheduleConversationSave();
       renderRealtimeMessages();
       realtimeSocket.send(JSON.stringify({
         type: 'conversation.item.create',
@@ -1209,8 +1242,10 @@
         }
       } else if (type === 'input_audio_buffer.speech_started') {
         stopRealtimePlayback(false);
+        ensureUserRealtimeDraft();
         if (!realtimeMuted) setRealtimeState('listening', '正在听你说');
       } else if (type === 'input_audio_buffer.speech_stopped' || type === 'input_audio_buffer.committed') {
+        ensureUserRealtimeDraft();
         if (!realtimeMuted) setRealtimeState('thinking');
       } else if (type === 'response.created') {
         realtimeResponseDone = false;
@@ -1218,6 +1253,7 @@
         if (!realtimeMuted) setRealtimeState('thinking');
       } else if (type === 'response.done') {
         realtimeResponseDone = true;
+        scheduleConversationSave(0);
         if (!realtimeOutputSources.size && !realtimeMuted) setRealtimeState('listening');
       } else if (type === 'response.cancelled') {
         stopRealtimePlayback(false);
@@ -1271,7 +1307,9 @@
       if (isRealtimeActive()) return;
       if (['connecting', 'recording', 'paused', 'finishing'].includes(recorderState)) { showToast('请先结束当前会议录音'); return; }
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { setRealtimeState('error', '当前浏览器不支持麦克风'); return; }
-      if (realtimeState === 'ended' || realtimeState === 'error') clearRealtimeMessages();
+      if ((realtimeState === 'ended' || realtimeState === 'error') && realtimeMessages.length) await createNewConversation({ announce: false });
+      ensureActiveConversation();
+      scheduleConversationSave(0);
       realtimeClosing = false;
       realtimeMuted = false;
       realtimeSessionConfigured = false;
@@ -1282,7 +1320,8 @@
         realtimeOutputContext = new AudioContextClass({ sampleRate: 24000 });
         await realtimeOutputContext.resume();
         await startRealtimeMicrophone();
-        realtimeSocket = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/realtime`);
+        const realtimeModel = $('conversation-model').value || 'qwen-audio-3.0-realtime-plus';
+        realtimeSocket = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/realtime?model=${encodeURIComponent(realtimeModel)}`);
         realtimeSocket.onmessage = handleRealtimeMessage;
         realtimeSocket.onerror = () => setRealtimeState('error', '无法连接实时对话服务');
         realtimeSocket.onclose = () => {
@@ -1324,6 +1363,7 @@
       if (realtimeOutputContext) { realtimeOutputContext.close(); realtimeOutputContext = null; }
       realtimeSessionConfigured = false;
       setRealtimeState('ended');
+      scheduleConversationSave(0);
     }
 
     function humanBytes(value) {
@@ -1457,11 +1497,15 @@
     function openGuestDb() {
       if (guestDbPromise) return guestDbPromise;
       guestDbPromise = new Promise((resolve, reject) => {
-        const request = indexedDB.open(GUEST_DB_NAME, 1);
+        const request = indexedDB.open(GUEST_DB_NAME, GUEST_DB_VERSION);
         request.onupgradeneeded = () => {
           const db = request.result;
           if (!db.objectStoreNames.contains(GUEST_STORE)) {
             const store = db.createObjectStore(GUEST_STORE, { keyPath: 'id' });
+            store.createIndex('updated_at', 'updated_at');
+          }
+          if (!db.objectStoreNames.contains(GUEST_CONVERSATION_STORE)) {
+            const store = db.createObjectStore(GUEST_CONVERSATION_STORE, { keyPath: 'id' });
             store.createIndex('updated_at', 'updated_at');
           }
         };
@@ -1471,11 +1515,11 @@
       return guestDbPromise;
     }
 
-    async function guestDbRequest(mode, operation) {
+    async function guestDbRequest(mode, operation, storeName = GUEST_STORE) {
       const db = await openGuestDb();
       return new Promise((resolve, reject) => {
-        const transaction = db.transaction(GUEST_STORE, mode);
-        const request = operation(transaction.objectStore(GUEST_STORE));
+        const transaction = db.transaction(storeName, mode);
+        const request = operation(transaction.objectStore(storeName));
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error || new Error('浏览器存储操作失败'));
       });
@@ -1521,6 +1565,47 @@
       return response.json();
     }
 
+    async function listStoredConversations() {
+      if (storageMode === 'guest') {
+        const rows = await guestDbRequest('readonly', (store) => store.getAll(), GUEST_CONVERSATION_STORE);
+        return rows.sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at))).map(conversationMetaFromRecord);
+      }
+      const response = await fetch('/api/conversations');
+      if (response.status === 401) throw new Error('登录已过期');
+      if (!response.ok) throw new Error('对话列表不可用');
+      return (await response.json()).conversations || [];
+    }
+
+    async function getStoredConversation(conversationId) {
+      if (storageMode === 'guest') return guestDbRequest('readonly', (store) => store.get(conversationId), GUEST_CONVERSATION_STORE);
+      const response = await fetch(`/api/conversations/${encodeURIComponent(conversationId)}`);
+      if (response.status === 401) throw new Error('登录已过期');
+      if (!response.ok) throw new Error('对话读取失败');
+      return response.json();
+    }
+
+    async function putStoredConversation(conversationId, payload, targetMode = storageMode, targetCsrfToken = csrfToken) {
+      if (targetMode === 'guest') {
+        const preview = [...payload.messages].reverse().find((message) => message.text.trim())?.text.slice(0, 120) || '';
+        const localRecord = { id: conversationId, ...payload, preview };
+        await guestDbRequest('readwrite', (store) => store.put(localRecord), GUEST_CONVERSATION_STORE);
+        return localRecord;
+      }
+      const response = await fetch(`/api/conversations/${encodeURIComponent(conversationId)}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': targetCsrfToken }, body: JSON.stringify(payload),
+      });
+      if (response.status === 401) throw new Error('登录已过期');
+      if (!response.ok) throw new Error('对话保存失败');
+      return response.json();
+    }
+
+    async function removeStoredConversation(conversationId) {
+      if (storageMode === 'guest') return guestDbRequest('readwrite', (store) => store.delete(conversationId), GUEST_CONVERSATION_STORE);
+      const response = await fetch(`/api/conversations/${encodeURIComponent(conversationId)}`, { method: 'DELETE', headers: meetingHeaders(true) });
+      if (!response.ok) throw new Error('删除失败');
+      return response.json();
+    }
+
     function cancelSummaryWork() {
       contentEpoch += 1;
       if (summaryAbortController) summaryAbortController.abort();
@@ -1540,6 +1625,210 @@
       $('summary-output').textContent = '当前还没有可用于摘要的最终转写内容。';
     }
 
+    function conversationMetaFromRecord(record) {
+      return {
+        id: record.id,
+        title: record.title || '新对话',
+        model: record.model || $('conversation-model').value || 'qwen-audio-3.0-realtime-plus',
+        voice: record.voice || $('conversation-voice').value || 'longanlingxin',
+        created_at: record.created_at,
+        updated_at: record.updated_at,
+        preview: record.preview || '',
+      };
+    }
+
+    function conversationTitle() {
+      const firstUserMessage = realtimeMessages.find((message) => message.role === 'user' && message.text.trim());
+      if (!firstUserMessage) return '新对话';
+      const normalized = firstUserMessage.text.replace(/\s+/g, ' ').replace(/[。！？!?]+$/g, '').trim();
+      return normalized.length > 22 ? `${normalized.slice(0, 22)}…` : normalized || '新对话';
+    }
+
+    function exportCurrentConversation() {
+      const messages = realtimeMessages.filter((message) => message.final && message.text.trim());
+      if (!messages.length) { showToast('当前没有可导出的对话文字'); return; }
+      const title = conversationTitle();
+      const modelOption = $('conversation-model').options[$('conversation-model').selectedIndex];
+      const voiceOption = $('conversation-voice').options[$('conversation-voice').selectedIndex];
+      const lines = [
+        `# ${title}`,
+        '',
+        `- 日期：${new Intl.DateTimeFormat('zh-CN', { dateStyle: 'long', timeStyle: 'short' }).format(new Date(activeConversationCreatedAt || Date.now()))}`,
+        `- 模型：${modelOption?.textContent || $('conversation-model').value}`,
+        `- 音色：${voiceOption?.textContent || $('conversation-voice').value}`,
+        '',
+        ...messages.flatMap((message) => [`## ${message.role === 'assistant' ? '声笺' : '我'}`, '', message.text.trim(), '']),
+      ];
+      const blob = new Blob([lines.join('\n')], { type: 'text/markdown;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${title.replace(/[\\/:*?"<>|]/g, '-').slice(0, 40) || '实时对话'}.md`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      showToast('对话已导出为 Markdown');
+    }
+
+    function renderConversationIndex() {
+      if (activeProductView !== 'conversation') return;
+      const query = $('meeting-search').value.trim().toLowerCase();
+      const filtered = conversationIndex.filter((conversation) => `${conversation.title} ${conversation.preview}`.toLowerCase().includes(query));
+      if (!filtered.length) {
+        $('meeting-groups').innerHTML = `<p class="meeting-empty">${query ? '没有匹配的对话' : '暂时没有对话<br />开始实时对话后会自动保存在这里'}</p>`;
+        return;
+      }
+      const todayKey = new Date().toDateString();
+      const groups = [
+        ['今天', filtered.filter((conversation) => new Date(conversation.created_at).toDateString() === todayKey)],
+        ['更早', filtered.filter((conversation) => new Date(conversation.created_at).toDateString() !== todayKey)],
+      ];
+      $('meeting-groups').innerHTML = groups.filter(([, conversations]) => conversations.length).map(([label, conversations]) => `
+        <section>
+          <h2 class="meeting-group-title">${label}</h2>
+          ${conversations.map((conversation) => `
+            <div class="meeting-item${conversation.id === activeConversationId ? ' active' : ''}" data-conversation-id="${escapeHtml(conversation.id)}">
+              <button class="meeting-open" type="button" data-conversation-id="${escapeHtml(conversation.id)}">
+                <strong>${escapeHtml(conversation.title || '新对话')}</strong>
+                <small>${escapeHtml(conversation.preview || '尚无对话内容')}</small>
+              </button>
+              <button class="meeting-delete" type="button" data-delete-conversation="${escapeHtml(conversation.id)}" aria-label="删除 ${escapeHtml(conversation.title || '对话')}">×</button>
+            </div>
+          `).join('')}
+        </section>
+      `).join('');
+    }
+
+    function renderSidebarIndex() {
+      if (activeProductView === 'conversation') renderConversationIndex();
+      else renderMeetingIndex();
+    }
+
+    function updateSidebarContext() {
+      const conversationView = activeProductView === 'conversation';
+      $('new-session-label').textContent = conversationView ? '新对话' : '新会议';
+      $('meeting-search').placeholder = conversationView ? '搜索对话' : '搜索会议记录';
+      $('sidebar-search-label').textContent = conversationView ? '搜索对话' : '搜索会议记录';
+      $('sidebar-section-label').textContent = conversationView ? '实时对话' : '会议记录';
+      $('meeting-groups').setAttribute('aria-label', conversationView ? '历史对话' : '历史会议');
+      $('meeting-sidebar').setAttribute('aria-label', conversationView ? '实时对话管理' : '会议记录管理');
+      const loggedIn = storageMode === 'account' && authUser;
+      $('storage-note').textContent = conversationView
+        ? loggedIn
+          ? '对话文字、模型和音色已绑定账号同步；原始语音不保存。'
+          : '对话文字仅保存在当前浏览器；原始语音只在实时请求中临时经过服务器。'
+        : loggedIn
+          ? '文字和摘要已绑定账号保存在服务器；原始录音默认仍不上传保存。'
+          : '访客记录仅保存在当前浏览器；音频与文字只在处理请求中临时经过服务器。';
+      renderSidebarIndex();
+    }
+
+    async function fetchConversationIndex() {
+      if (!storageMode) return;
+      try {
+        conversationIndex = await listStoredConversations();
+        renderConversationIndex();
+      } catch (error) {
+        if (activeProductView === 'conversation') $('meeting-groups').innerHTML = `<p class="meeting-empty">${escapeHtml(error.message || '对话记录暂时无法加载')}</p>`;
+      }
+    }
+
+    function ensureActiveConversation() {
+      if (!storageMode || activeConversationId) return;
+      activeConversationId = createRecordId();
+      activeConversationCreatedAt = new Date().toISOString();
+    }
+
+    async function saveActiveConversation() {
+      if (!storageMode || !activeConversationId) return;
+      clearTimeout(conversationSaveTimer);
+      conversationSaveTimer = null;
+      const recordId = activeConversationId;
+      const targetMode = storageMode;
+      const targetCsrfToken = csrfToken;
+      const payload = {
+        title: conversationTitle(),
+        model: $('conversation-model').value || 'qwen-audio-3.0-realtime-plus',
+        voice: $('conversation-voice').value || 'longanlingxin',
+        created_at: activeConversationCreatedAt || new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        messages: realtimeMessages.filter((message) => message.final && message.text.trim()).map((message) => ({ role: message.role, text: message.text.trim() })),
+      };
+      conversationSaveChain = conversationSaveChain.catch(() => {}).then(async () => {
+        try {
+          const saved = await putStoredConversation(recordId, payload, targetMode, targetCsrfToken);
+          if (recordId === activeConversationId && targetMode === storageMode) {
+            const meta = conversationMetaFromRecord(saved);
+            conversationIndex = [meta, ...conversationIndex.filter((conversation) => conversation.id !== meta.id)];
+            renderConversationIndex();
+          }
+        } catch (error) {
+          if (targetMode === storageMode) showToast(error.message || '对话记录暂未保存，请稍后重试');
+        }
+      });
+      return conversationSaveChain;
+    }
+
+    function scheduleConversationSave(delay = 500) {
+      if (!activeConversationId) return;
+      clearTimeout(conversationSaveTimer);
+      conversationSaveTimer = setTimeout(saveActiveConversation, delay);
+    }
+
+    async function openConversation(conversationId) {
+      if (isRealtimeActive()) { showToast('请先结束当前实时对话'); return; }
+      try {
+        if (activeConversationId) await saveActiveConversation();
+        const conversation = await getStoredConversation(conversationId);
+        if (!conversation) throw new Error('对话记录不存在');
+        activeConversationId = conversation.id;
+        activeConversationCreatedAt = conversation.created_at;
+        realtimeMessages = (conversation.messages || []).map((message) => ({ role: message.role, text: message.text, final: true, source: 'history' }));
+        realtimeDrafts = { user: null, assistant: null };
+        if ([...$('conversation-model').options].some((option) => option.value === conversation.model)) $('conversation-model').value = conversation.model;
+        if ([...$('conversation-voice').options].some((option) => option.value === conversation.voice)) $('conversation-voice').value = conversation.voice;
+        renderRealtimeMessages();
+        setRealtimeState(realtimeMessages.length ? 'ended' : 'idle', realtimeMessages.length ? '历史对话' : '等待开始');
+        renderConversationIndex();
+        closeSidebarOnSmallScreen();
+      } catch (error) {
+        showToast(error.message || '无法打开这条对话');
+      }
+    }
+
+    async function createNewConversation({ announce = true } = {}) {
+      if (isRealtimeActive()) { showToast('请先结束当前实时对话'); return; }
+      if (!storageMode) return showEntryDialog();
+      if (activeConversationId) await saveActiveConversation();
+      activeConversationId = createRecordId();
+      activeConversationCreatedAt = new Date().toISOString();
+      clearRealtimeMessages();
+      setRealtimeState('idle', announce ? '新对话已建立' : '等待开始');
+      await saveActiveConversation();
+      closeSidebarOnSmallScreen();
+    }
+
+    async function deleteConversationRecord(conversationId) {
+      const conversation = conversationIndex.find((item) => item.id === conversationId);
+      if (!confirm(`删除“${conversation?.title || '这条对话'}”？此操作不可恢复。`)) return;
+      try {
+        if (activeConversationId === conversationId) {
+          clearTimeout(conversationSaveTimer);
+          conversationSaveTimer = null;
+          await conversationSaveChain.catch(() => {});
+        }
+        await removeStoredConversation(conversationId);
+        conversationIndex = conversationIndex.filter((item) => item.id !== conversationId);
+        if (activeConversationId === conversationId) {
+          activeConversationId = null;
+          activeConversationCreatedAt = null;
+          await createNewConversation({ announce: false });
+        }
+        renderConversationIndex();
+      } catch (error) {
+        showToast(error.message || '对话记录删除失败');
+      }
+    }
+
     function meetingMetaFromRecord(record) {
       return {
         id: record.id,
@@ -1552,6 +1841,7 @@
     }
 
     function renderMeetingIndex() {
+      if (activeProductView === 'conversation') return;
       const query = $('meeting-search').value.trim().toLowerCase();
       const filtered = meetingIndex.filter((meeting) => `${meeting.title} ${meeting.preview}`.toLowerCase().includes(query));
       if (!filtered.length) {
@@ -1585,7 +1875,7 @@
         meetingIndex = await listStoredMeetings();
         renderMeetingIndex();
       } catch (error) {
-        $('meeting-groups').innerHTML = `<p class="meeting-empty">${escapeHtml(error.message || '会议记录暂时无法加载')}</p>`;
+        if (activeProductView !== 'conversation') $('meeting-groups').innerHTML = `<p class="meeting-empty">${escapeHtml(error.message || '会议记录暂时无法加载')}</p>`;
       }
     }
 
@@ -1726,9 +2016,7 @@
       $('account-name').textContent = loggedIn ? (authUser.display_name || authUser.account) : storageMode === 'guest' ? '访客模式' : '选择使用方式';
       $('account-storage').textContent = loggedIn ? '服务器同步' : storageMode === 'guest' ? '仅此浏览器' : '尚未进入';
       $('account-action').textContent = loggedIn ? '退出' : storageMode === 'guest' ? '登录' : '选择';
-      $('storage-note').textContent = loggedIn
-        ? '文字和摘要已绑定账号保存在服务器；原始录音默认仍不上传保存。'
-        : '访客记录仅保存在当前浏览器；音频与文字只在处理请求中临时经过服务器。';
+      updateSidebarContext();
     }
 
     function setAuthMode(mode) {
@@ -1750,20 +2038,28 @@
     async function activateStorageMode(mode, user = null, nextCsrfToken = '') {
       clearTimeout(meetingSaveTimer);
       meetingSaveTimer = null;
+      clearTimeout(conversationSaveTimer);
+      conversationSaveTimer = null;
       if (storageMode && activeMeetingId && !showingDemo) await saveActiveMeeting();
-      await meetingSaveChain.catch(() => {});
+      if (storageMode && activeConversationId) await saveActiveConversation();
+      await Promise.all([meetingSaveChain.catch(() => {}), conversationSaveChain.catch(() => {})]);
       storageMode = mode;
       authUser = user;
       csrfToken = nextCsrfToken;
       activeMeetingId = null;
       activeMeetingCreatedAt = null;
       meetingIndex = [];
+      activeConversationId = null;
+      activeConversationCreatedAt = null;
+      conversationIndex = [];
+      clearRealtimeMessages();
+      setRealtimeState('idle');
       cancelSummaryWork();
       $('entry-dialog').close();
       updateAccountUi();
       resetSession({ announce: false, persist: false });
       $('meeting-title').value = '新录音';
-      await fetchMeetingIndex();
+      await Promise.all([fetchMeetingIndex(), fetchConversationIndex()]);
       if (meetingIndex.length) await openMeeting(meetingIndex[0].id);
       else await createNewMeeting({ announce: false });
       showToast(mode === 'guest' ? '已进入访客模式，记录只保存在本浏览器' : '登录成功，会议记录将同步到服务器');
@@ -1811,6 +2107,7 @@
       if (!confirm('退出账号并切换到访客模式？服务器中的会议记录不会被删除。')) return;
       try {
         await saveActiveMeeting();
+        await saveActiveConversation();
         const response = await fetch('/api/auth/logout', { method: 'POST', headers: meetingHeaders(true) });
         if (!response.ok) throw new Error('退出失败');
       } catch (error) {
@@ -2321,6 +2618,22 @@
       }
     }
 
+    async function loadRealtimeModels() {
+      const select = $('conversation-model');
+      const previous = select.value;
+      try {
+        const response = await fetch('/api/realtime/models');
+        if (!response.ok) throw new Error('模型列表不可用');
+        const payload = await response.json();
+        const models = Array.isArray(payload.models) ? payload.models : [];
+        if (!models.length) throw new Error('没有可用的实时模型');
+        select.innerHTML = models.map((model) => `<option value="${escapeHtml(model.id)}">${escapeHtml(model.label || model.id)}</option>`).join('');
+        select.value = models.some((model) => model.id === previous) ? previous : payload.default || models[0].id;
+      } catch (_) {
+        if (!select.options.length) select.innerHTML = '<option value="qwen-audio-3.0-realtime-plus">Qwen Audio 3.0 Realtime Plus</option>';
+      }
+    }
+
     document.querySelectorAll('.content-tab').forEach((button) => button.addEventListener('click', () => setActiveTab(button.dataset.tab)));
     document.querySelectorAll('.product-tab').forEach((button) => button.addEventListener('click', () => switchProductView(button.dataset.product)));
     document.querySelectorAll('.voice-card').forEach((button) => button.addEventListener('click', () => selectTtsVoice(button.dataset.voice)));
@@ -2351,10 +2664,20 @@
     });
     $('conversation-mute').addEventListener('click', toggleRealtimeMute);
     $('conversation-end').addEventListener('click', endRealtimeConversation);
+    $('conversation-export').addEventListener('click', exportCurrentConversation);
+    $('conversation-model').addEventListener('change', () => scheduleConversationSave());
+    $('conversation-voice').addEventListener('change', () => scheduleConversationSave());
     document.querySelectorAll('[data-conversation-prompt]').forEach((button) => button.addEventListener('click', () => sendRealtimeTextPrompt(button.dataset.conversationPrompt)));
-    $('new-meeting').addEventListener('click', () => { if (switchProductView('meeting')) createNewMeeting(); });
-    $('meeting-search').addEventListener('input', renderMeetingIndex);
+    $('new-meeting').addEventListener('click', () => {
+      if (activeProductView === 'conversation') createNewConversation();
+      else if (switchProductView('meeting')) createNewMeeting();
+    });
+    $('meeting-search').addEventListener('input', renderSidebarIndex);
     $('meeting-groups').addEventListener('click', (event) => {
+      const deleteConversationButton = event.target.closest('[data-delete-conversation]');
+      if (deleteConversationButton) { deleteConversationRecord(deleteConversationButton.dataset.deleteConversation); return; }
+      const openConversationButton = event.target.closest('[data-conversation-id]');
+      if (openConversationButton && activeProductView === 'conversation') { openConversation(openConversationButton.dataset.conversationId); return; }
       const deleteButton = event.target.closest('[data-delete-meeting]');
       if (deleteButton) { deleteMeetingRecord(deleteButton.dataset.deleteMeeting); return; }
       const openButton = event.target.closest('[data-meeting-id]');
@@ -2430,12 +2753,13 @@
     };
     window.__demoGetState = () => ({ recorderState, activeTab, elapsedSeconds, transcript: transcriptText(), summary: $('summary-output').textContent });
     window.__demoStudioState = () => ({ activeProductView, voice: selectedVoiceId(), format: selectedTtsFormat, cloningConfigured: voiceCloningConfigured, audioReady: Boolean(ttsAudioUrl) });
-    window.__demoConversationState = () => ({ activeProductView, realtimeState, messages: realtimeMessages.map(({ role, text, final }) => ({ role, text, final })) });
+    window.__demoConversationState = () => ({ activeProductView, realtimeState, model: $('conversation-model').value, voice: $('conversation-voice').value, activeConversationId, messages: realtimeMessages.map(({ role, text, final }) => ({ role, text, final })) });
 
     updateTtsCount();
     setRealtimeState('idle');
     renderTranscript();
     refreshStatus();
+    loadRealtimeModels();
     bootstrapAccess();
   </script>
 </body>
