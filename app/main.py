@@ -302,6 +302,11 @@ def index() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
 
 
+@app.get("/assets/transcript-state.js")
+def transcript_state_asset() -> FileResponse:
+    return FileResponse(STATIC_DIR / "transcript-state.js", media_type="text/javascript")
+
+
 @app.head("/")
 def index_head() -> Response:
     return Response(status_code=200, media_type="text/html")

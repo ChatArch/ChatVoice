@@ -307,7 +307,7 @@
     .stream-status i { width: 5px; height: 5px; border-radius: 50%; background: #b5b7bc; }
     .stream-status.recording i { background: var(--green); }.stream-status.connecting i { background: var(--orange); }.stream-status.error i { background: var(--red); }
 
-    .transcript-list { min-height: 0; }
+    .transcript-list, .rewrite-list { min-height: 0; }
     .history-label { display: none; align-items: center; gap: 9px; margin: 3px 0 7px; color: #a0a2a7; font-size: 8px; font-weight: 680; letter-spacing: .06em; }
     .history-label.visible { display: flex; }
     .history-label::after { content: ""; height: 1px; flex: 1; background: #f0f0f1; }
@@ -322,6 +322,11 @@
     .transcript-block.revisable p { color: #565861; }
     .transcript-block.revisable header em { background: #fff4df; color: #b3741d; }
     .transcript-block.demo header::after { content: "示例"; padding: 2px 5px; border-radius: 5px; background: #f2f2f3; color: #a0a2a7; font-size: 7px; }
+    .rewrite-region { display: none; margin-top: 8px; padding: 8px 14px 3px; border: 1px solid #f0e7d7; border-radius: 16px; background: #fffdfa; }
+    .rewrite-region.visible { display: block; }
+    .rewrite-label { display: flex; align-items: center; gap: 8px; margin: 1px 0 2px; color: #b3741d; font-size: 8px; font-weight: 690; letter-spacing: .06em; }
+    .rewrite-label::after { content: ""; height: 1px; flex: 1; background: #f2e7d5; }
+    .rewrite-region .transcript-block { padding: 11px 0; }
     .live-region { display: none; margin-top: 18px; }
     .live-region.visible { display: block; }
     .live-divider { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; color: #989aa0; font-size: 8px; font-weight: 690; letter-spacing: .06em; }
@@ -588,6 +593,11 @@
           <div class="history-label" id="history-label">已确认记录</div>
           <div class="transcript-list" id="transcript-list"></div>
 
+          <section class="rewrite-region" id="rewrite-region" aria-label="上下文回写内容">
+            <div class="rewrite-label">上下文回写</div>
+            <div class="rewrite-list" id="rewrite-list"></div>
+          </section>
+
           <section class="live-region" id="live-region" aria-label="实时识别内容">
             <div class="live-divider"><span>实时识别</span></div>
             <article class="live-block" id="live-block">
@@ -833,6 +843,7 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+  <script src="/assets/transcript-state.js?v=20260817-zoned"></script>
   <script>
     const $ = (id) => document.getElementById(id);
     const GUEST_DB_NAME = 'voicenote-guest-v1';
@@ -862,6 +873,9 @@
     let archiveChunks = [];
     let recordingUrl = null;
     let transcriptSegments = [...demoSegments];
+    let rewriteSegments = [];
+    let liveTranscriptText = '';
+    let sessionConfirmedCount = 0;
     let showingDemo = true;
     let summaryIsDemo = true;
     let summaryRunning = false;
@@ -1897,7 +1911,7 @@
         created_at: activeMeetingCreatedAt || new Date().toISOString(),
         updated_at: new Date().toISOString(),
         duration_seconds: elapsedSeconds,
-        transcript_segments: transcriptSegments.filter((segment) => !segment.demo).map((segment) => ({ speaker: segment.speaker, time: segment.time, text: segment.text })),
+        transcript_segments: visibleTranscriptSegments().filter((segment) => !segment.demo).map((segment) => ({ speaker: segment.speaker, time: segment.time, text: segment.text })),
         summary_title: hasGeneratedSummary ? $('summary-title').textContent : '',
         summary_content: hasGeneratedSummary ? $('summary-output').textContent : '',
       };
@@ -1939,6 +1953,9 @@
         activeMeetingCreatedAt = meeting.created_at;
         showingDemo = false;
         transcriptSegments = (meeting.transcript_segments || []).map((segment) => ({ ...segment, demo: false, revisable: false }));
+        rewriteSegments = [];
+        liveTranscriptText = '';
+        sessionConfirmedCount = 0;
         elapsedSeconds = Number(meeting.duration_seconds || 0);
         $('elapsed').textContent = formatTime(elapsedSeconds);
         $('meeting-title').value = meeting.title || '新录音';
@@ -2117,23 +2134,52 @@
       await activateStorageMode('guest');
     }
 
-    function renderTranscript() {
-      const historySegments = transcriptSegments.filter((segment) => !segment.liveDraft);
-      const liveSegment = [...transcriptSegments].reverse().find((segment) => segment.liveDraft);
-      $('transcript-list').innerHTML = historySegments.map((segment) => `
-        <article class="transcript-block${segment.demo ? ' demo' : ''}${segment.revisable ? ' revisable' : ''}">
+    function transcriptSegmentMarkup(segment, forceRevisable = false) {
+      const revisable = forceRevisable || segment.revisable;
+      return `
+        <article class="transcript-block${segment.demo ? ' demo' : ''}${revisable ? ' revisable' : ''}">
           <span class="speaker-dot"></span>
           <div>
-            <header><strong>${escapeHtml(segment.speaker)}</strong><span>·</span><time>${escapeHtml(segment.time)}</time>${segment.revisable ? '<em>回写中</em>' : ''}</header>
+            <header><strong>${escapeHtml(segment.speaker)}</strong><span>·</span><time>${escapeHtml(segment.time)}</time>${revisable ? '<em>回写中</em>' : ''}</header>
             <p>${escapeHtml(segment.text)}</p>
           </div>
         </article>
-      `).join('');
+      `;
+    }
+
+    function visibleTranscriptSegments({ includeLive = true } = {}) {
+      const segments = [...transcriptSegments, ...rewriteSegments];
+      if (includeLive && liveTranscriptText) {
+        segments.push({ speaker: '说话人 1', time: formatTime(elapsedSeconds), text: liveTranscriptText, demo: false });
+      }
+      return segments;
+    }
+
+    function settlePendingTranscript() {
+      const pending = [...rewriteSegments];
+      if (liveTranscriptText) pending.push({ speaker: '说话人 1', time: formatTime(elapsedSeconds), text: liveTranscriptText, demo: false });
+      transcriptSegments.push(...pending.map((segment) => ({ ...segment, demo: false, revisable: false })));
+      rewriteSegments = [];
+      liveTranscriptText = '';
+      sessionConfirmedCount = 0;
+    }
+
+    function beginTranscriptPass() {
+      settlePendingTranscript();
+      sessionConfirmedCount = 0;
+    }
+
+    function renderTranscript() {
+      const historySegments = transcriptSegments;
+      $('transcript-list').innerHTML = historySegments.map((segment) => transcriptSegmentMarkup(segment)).join('');
+      $('rewrite-list').innerHTML = rewriteSegments.map((segment) => transcriptSegmentMarkup(segment, true)).join('');
       const liveVisible = ['recording', 'connecting', 'paused', 'finishing'].includes(recorderState);
       $('history-label').classList.toggle('visible', historySegments.length > 0 && !historySegments.every((segment) => segment.demo));
-      $('empty-transcript').classList.toggle('visible', !historySegments.length && !liveVisible);
+      $('rewrite-region').classList.toggle('visible', rewriteSegments.length > 0);
+      $('empty-transcript').classList.toggle('visible', !historySegments.length && !rewriteSegments.length && !liveTranscriptText && !liveVisible);
       $('live-region').classList.toggle('visible', liveVisible);
-      if (liveSegment) $('live-text').textContent = liveSegment.text;
+      if (liveTranscriptText) $('live-text').textContent = liveTranscriptText;
+      else $('live-text').innerHTML = '<span class="typing-caret"></span>';
       $('live-badge').textContent = recorderState === 'paused' ? '已暂停' : recorderState === 'finishing' ? '正在提交' : recorderState === 'connecting' ? '正在连接' : '正在识别';
       $('live-hint').textContent = recorderState === 'paused'
         ? '录音已暂停，继续后会接着修正当前内容'
@@ -2144,13 +2190,16 @@
     }
 
     function transcriptText() {
-      return transcriptSegments.filter((segment) => !segment.demo).map((segment) => segment.text).join('\n');
+      return visibleTranscriptSegments().filter((segment) => !segment.demo).map((segment) => segment.text).join('\n');
     }
 
     function clearDemoContent() {
       if (!showingDemo) return;
       showingDemo = false;
       transcriptSegments = [];
+      rewriteSegments = [];
+      liveTranscriptText = '';
+      sessionConfirmedCount = 0;
       clearSummaryContent();
       renderTranscript();
     }
@@ -2159,6 +2208,7 @@
       const normalized = String(text || '').trim();
       if (!normalized) return;
       clearDemoContent();
+      settlePendingTranscript();
       const duplicate = transcriptSegments.some((segment) => segment.text === normalized);
       if (duplicate) return;
       transcriptSegments.push({
@@ -2166,9 +2216,7 @@
         time: meta.time || formatTime(elapsedSeconds),
         text: normalized,
         demo: false,
-        liveDraft: false,
       });
-      $('live-text').innerHTML = '<span class="typing-caret"></span>';
       renderTranscript();
       ensureActiveMeeting();
       scheduleMeetingSave();
@@ -2178,35 +2226,54 @@
     }
 
     function splitTranscriptSentences(text) {
-      const normalized = String(text || '').replace(/\s+/g, ' ').trim();
-      if (!normalized) return [];
-      return normalized.match(/[^。！？!?]+[。！？!?]?/g)?.map((part) => part.trim()).filter((part) => /[\p{L}\p{N}]/u.test(part)) || [];
+      return window.TranscriptState.splitSentences(text);
     }
 
     function applyTranscriptRevision(text, meta = {}) {
-      const sentences = splitTranscriptSentences(text);
-      if (!sentences.length) {
+      const plan = window.TranscriptState.planRevision({
+        text,
+        confirmedCount: sessionConfirmedCount,
+        previousRewrite: rewriteSegments.map((segment) => segment.text),
+        previousLive: liveTranscriptText,
+        final: Boolean(meta.final),
+      });
+      if (!plan.sentenceCount && !plan.promote.length) {
         $('latency-label').textContent = '该片段未检测到语音';
         return;
       }
       clearDemoContent();
       const final = Boolean(meta.final);
       const revision = Number(meta.revision || 1);
-      transcriptSegments = sentences.map((sentence, index) => ({
-        speaker: '说话人 1',
-        time: index === 0 ? '00:00' : formatTime(Math.max(0, Math.round(elapsedSeconds * index / sentences.length))),
-        text: sentence,
-        demo: false,
-        liveDraft: !final && index === sentences.length - 1,
-        revisable: !final && index >= Math.max(0, sentences.length - 2) && index !== sentences.length - 1,
-        revision,
-      }));
-      $('live-text').textContent = sentences[sentences.length - 1];
+      const previousByText = new Map(rewriteSegments.map((segment) => [segment.text, segment]));
+      for (const sentence of plan.promote) {
+        const previous = previousByText.get(sentence);
+        transcriptSegments.push({
+          speaker: '说话人 1',
+          time: previous ? previous.time : formatTime(elapsedSeconds),
+          text: sentence,
+          demo: false,
+          revisable: false,
+          revision,
+        });
+      }
+      sessionConfirmedCount += plan.promote.length;
+      rewriteSegments = plan.rewrite.map((sentence) => {
+        const previous = previousByText.get(sentence);
+        return {
+          speaker: '说话人 1',
+          time: previous ? previous.time : formatTime(elapsedSeconds),
+          text: sentence,
+          demo: false,
+          revisable: true,
+          revision,
+        };
+      });
+      liveTranscriptText = plan.live;
       renderTranscript();
       ensureActiveMeeting();
       scheduleMeetingSave(final ? 0 : 700);
       maybeGenerateMeetingTitle({ force: final });
-      $('latency-label').textContent = final ? '最终文字已确认' : `已回写第 ${revision} 版`;
+      $('latency-label').textContent = final ? '最终文字已确认' : plan.regressive ? '识别回退，已保留上一版' : `已回写第 ${revision} 版`;
       requestAnimationFrame(() => { $('content-scroll').scrollTop = $('content-scroll').scrollHeight; });
       if (final) maybeRefreshSummary();
     }
@@ -2224,7 +2291,7 @@
 
     function updateRecorderUi(nextState, message) {
       if (nextState === 'ended' || nextState === 'error') {
-        transcriptSegments = transcriptSegments.map((segment) => ({ ...segment, liveDraft: false, revisable: false }));
+        settlePendingTranscript();
       }
       recorderState = nextState;
       $('recording-console').className = `recording-console ${nextState}`;
@@ -2254,7 +2321,7 @@
         $('local-save-status').textContent = '录音已暂停';
       } else {
         $('record-toggle').innerHTML = '<span class="record-icon"></span>';
-        $('record-toggle').setAttribute('aria-label', nextState === 'ended' || nextState === 'error' ? '开始新录音' : '开始录音');
+        $('record-toggle').setAttribute('aria-label', nextState === 'ended' || nextState === 'error' ? '继续录音' : '开始录音');
         $('local-save-status').textContent = nextState === 'ended' ? '录音已保存在当前设备' : '录音尚未开始';
       }
       renderTranscript();
@@ -2419,7 +2486,7 @@
         $('latency-label').textContent = '识别服务正在追赶';
       } else if (payload.demo_event === 'asr.stream.error') {
         updateRecorderUi('error', payload.message || '实时转写失败，可重新开始');
-      } else if (payload.demo_event === 'asr.stream.done') {
+      } else if (payload.demo_event === 'asr.stream.done' && payload.final !== false) {
         finishSessionUi();
       }
     }
@@ -2445,6 +2512,9 @@
       recordingUrl = null;
       archiveChunks = [];
       transcriptSegments = [];
+      rewriteSegments = [];
+      liveTranscriptText = '';
+      sessionConfirmedCount = 0;
       showingDemo = false;
       if (meetingTitleMode !== 'manual') {
         $('meeting-title').value = '新录音';
@@ -2467,19 +2537,19 @@
         return;
       }
       if (!storageMode) { showEntryDialog(); return; }
-      if (recorderState === 'ended' || recorderState === 'error') await createNewMeeting({ announce: false });
+      const continuingMeeting = recorderState === 'ended' || recorderState === 'error';
       clearDemoContent();
       ensureActiveMeeting();
-      if (recordingUrl) { URL.revokeObjectURL(recordingUrl); recordingUrl = null; }
+      beginTranscriptPass();
       $('download-recording').disabled = true;
       $('download-recording').classList.remove('visible');
-      elapsedSeconds = 0;
-      $('elapsed').textContent = '00:00';
+      if (!continuingMeeting) elapsedSeconds = 0;
+      $('elapsed').textContent = formatTime(elapsedSeconds);
       sessionStartedAt = new Date();
       activeMeetingCreatedAt = activeMeetingCreatedAt || sessionStartedAt.toISOString();
-      $('created-at').textContent = new Intl.DateTimeFormat('zh-CN', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(sessionStartedAt);
+      $('created-at').textContent = new Intl.DateTimeFormat('zh-CN', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(activeMeetingCreatedAt));
       $('live-text').innerHTML = '<span class="typing-caret"></span>';
-      updateRecorderUi('connecting');
+      updateRecorderUi('connecting', continuingMeeting ? '正在继续当前会议…' : undefined);
       asrStreamWs = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/asr/stream`);
       asrStreamWs.onopen = async () => {
         try {
@@ -2500,12 +2570,18 @@
     }
 
     function pauseRecording() {
+      if (recorderState !== 'recording') return;
       sendingAudio = false;
-      if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.pause();
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        try { mediaRecorder.requestData(); } catch (_) {}
+        mediaRecorder.pause();
+      }
       updateRecorderUi('paused');
+      scheduleMeetingSave(0);
     }
 
     function resumeRecording() {
+      if (recorderState !== 'paused') return;
       sendingAudio = true;
       if (mediaRecorder && mediaRecorder.state === 'paused') mediaRecorder.resume();
       updateRecorderUi('recording');
@@ -2718,7 +2794,7 @@
       showToast('摘要已复制');
     });
     $('copy-transcript').addEventListener('click', async () => {
-      const text = transcriptSegments.map((segment) => `${segment.time} ${segment.speaker}\n${segment.text}`).join('\n\n');
+      const text = visibleTranscriptSegments().map((segment) => `${segment.time} ${segment.speaker}\n${segment.text}`).join('\n\n');
       await navigator.clipboard.writeText(text);
       showToast('文字记录已复制');
     });
@@ -2749,9 +2825,24 @@
     };
     window.__demoApplyRevision = (text, revision = 1, final = false) => {
       applyTranscriptRevision(text, { revision, final });
-      return transcriptSegments.map(({ text: value, revisable, liveDraft }) => ({ text: value, revisable, liveDraft }));
+      return {
+        confirmed: transcriptSegments.map((segment) => segment.text),
+        rewrite: rewriteSegments.map((segment) => segment.text),
+        live: liveTranscriptText,
+      };
     };
-    window.__demoGetState = () => ({ recorderState, activeTab, elapsedSeconds, transcript: transcriptText(), summary: $('summary-output').textContent });
+    window.__demoSetRecorderState = (state) => { updateRecorderUi(state); return window.__demoGetState(); };
+    window.__demoBeginContinuation = () => { beginTranscriptPass(); updateRecorderUi('connecting'); return window.__demoGetState(); };
+    window.__demoGetState = () => ({
+      recorderState,
+      activeTab,
+      elapsedSeconds,
+      transcript: transcriptText(),
+      confirmed: transcriptSegments.map((segment) => segment.text),
+      rewrite: rewriteSegments.map((segment) => segment.text),
+      live: liveTranscriptText,
+      summary: $('summary-output').textContent,
+    });
     window.__demoStudioState = () => ({ activeProductView, voice: selectedVoiceId(), format: selectedTtsFormat, cloningConfigured: voiceCloningConfigured, audioReady: Boolean(ttsAudioUrl) });
     window.__demoConversationState = () => ({ activeProductView, realtimeState, model: $('conversation-model').value, voice: $('conversation-voice').value, activeConversationId, messages: realtimeMessages.map(({ role, text, final }) => ({ role, text, final })) });
 
