@@ -134,6 +134,12 @@ checks["long_meeting_rollover_is_wired"] = all(
 checks["server_policy_controls_frontend_limit"] = all(
     marker in text for marker in ("payload.max_connection_seconds", "channelsData.stream_policy", "recordingPassSeconds >= asrPassLimitSeconds")
 )
+checks["long_recording_audio_uses_indexeddb"] = all(
+    marker in text for marker in ("voicenote-audio-v1", "recording-chunks", "putAudioArchiveChunk", "mediaRecorder.start(1000)", "downloadCurrentArchive")
+)
+checks["audio_archive_has_memory_fallback"] = all(
+    marker in text for marker in ("archiveStorageDegraded = true", "archiveChunks.push({ index, blob })", "部分分片暂存在内存")
+)
 
 checks["ok"] = all(bool(value) for key, value in checks.items() if key != "ok")
 print(json.dumps(checks, ensure_ascii=False, indent=2))

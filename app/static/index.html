@@ -857,6 +857,9 @@
     const GUEST_DB_VERSION = 2;
     const GUEST_STORE = 'meetings';
     const GUEST_CONVERSATION_STORE = 'conversations';
+    const AUDIO_DB_NAME = 'voicenote-audio-v1';
+    const AUDIO_DB_VERSION = 1;
+    const AUDIO_CHUNK_STORE = 'recording-chunks';
     const createRecordId = () => (crypto.randomUUID ? crypto.randomUUID() : `meeting-${Date.now()}-${Math.random().toString(16).slice(2)}`).replace(/[^A-Za-z0-9_-]/g, '');
     const demoSegments = [
       { speaker: '说话人 1', time: '00:18', text: '我们先专注主要的会议录音体验，用户进入页面以后应该能够很快开始。', demo: true },
@@ -882,6 +885,11 @@
     let animationFrameId = null;
     let mediaRecorder = null;
     let archiveChunks = [];
+    let archiveSessionId = null;
+    let archiveChunkIndex = 0;
+    let archiveMimeType = 'audio/webm';
+    let archiveWriteChain = Promise.resolve();
+    let archiveStorageDegraded = false;
     let recordingUrl = null;
     let transcriptSegments = [...demoSegments];
     let rewriteSegments = [];
@@ -907,6 +915,7 @@
     let csrfToken = '';
     let authMode = 'login';
     let guestDbPromise = null;
+    let audioDbPromise = null;
     let activeProductView = 'meeting';
     let selectedTtsVoice = 'longanlingxin';
     let selectedTtsFormat = 'mp3';
@@ -1570,6 +1579,60 @@
       });
     }
 
+    function openAudioDb() {
+      if (audioDbPromise) return audioDbPromise;
+      audioDbPromise = new Promise((resolve, reject) => {
+        const request = indexedDB.open(AUDIO_DB_NAME, AUDIO_DB_VERSION);
+        request.onupgradeneeded = () => {
+          const db = request.result;
+          if (!db.objectStoreNames.contains(AUDIO_CHUNK_STORE)) {
+            const store = db.createObjectStore(AUDIO_CHUNK_STORE, { keyPath: ['session_id', 'index'] });
+            store.createIndex('session_id', 'session_id');
+          }
+        };
+        request.onsuccess = () => {
+          request.result.onversionchange = () => request.result.close();
+          resolve(request.result);
+        };
+        request.onerror = () => reject(request.error || new Error('录音分片存储不可用'));
+        request.onblocked = () => reject(new Error('录音分片存储被其他页面占用'));
+      });
+      return audioDbPromise;
+    }
+
+    async function audioDbTransaction(mode, operation) {
+      const db = await openAudioDb();
+      return new Promise((resolve, reject) => {
+        const transaction = db.transaction(AUDIO_CHUNK_STORE, mode);
+        let request;
+        try { request = operation(transaction.objectStore(AUDIO_CHUNK_STORE)); }
+        catch (error) { reject(error); return; }
+        transaction.oncomplete = () => resolve(request && request.result);
+        transaction.onerror = () => reject(transaction.error || (request && request.error) || new Error('录音分片写入失败'));
+        transaction.onabort = () => reject(transaction.error || new Error('录音分片写入已中止'));
+      });
+    }
+
+    function audioSessionRange(sessionId) {
+      return IDBKeyRange.bound([sessionId, 0], [sessionId, Number.MAX_SAFE_INTEGER]);
+    }
+
+    async function putAudioArchiveChunk(sessionId, index, blob) {
+      return audioDbTransaction('readwrite', (store) => store.put({ session_id: sessionId, index, blob }));
+    }
+
+    async function readAudioArchiveChunks(sessionId) {
+      if (!sessionId) return [];
+      const rows = await audioDbTransaction('readonly', (store) => store.getAll(audioSessionRange(sessionId)));
+      return (rows || []).sort((a, b) => a.index - b.index);
+    }
+
+    async function deleteAudioArchiveSession(sessionId) {
+      if (!sessionId) return;
+      try { await audioDbTransaction('readwrite', (store) => store.delete(audioSessionRange(sessionId))); }
+      catch (_) {}
+    }
+
     async function listStoredMeetings() {
       if (storageMode === 'guest') {
         const rows = await guestDbRequest('readonly', (store) => store.getAll());
@@ -2004,8 +2067,7 @@
         } else {
           clearSummaryContent();
         }
-        if (recordingUrl) URL.revokeObjectURL(recordingUrl);
-        recordingUrl = null;
+        discardCurrentArchive();
         $('download-recording').disabled = true;
         $('download-recording').classList.remove('visible');
         updateRecorderUi('ended', '已打开会议记录');
@@ -2384,19 +2446,74 @@
       return types.find((type) => MediaRecorder.isTypeSupported(type)) || '';
     }
 
+    function discardCurrentArchive() {
+      const previousSessionId = archiveSessionId;
+      const previousWriteChain = archiveWriteChain;
+      archiveSessionId = null;
+      archiveChunkIndex = 0;
+      archiveChunks = [];
+      archiveWriteChain = Promise.resolve();
+      archiveStorageDegraded = false;
+      if (recordingUrl) URL.revokeObjectURL(recordingUrl);
+      recordingUrl = null;
+      if (previousSessionId) previousWriteChain.catch(() => {}).then(() => deleteAudioArchiveSession(previousSessionId));
+    }
+
+    function queueArchiveChunk(blob) {
+      const sessionId = archiveSessionId;
+      const index = archiveChunkIndex++;
+      if (!sessionId || !blob || !blob.size) return;
+      archiveWriteChain = archiveWriteChain.then(async () => {
+        try {
+          await putAudioArchiveChunk(sessionId, index, blob);
+        } catch (_) {
+          archiveStorageDegraded = true;
+          archiveChunks.push({ index, blob });
+          $('local-save-status').textContent = '浏览器存储空间不足，当前分片暂存在内存';
+        }
+      });
+    }
+
+    async function downloadCurrentArchive() {
+      if (!archiveSessionId || !archiveChunkIndex) return;
+      const button = $('download-recording');
+      button.disabled = true;
+      button.textContent = '准备中…';
+      try {
+        await archiveWriteChain;
+        let stored = [];
+        try { stored = await readAudioArchiveChunks(archiveSessionId); }
+        catch (_) { archiveStorageDegraded = true; }
+        const chunks = [...stored, ...archiveChunks].sort((a, b) => a.index - b.index).map((item) => item.blob);
+        if (!chunks.length) throw new Error('当前录音没有可下载的音频分片');
+        if (recordingUrl) URL.revokeObjectURL(recordingUrl);
+        recordingUrl = URL.createObjectURL(new Blob(chunks, { type: archiveMimeType }));
+        const link = document.createElement('a');
+        link.href = recordingUrl;
+        link.download = `meeting-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.${archiveMimeType.includes('mp4') ? 'm4a' : 'webm'}`;
+        link.click();
+      } catch (error) {
+        showToast(error.message || '录音暂时无法下载');
+      } finally {
+        button.disabled = false;
+        button.textContent = '下载';
+      }
+    }
+
     function startArchiveRecording(stream) {
       if (!window.MediaRecorder) return;
-      archiveChunks = [];
+      discardCurrentArchive();
+      archiveSessionId = `audio-${createRecordId()}-${Date.now()}`;
       const mimeType = chooseRecorderMimeType();
       mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
-      mediaRecorder.ondataavailable = (event) => { if (event.data && event.data.size) archiveChunks.push(event.data); };
-      mediaRecorder.onstop = () => {
-        if (!archiveChunks.length) return;
-        if (recordingUrl) URL.revokeObjectURL(recordingUrl);
-        const blob = new Blob(archiveChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
-        recordingUrl = URL.createObjectURL(blob);
+      archiveMimeType = mediaRecorder.mimeType || mimeType || 'audio/webm';
+      mediaRecorder.ondataavailable = (event) => { if (event.data && event.data.size) queueArchiveChunk(event.data); };
+      mediaRecorder.onstop = async () => {
+        await archiveWriteChain;
+        if (!archiveChunkIndex) return;
         $('download-recording').disabled = false;
         $('download-recording').classList.add('visible');
+        $('local-save-status').textContent = archiveStorageDegraded ? '录音已保存（部分分片暂存在内存）' : '录音已分片保存在当前设备';
       };
       mediaRecorder.start(1000);
     }
@@ -2559,9 +2676,7 @@
       }
       mediaRecorder = null;
       stopCaptureGraph();
-      if (recordingUrl) URL.revokeObjectURL(recordingUrl);
-      recordingUrl = null;
-      archiveChunks = [];
+      discardCurrentArchive();
       transcriptSegments = [];
       rewriteSegments = [];
       liveTranscriptText = '';
@@ -2860,13 +2975,7 @@
       await navigator.clipboard.writeText(text);
       showToast('文字记录已复制');
     });
-    $('download-recording').addEventListener('click', () => {
-      if (!recordingUrl) return;
-      const link = document.createElement('a');
-      link.href = recordingUrl;
-      link.download = `meeting-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.${mediaRecorder && mediaRecorder.mimeType.includes('mp4') ? 'm4a' : 'webm'}`;
-      link.click();
-    });
+    $('download-recording').addEventListener('click', downloadCurrentArchive);
     window.addEventListener('beforeunload', (event) => {
       if (!['recording', 'paused'].includes(recorderState) && !isRealtimeActive()) return;
       event.preventDefault();

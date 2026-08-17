@@ -8,6 +8,7 @@ A lightweight FastAPI + browser meeting recorder with realtime transcription, lo
 - **声音克隆**: server-side DashScope TTS v2 voice enrollment (`VoiceEnrollmentService`) creates reusable `voice_id` values; the browser never sees the API key.
 - **实时对话**: 独立的豆包式语音对话页；browser WebSocket -> FastAPI proxy -> Qwen Realtime，支持服务端模型列表、VAD、流式文字、24 kHz PCM 播放、自然打断、对话历史和 Markdown 导出。
 - **会议录音首页**: a mobile-first recording surface with live transcript, waveform, pause/resume, finish, and local audio download.
+- **Bounded local archive**: MediaRecorder emits one-second chunks into a browser-only IndexedDB store; the full Blob is assembled only when the user requests a download, with an explicit in-memory fallback if browser storage fails.
 - **语音转写**: the recorder streams microphone PCM16 to the existing ASR WebSocket and appends normalized final segments to the timeline.
 - **GPU-first ASR**: default ASR channel is `funasr-gpu` (CUDA PyTorch + FunASR/SenseVoiceSmall worker). `funasr-cpu` remains an explicit fallback, and `stub-local` remains available for smoke tests.
 - **Realtime ASR WebSocket**: `WS /ws/asr/stream` accepts continuous PCM16 microphone frames and returns cumulative revision events. Long recordings transparently roll a bounded context window while confirmed text continues to grow.
@@ -106,6 +107,7 @@ Model cache is written to `playground/model-cache/`, which is ignored by Git.
 - guest mode allows 10 active recording minutes per segment; signed-in mode allows 2 active hours per segment;
 - pause time does not consume the segment allowance, and an existing meeting can start another segment later;
 - recognition context rolls about every 42–45 seconds, so GPU inference and memory stay bounded during a multi-hour meeting;
+- original MediaRecorder chunks are written to browser IndexedDB once per second instead of accumulating the whole recording in JavaScript memory;
 - reaching a segment limit finalizes the last window and returns a normal `done` event instead of failing the recording;
 - each receive cycle processes at most two ASR chunks and reports backpressure if more decoded audio is queued;
 - per-chunk temporary WAV/upload files under `playground/asr-temp/` are cleaned after each ASR attempt.
