@@ -1,8 +1,12 @@
-# Speakr Voice Workspace
+# ChatVoice / Speakr Voice Workspace
 
-A FastAPI + browser voice workspace with realtime meeting transcription, local audio capture, AI notes, TTS, and full-duplex voice conversation. The repository name retains its early Qwen Audio Demo history; the deployed product uses Speakr as its canonical domain.
+ChatVoice is the ChatArch repository and Python package shell for the Speakr voice workspace: a FastAPI + browser product with realtime meeting transcription, local audio capture, AI notes, TTS, and full-duplex voice conversation. The git history retains its early Qwen Audio Demo origin; the deployed product uses Speakr as its canonical domain.
 
 Public site: [https://speakr.public.wzhecnu.cn/](https://speakr.public.wzhecnu.cn/)
+
+Repository: [https://github.com/ChatArch/ChatVoice](https://github.com/ChatArch/ChatVoice)
+
+PyPI placeholder: [https://pypi.org/project/ChatVoice/0.0.1/](https://pypi.org/project/ChatVoice/0.0.1/)
 
 The former `qwen-audio-demo.public.wzhecnu.cn` entry is retired and returns HTTP 410.
 
@@ -34,7 +38,7 @@ The former `qwen-audio-demo.public.wzhecnu.cn` entry is retired and returns HTTP
 ## Quick start
 
 ```bash
-cd qwen-audio-tts-realtime-demo
+cd ChatVoice
 python3 -m venv .venv
 . .venv/bin/activate
 pip install -r requirements.txt
