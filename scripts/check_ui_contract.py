@@ -19,11 +19,13 @@ checks["meeting_recorder_is_primary_surface"] = all(
     )
 )
 checks["exact_product_tabs"] = (
-    text.count('<button class="content-tab') == 2
+    text.count('<button class="content-tab') == 3
     and 'id="transcript-tab"' in text
     and 'id="summary-tab"' in text
+    and 'id="summary-chat-tab"' in text
     and "文字记录" in text
     and "实时摘要" in text
+    and "完善纪要" in text
 )
 checks["top_level_workspaces_exist"] = (
     text.count('<button class="product-tab') == 3
@@ -92,6 +94,26 @@ checks["local_archive_recording_exists"] = "new MediaRecorder" in text and "down
 checks["recording_states_are_explicit"] = all(state in text for state in ("connecting", "recording", "paused", "finishing", "ended", "error"))
 checks["asr_channel_is_server_driven"] = "/api/asr/channels" in text and 'id="asr-channel"' in text
 checks["summary_endpoint_is_used"] = "/api/meeting-notes/polish" in text and 'id="generate-summary"' in text
+checks["summary_canvas_chat_is_wired"] = all(
+    marker in text
+    for marker in (
+        'id="summary-canvas"',
+        'id="summary-chat-messages"',
+        'id="summary-chat-form"',
+        "/api/meeting-notes/revise/stream",
+        "function parseSummaryRevisionOutput",
+        "summary_chat_messages",
+        "summary_customized",
+    )
+)
+checks["customized_summary_is_not_auto_overwritten"] = all(
+    marker in text
+    for marker in (
+        "if (summaryCustomized && !explicit) return;",
+        "if (transcriptText() && (!summaryCustomized || !hasGeneratedSummary)) generateSummary();",
+        "继续录音不会自动覆盖",
+    )
+)
 checks["meeting_title_is_auto_generated"] = all(
     marker in text
     for marker in ('id="title-state"', "fetch('/api/meeting-title'", "function maybeGenerateMeetingTitle", "AI 已命名")

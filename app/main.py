@@ -31,7 +31,7 @@ import dashscope
 from dashscope.audio.tts_v2 import AudioFormat, SpeechSynthesizer
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 try:
@@ -128,6 +128,19 @@ class MeetingNotesRequest(BaseModel):
     model: str | None = Field(default=None, max_length=120)
 
 
+class MeetingNotesChatMessage(BaseModel):
+    role: str = Field(..., pattern="^(user|assistant)$")
+    text: str = Field(..., min_length=1, max_length=4000)
+
+
+class MeetingNotesReviseRequest(BaseModel):
+    transcript: str = Field(..., min_length=1, max_length=20000)
+    current_summary: str = Field(..., min_length=1, max_length=20000)
+    instruction: str = Field(..., min_length=1, max_length=2000)
+    messages: list[MeetingNotesChatMessage] = Field(default_factory=list, max_length=40)
+    model: str | None = Field(default=None, max_length=120)
+
+
 class MeetingTitleRequest(BaseModel):
     transcript: str = Field(..., min_length=1, max_length=4000)
     model: str | None = Field(default=None, max_length=120)
@@ -147,6 +160,8 @@ class MeetingRecordInput(BaseModel):
     transcript_segments: list[StoredTranscriptSegment] = Field(default_factory=list, max_length=500)
     summary_title: str = Field("", max_length=500)
     summary_content: str = Field("", max_length=20000)
+    summary_customized: bool = False
+    summary_chat_messages: list[MeetingNotesChatMessage] = Field(default_factory=list, max_length=100)
 
 
 class StoredConversationMessage(BaseModel):
@@ -427,11 +442,18 @@ def _meeting_db() -> sqlite3.Connection:
             transcript_json TEXT NOT NULL DEFAULT '[]',
             summary_title TEXT NOT NULL DEFAULT '',
             summary_content TEXT NOT NULL DEFAULT '',
+            summary_customized INTEGER NOT NULL DEFAULT 0,
+            summary_chat_json TEXT NOT NULL DEFAULT '[]',
             preview TEXT NOT NULL DEFAULT '',
             PRIMARY KEY (owner_id, meeting_id)
         )
         """
     )
+    meeting_columns = {row[1] for row in connection.execute("PRAGMA table_info(meeting_records)").fetchall()}
+    if "summary_customized" not in meeting_columns:
+        connection.execute("ALTER TABLE meeting_records ADD COLUMN summary_customized INTEGER NOT NULL DEFAULT 0")
+    if "summary_chat_json" not in meeting_columns:
+        connection.execute("ALTER TABLE meeting_records ADD COLUMN summary_chat_json TEXT NOT NULL DEFAULT '[]'")
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS conversation_records (
@@ -571,6 +593,11 @@ def _meeting_row_payload(row: sqlite3.Row, include_content: bool) -> dict[str, A
             payload["transcript_segments"] = []
         payload["summary_title"] = row["summary_title"]
         payload["summary_content"] = row["summary_content"]
+        payload["summary_customized"] = bool(row["summary_customized"])
+        try:
+            payload["summary_chat_messages"] = json.loads(row["summary_chat_json"])
+        except Exception:
+            payload["summary_chat_messages"] = []
     return payload
 
 
@@ -624,14 +651,16 @@ def upsert_meeting(meeting_id: str, record: MeetingRecordInput, request: Request
     owner_id = auth["user_id"]
     record_id = _validated_record_key(meeting_id, "meeting id")
     segments = [segment.model_dump() for segment in record.transcript_segments]
+    summary_chat_messages = [message.model_dump() for message in record.summary_chat_messages]
     preview = " ".join(segment["text"] for segment in segments)[:120]
     with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
         connection.execute(
             """
             INSERT INTO meeting_records (
                 owner_id, meeting_id, title, created_at, updated_at, duration_seconds,
-                transcript_json, summary_title, summary_content, preview
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                transcript_json, summary_title, summary_content, summary_customized,
+                summary_chat_json, preview
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(owner_id, meeting_id) DO UPDATE SET
                 title = excluded.title,
                 updated_at = excluded.updated_at,
@@ -639,6 +668,8 @@ def upsert_meeting(meeting_id: str, record: MeetingRecordInput, request: Request
                 transcript_json = excluded.transcript_json,
                 summary_title = excluded.summary_title,
                 summary_content = excluded.summary_content,
+                summary_customized = excluded.summary_customized,
+                summary_chat_json = excluded.summary_chat_json,
                 preview = excluded.preview
             """,
             (
@@ -651,6 +682,8 @@ def upsert_meeting(meeting_id: str, record: MeetingRecordInput, request: Request
                 json.dumps(segments, ensure_ascii=False),
                 record.summary_title,
                 record.summary_content,
+                int(record.summary_customized),
+                json.dumps(summary_chat_messages, ensure_ascii=False),
                 preview,
             ),
         )
@@ -874,6 +907,91 @@ async def meeting_notes_polish(req: MeetingNotesRequest) -> JSONResponse:
     except Exception as exc:
         raise HTTPException(status_code=502, detail={"error_type": type(exc).__name__, "message": str(exc)[:700]}) from exc
     return JSONResponse(result)
+
+
+def _sse_message(event: str, payload: dict[str, Any]) -> str:
+    return f"event: {event}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+
+def _meeting_notes_revision_stream(req: MeetingNotesReviseRequest):
+    model = _meeting_notes_model(req.model)
+    system_prompt = """你是 Speakr 的会议纪要画布编辑助手。你同时维护一份纪要画布，并用简短中文回复用户。
+
+只能使用会议转写、当前纪要和用户明确提供的信息，不得补造姓名、日期、结论或行动项。如果用户只是提问而没有要求修改，原样保留当前纪要，并依据已有内容回答。
+
+输出必须严格使用下面两个标记，不能使用代码围栏，也不能在第一个标记前输出任何内容：
+[[[CANVAS]]]
+这里输出修改后的完整纪要正文，使用清晰的 Markdown；即使只修改一小处，也必须返回完整版本。
+[[[REPLY]]]
+这里用一到三句话说明本次做了什么，或回答用户的问题。"""
+    history = [
+        {"role": message.role, "content": message.text}
+        for message in req.messages[-12:]
+    ]
+    context = (
+        "会议转写：\n"
+        + req.transcript
+        + "\n\n当前纪要画布：\n"
+        + req.current_summary
+        + "\n\n本轮要求：\n"
+        + req.instruction
+    )
+    payload = {
+        "model": model,
+        "messages": [{"role": "system", "content": system_prompt}, *history, {"role": "user", "content": context}],
+        "temperature": 0.2,
+        "enable_thinking": False,
+        "stream": True,
+    }
+    yield _sse_message("meta", {"model": model})
+    try:
+        key = _token_plan_key()
+        upstream_request = urllib.request.Request(
+            _token_plan_base() + "/chat/completions",
+            data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {key}",
+                "Content-Type": "application/json",
+                "Accept": "text/event-stream",
+                "User-Agent": "speakr-meeting-canvas/0.1",
+            },
+            method="POST",
+        )
+        received_content = False
+        with urllib.request.urlopen(upstream_request, timeout=120) as response:
+            for raw_line in response:
+                line = raw_line.decode("utf-8", "replace").strip()
+                if not line.startswith("data:"):
+                    continue
+                data = line[5:].strip()
+                if not data or data == "[DONE]":
+                    continue
+                try:
+                    body = json.loads(data)
+                    delta = body.get("choices", [{}])[0].get("delta", {}).get("content") or ""
+                except Exception:
+                    continue
+                if delta:
+                    received_content = True
+                    yield _sse_message("delta", {"text": delta})
+        if not received_content:
+            yield _sse_message("error", {"message": "模型没有返回可用的纪要内容"})
+            return
+        yield _sse_message("done", {"model": model})
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", "replace")[:700]
+        yield _sse_message("error", {"message": f"上游服务返回 {exc.code}", "detail": detail})
+    except Exception as exc:
+        yield _sse_message("error", {"message": str(exc)[:700] or type(exc).__name__})
+
+
+@app.post("/api/meeting-notes/revise/stream")
+def meeting_notes_revise_stream(req: MeetingNotesReviseRequest) -> StreamingResponse:
+    return StreamingResponse(
+        _meeting_notes_revision_stream(req),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"},
+    )
 
 
 def _normalize_meeting_title(value: str) -> str:

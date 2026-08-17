@@ -49,6 +49,11 @@ with tempfile.TemporaryDirectory() as directory:
         "transcript_segments": [{"speaker": "说话人 1", "time": "00:03", "text": "这是服务端账号记录。"}],
         "summary_title": "合同测试摘要",
         "summary_content": "摘要内容。",
+        "summary_customized": True,
+        "summary_chat_messages": [
+            {"role": "user", "text": "把行动项放到最前面。"},
+            {"role": "assistant", "text": "已调整结构，并保留原有事实。"},
+        ],
     }
     no_csrf = client.put(f"/api/meetings/{meeting_id}", json=record)
     checks["writes_require_csrf"] = no_csrf.status_code == 403
@@ -61,6 +66,8 @@ with tempfile.TemporaryDirectory() as directory:
         and listed.status_code == 200
         and len(listed.json().get("meetings", [])) == 1
         and loaded.json().get("summary_content") == "摘要内容。"
+        and loaded.json().get("summary_customized") is True
+        and loaded.json().get("summary_chat_messages") == record["summary_chat_messages"]
     )
 
     conversation_id = "conversation_contract_1234"

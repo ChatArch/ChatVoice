@@ -363,7 +363,44 @@
     .extension-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 13px; }
     .extension-chip { padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; color: #85878d; font-size: 9px; background: #fff; }
 
+    .summary-copilot { display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(290px, .92fr); gap: 14px; min-height: 340px; }
+    .summary-canvas-card, .summary-chat-card { min-width: 0; border: 1px solid var(--line); border-radius: 20px; background: #fff; overflow: hidden; }
+    .summary-canvas-card { display: flex; flex-direction: column; }
+    .summary-canvas-header, .summary-chat-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 61px; padding: 0 18px; border-bottom: 1px solid #ededf0; }
+    .summary-canvas-heading, .summary-chat-heading { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .summary-canvas-heading > span, .summary-chat-heading > span { display: grid; place-items: center; width: 30px; height: 30px; flex: 0 0 auto; border-radius: 10px; background: #f0efff; color: var(--violet); font-size: 14px; }
+    .summary-canvas-heading strong, .summary-chat-heading strong { display: block; color: #44464c; font-size: 11px; }
+    .summary-canvas-heading small, .summary-chat-heading small { display: block; margin-top: 2px; color: #9a9ca2; font-size: 8px; font-weight: 500; }
+    .summary-canvas-actions { display: flex; align-items: center; gap: 7px; }
+    .summary-canvas-actions button { padding: 7px 9px; border: 1px solid var(--line); border-radius: 9px; background: #fff; color: #777980; font-size: 8px; }
+    .summary-canvas-actions button:disabled { opacity: .42; cursor: not-allowed; }
+    .summary-canvas { width: 100%; min-height: 230px; flex: 1; padding: 20px; border: 0; outline: 0; resize: vertical; background: #fcfcfd; color: #41434a; font-family: inherit; font-size: 11px; line-height: 1.85; }
+    .summary-canvas:focus { background: #fff; box-shadow: inset 0 0 0 2px rgba(97, 87, 217, .08); }
+    .summary-canvas.streaming { color: #55576a; background: linear-gradient(135deg, #fbfaff, #fff); }
+    .summary-canvas-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 45px; padding: 0 18px; border-top: 1px solid #ededf0; color: #96989f; font-size: 8px; }
+    .summary-canvas-footer strong { color: #6d6f77; font-weight: 650; }
+    .summary-chat-card { display: grid; grid-template-rows: auto minmax(140px, 1fr) auto auto; }
+    .summary-chat-status { color: #8a8c93; font-size: 8px; }
+    .summary-chat-messages { display: flex; flex-direction: column; gap: 12px; min-height: 140px; max-height: 260px; padding: 18px; overflow: auto; background: #fafafd; }
+    .summary-chat-empty { margin: auto; max-width: 250px; color: #8d8f96; text-align: center; font-size: 9px; line-height: 1.7; }
+    .summary-chat-empty strong { display: block; margin-bottom: 7px; color: #55575e; font-size: 12px; }
+    .summary-chat-message { max-width: 88%; padding: 10px 12px; border-radius: 13px; font-size: 9px; line-height: 1.65; white-space: pre-wrap; word-break: break-word; }
+    .summary-chat-message.user { align-self: flex-end; background: var(--ink); color: #fff; border-bottom-right-radius: 5px; }
+    .summary-chat-message.assistant { align-self: flex-start; border: 1px solid #e7e5f8; background: #fff; color: #5d5f67; border-bottom-left-radius: 5px; }
+    .summary-chat-message.streaming::after { content: ""; display: inline-block; width: 5px; height: 10px; margin-left: 3px; vertical-align: -1px; background: var(--violet); animation: blink 1s steps(1) infinite; }
+    .summary-prompts { display: flex; gap: 6px; padding: 10px 14px 0; overflow-x: auto; }
+    .summary-prompt { flex: 0 0 auto; padding: 7px 9px; border: 1px solid #e5e3f7; border-radius: 999px; background: #faf9ff; color: #6d66ae; font-size: 8px; }
+    .summary-chat-composer { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 11px 14px 14px; }
+    .summary-chat-composer textarea { min-height: 42px; max-height: 100px; padding: 11px 12px; resize: none; border: 1px solid var(--line); border-radius: 13px; outline: 0; color: #45474e; font-family: inherit; font-size: 9px; line-height: 1.55; }
+    .summary-chat-composer textarea:focus { border-color: #c8c4ee; box-shadow: 0 0 0 3px rgba(97, 87, 217, .07); }
+    .summary-chat-send { align-self: end; width: 42px; height: 42px; border: 0; border-radius: 13px; background: var(--ink); color: #fff; font-size: 15px; }
+    .summary-chat-send:disabled { opacity: .42; cursor: not-allowed; }
+
     .recording-console { position: absolute; left: 22px; right: 22px; bottom: 18px; padding: 18px 24px 17px; border: 1px solid #e7e7e9; border-radius: 24px; background: rgba(255, 255, 255, .95); backdrop-filter: blur(22px); box-shadow: 0 18px 55px rgba(27, 30, 44, .14); }
+    body.summary-chat-active .recording-console { padding-top: 11px; padding-bottom: 11px; }
+    body.summary-chat-active .recording-policy, body.summary-chat-active .waveform-wrap { display: none; }
+    body.summary-chat-active .console-controls { margin-top: 0; }
+    body.summary-chat-active .content-scroll { padding-bottom: 118px; }
     .recording-policy { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 2px 8px; color: #92949a; font-size: 8px; }
     .recording-policy strong { color: #686a71; font-size: 9px; }
     .recording-policy.warning strong { color: #c17722; }
@@ -469,6 +506,8 @@
       .transcript-block p { font-size: 14px; line-height: 1.78; }
       .transcript-block.demo:first-of-type { display: none; }
       .recording-console { left: 10px; right: 10px; bottom: max(9px, env(safe-area-inset-bottom)); padding: 15px 16px 14px; border-radius: 22px; }
+      body.summary-chat-active .recording-console { padding: 10px 13px; }
+      body.summary-chat-active .content-scroll { padding-bottom: 110px; }
       .waveform-wrap, #recording-waveform { height: 42px; }
       .console-controls { margin-top: 10px; }
       .elapsed-time strong { font-size: 17px; }
@@ -476,6 +515,9 @@
       .record-toggle { width: 52px; height: 52px; border-radius: 17px; }
       .finish-control, .download-control, .reset-control { min-width: 58px; height: 44px; }
       .summary-lead { padding: 20px; }
+      .summary-copilot { grid-template-columns: 1fr; }
+      .summary-canvas { min-height: 220px; }
+      .summary-chat-messages { max-height: 330px; }
       .access-card { padding: 24px 19px; }
       .mode-grid { grid-template-columns: 1fr; }
       .mode-card { min-height: 137px; }
@@ -582,6 +624,7 @@
       <nav class="content-tabs" role="tablist" aria-label="会议内容">
         <button class="content-tab active" id="transcript-tab" data-tab="transcript" type="button" role="tab" aria-selected="true">文字记录 <span class="live-tag">实时</span></button>
         <button class="content-tab" id="summary-tab" data-tab="summary" type="button" role="tab" aria-selected="false">实时摘要</button>
+        <button class="content-tab" id="summary-chat-tab" data-tab="summary-chat" type="button" role="tab" aria-selected="false"><span aria-hidden="true">✦</span> 完善纪要</button>
       </nav>
 
       <div class="content-scroll" id="content-scroll">
@@ -644,6 +687,55 @@
             <span class="extension-chip">风险与问题</span>
             <span class="extension-chip">润色校对</span>
             <span class="extension-chip">自定义工作流</span>
+          </div>
+        </section>
+
+        <section class="tab-panel" id="summary-chat-panel" data-panel="summary-chat" role="tabpanel">
+          <div class="summary-copilot">
+            <section class="summary-canvas-card" aria-label="纪要画布">
+              <header class="summary-canvas-header">
+                <div class="summary-canvas-heading">
+                  <span aria-hidden="true">▤</span>
+                  <div><strong>纪要画布</strong><small>编辑会同步回实时摘要</small></div>
+                </div>
+                <div class="summary-canvas-actions">
+                  <button id="undo-summary-revision" type="button" disabled>撤销本次</button>
+                  <button id="copy-summary-canvas" type="button">复制</button>
+                </div>
+              </header>
+              <textarea class="summary-canvas" id="summary-canvas" aria-label="可编辑会议纪要">核心结论
+• 页面重点呈现实时时间轴、说话人和识别状态。
+• 浏览器只连接自己的后端，不接触供应商密钥。
+• 实时转写完成后，可继续生成摘要、行动项和后续工作流。
+
+下一步
+• 接入真实会议内容后，摘要会随转写结果持续更新。</textarea>
+              <footer class="summary-canvas-footer">
+                <span id="summary-canvas-state">示例纪要 · 修改后自动保存</span>
+                <strong id="summary-canvas-count">0 字</strong>
+              </footer>
+            </section>
+
+            <section class="summary-chat-card" aria-label="纪要修改对话">
+              <header class="summary-chat-header">
+                <div class="summary-chat-heading">
+                  <span aria-hidden="true">✦</span>
+                  <div><strong>和纪要一起工作</strong><small>说清目标，不必重写全文</small></div>
+                </div>
+                <span class="summary-chat-status" id="summary-chat-status">等待指令</span>
+              </header>
+              <div class="summary-chat-messages" id="summary-chat-messages" aria-live="polite"></div>
+              <div class="summary-prompts" aria-label="常用修改要求">
+                <button class="summary-prompt" type="button" data-summary-prompt="压缩成三点，保留关键数字和结论。">压缩成三点</button>
+                <button class="summary-prompt" type="button" data-summary-prompt="把所有行动项整理成负责人、事项和时间要求清晰的清单；没有明确负责人或时间时标注待确认。">整理行动项</button>
+                <button class="summary-prompt" type="button" data-summary-prompt="改成适合发送给参会人的正式会议纪要，语气简洁客观。">正式纪要</button>
+                <button class="summary-prompt" type="button" data-summary-prompt="只根据转写检查当前纪要是否遗漏重要决定，补充遗漏并说明改了哪里。">检查遗漏</button>
+              </div>
+              <form class="summary-chat-composer" id="summary-chat-form">
+                <textarea id="summary-chat-input" rows="1" maxlength="2000" placeholder="例如：把行动项放到最前面，语气更简洁…" aria-label="输入纪要修改要求"></textarea>
+                <button class="summary-chat-send" id="summary-chat-send" type="submit" aria-label="发送修改要求">↑</button>
+              </form>
+            </section>
           </div>
         </section>
       </div>
@@ -894,6 +986,12 @@
     let summaryIsDemo = true;
     let summaryRunning = false;
     let hasGeneratedSummary = false;
+    let summaryCustomized = false;
+    let summaryChatMessages = [];
+    let summaryRevisionRunning = false;
+    let summaryRevisionAbortController = null;
+    let summaryRevisionOriginal = '';
+    let summaryUndoStack = [];
     let lastSummaryAt = 0;
     let toastTimer = null;
     let finishFallbackTimer = null;
@@ -1714,17 +1812,66 @@
       summaryAbortController = null;
       summaryRunning = false;
       $('generate-summary').disabled = false;
+      if (summaryRevisionAbortController) summaryRevisionAbortController.abort();
+      if (summaryRevisionRunning && summaryRevisionOriginal) syncSummaryContent(summaryRevisionOriginal);
+      summaryRevisionAbortController = null;
+      summaryRevisionRunning = false;
+      summaryRevisionOriginal = '';
+      $('summary-canvas').classList.remove('streaming');
+      $('summary-canvas').readOnly = false;
+      $('summary-chat-send').disabled = false;
+      $('summary-chat-status').textContent = '等待指令';
+    }
+
+    function summaryContent() {
+      return hasGeneratedSummary ? $('summary-canvas').value.trim() : '';
+    }
+
+    function updateSummaryCanvasMeta(label = '') {
+      const content = $('summary-canvas').value;
+      $('summary-canvas-count').textContent = `${content.replace(/\s/g, '').length} 字`;
+      if (label) $('summary-canvas-state').textContent = label;
+      $('undo-summary-revision').disabled = summaryRevisionRunning || !summaryUndoStack.length;
+    }
+
+    function syncSummaryContent(content, { canvasState = '' } = {}) {
+      const normalized = String(content || '');
+      $('summary-output').textContent = normalized;
+      if ($('summary-canvas').value !== normalized) $('summary-canvas').value = normalized;
+      updateSummaryCanvasMeta(canvasState);
+    }
+
+    function renderSummaryChat() {
+      const container = $('summary-chat-messages');
+      if (!summaryChatMessages.length) {
+        container.innerHTML = '<div class="summary-chat-empty"><strong>这份纪要可以继续打磨</strong><span>描述你想给谁看、希望突出什么，或者直接使用下面的快捷要求。模型会修改左侧画布，并在这里说明变化。</span></div>';
+        return;
+      }
+      container.innerHTML = summaryChatMessages.map((message, index) => `
+        <div class="summary-chat-message ${message.role}${message.streaming ? ' streaming' : ''}" data-summary-message="${index}">${escapeHtml(message.text || (message.streaming ? '正在修改纪要…' : ''))}</div>
+      `).join('');
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function resetSummaryCollaboration() {
+      summaryCustomized = false;
+      summaryChatMessages = [];
+      summaryUndoStack = [];
+      summaryRevisionOriginal = '';
+      renderSummaryChat();
+      updateSummaryCanvasMeta('等待生成摘要');
     }
 
     function clearSummaryContent() {
       summaryIsDemo = false;
       hasGeneratedSummary = false;
+      resetSummaryCollaboration();
       lastSummaryAt = 0;
       $('summary-state').textContent = '等待实时内容';
       $('summary-title').textContent = '录音开始后，摘要会根据最终转写片段持续更新。';
       $('summary-description').textContent = '完成转写后，将在这里生成摘要、行动项和未决问题。';
       $('summary-output').className = 'summary-output';
-      $('summary-output').textContent = '当前还没有可用于摘要的最终转写内容。';
+      syncSummaryContent('当前还没有可用于摘要的最终转写内容。', { canvasState: '等待生成摘要' });
     }
 
     function conversationMetaFromRecord(record) {
@@ -2001,7 +2148,9 @@
         duration_seconds: elapsedSeconds,
         transcript_segments: visibleTranscriptSegments().filter((segment) => !segment.demo).map((segment) => ({ speaker: segment.speaker, time: segment.time, text: segment.text })),
         summary_title: hasGeneratedSummary ? $('summary-title').textContent : '',
-        summary_content: hasGeneratedSummary ? $('summary-output').textContent : '',
+        summary_content: summaryContent(),
+        summary_customized: summaryCustomized,
+        summary_chat_messages: summaryChatMessages.filter((message) => !message.streaming && message.text.trim()).map(({ role, text }) => ({ role, text })),
       };
       meetingSaveChain = meetingSaveChain.catch(() => {}).then(async () => {
         try {
@@ -2051,13 +2200,17 @@
         $('created-at').textContent = new Intl.DateTimeFormat('zh-CN', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(meeting.created_at));
         summaryIsDemo = false;
         hasGeneratedSummary = Boolean(meeting.summary_content);
+        summaryCustomized = Boolean(meeting.summary_customized);
+        summaryChatMessages = Array.isArray(meeting.summary_chat_messages) ? meeting.summary_chat_messages.map(({ role, text }) => ({ role, text })) : [];
+        summaryUndoStack = [];
+        renderSummaryChat();
         lastSummaryAt = hasGeneratedSummary ? Date.now() : 0;
         if (hasGeneratedSummary) {
           $('summary-state').textContent = '已保存摘要';
           $('summary-title').textContent = meeting.summary_title || '会议摘要';
           $('summary-output').className = 'summary-output';
-          $('summary-output').textContent = meeting.summary_content;
-          $('summary-description').textContent = '摘要与行动项已根据这条会议记录生成。';
+          syncSummaryContent(meeting.summary_content, { canvasState: summaryCustomized ? '已保存 · 用户定制版本' : '已保存 · 自动摘要' });
+          $('summary-description').textContent = summaryCustomized ? '这份纪要已通过手工或对话修改，继续录音不会自动覆盖。' : '摘要与行动项已根据这条会议记录生成。';
         } else {
           clearSummaryContent();
         }
@@ -2361,13 +2514,15 @@
 
     function setActiveTab(tab) {
       activeTab = tab;
+      document.body.classList.toggle('summary-chat-active', tab === 'summary-chat');
       document.querySelectorAll('.content-tab').forEach((button) => {
         const selected = button.dataset.tab === tab;
         button.classList.toggle('active', selected);
         button.setAttribute('aria-selected', selected ? 'true' : 'false');
       });
       document.querySelectorAll('.tab-panel').forEach((panel) => panel.classList.toggle('active', panel.dataset.panel === tab));
-      if (tab === 'summary' && !summaryIsDemo && transcriptText() && !summaryRunning && !lastSummaryAt) generateSummary();
+      if (['summary', 'summary-chat'].includes(tab) && !summaryIsDemo && transcriptText() && !summaryRunning && !lastSummaryAt) generateSummary();
+      if (tab === 'summary-chat') renderSummaryChat();
     }
 
     function updateRecorderUi(nextState, message) {
@@ -2771,22 +2926,26 @@
       updateRecorderUi('ended', message || '录音与最后一段识别已完成');
       maybeGenerateMeetingTitle({ force: true });
       saveActiveMeeting();
-      if (transcriptText()) generateSummary();
+      if (transcriptText() && (!summaryCustomized || !hasGeneratedSummary)) generateSummary();
     }
 
-    async function generateSummary() {
+    async function generateSummary({ explicit = false } = {}) {
       const text = transcriptText();
       if (!text) { showToast('还没有可用于摘要的真实转写内容'); return; }
       if (summaryRunning) return;
+      if (summaryCustomized && !explicit) return;
       const requestEpoch = contentEpoch;
       const controller = new AbortController();
+      const previousSummary = summaryContent();
+      const previouslyGenerated = hasGeneratedSummary;
       if (summaryAbortController) summaryAbortController.abort();
       summaryAbortController = controller;
       summaryRunning = true;
       summaryIsDemo = false;
       $('summary-state').textContent = '正在更新摘要…';
       $('summary-output').className = 'summary-output loading';
-      $('summary-output').textContent = '正在从最终转写片段提炼摘要、行动项和未决问题…';
+      if (!previouslyGenerated) syncSummaryContent('正在从最终转写片段提炼摘要、行动项和未决问题…', { canvasState: '正在生成自动摘要…' });
+      else updateSummaryCanvasMeta('正在重新生成摘要…');
       $('generate-summary').disabled = true;
       try {
         const response = await fetch('/api/meeting-notes/polish', {
@@ -2799,17 +2958,23 @@
         if (!response.ok) throw new Error(payload.detail && payload.detail.message ? payload.detail.message : '摘要服务暂不可用');
         if (requestEpoch !== contentEpoch || summaryAbortController !== controller) return;
         $('summary-output').className = 'summary-output';
-        $('summary-output').textContent = payload.content || '摘要服务未返回内容。';
+        if (explicit && previousSummary) {
+          summaryUndoStack.push(previousSummary);
+          if (summaryUndoStack.length > 10) summaryUndoStack.shift();
+        }
+        syncSummaryContent(payload.content || '摘要服务未返回内容。', { canvasState: '刚刚生成 · 自动摘要' });
         $('summary-title').textContent = '摘要已根据当前最终转写片段更新。';
         $('summary-description').textContent = '摘要与行动项已根据当前会议文字生成。';
         $('summary-state').textContent = '刚刚更新';
         hasGeneratedSummary = true;
+        summaryCustomized = false;
         lastSummaryAt = Date.now();
         scheduleMeetingSave(0);
       } catch (error) {
         if (error.name === 'AbortError' || requestEpoch !== contentEpoch) return;
         $('summary-output').className = 'summary-output error';
-        $('summary-output').textContent = `摘要生成失败：${error.message || String(error)}`;
+        if (previouslyGenerated) syncSummaryContent(previousSummary, { canvasState: '生成失败 · 已保留原纪要' });
+        else syncSummaryContent(`摘要生成失败：${error.message || String(error)}`, { canvasState: '生成失败' });
         $('summary-state').textContent = '更新失败';
       } finally {
         if (summaryAbortController === controller) {
@@ -2820,8 +2985,147 @@
       }
     }
 
+    function parseSummaryRevisionOutput(output) {
+      const canvasMarker = '[[[CANVAS]]]';
+      const replyMarker = '[[[REPLY]]]';
+      const canvasStart = output.indexOf(canvasMarker);
+      if (canvasStart < 0) return { canvas: '', reply: '', started: false, complete: false };
+      const body = output.slice(canvasStart + canvasMarker.length).replace(/^\s+/, '');
+      const replyStart = body.indexOf(replyMarker);
+      if (replyStart >= 0) {
+        return {
+          canvas: body.slice(0, replyStart).trim(),
+          reply: body.slice(replyStart + replyMarker.length).trim(),
+          started: true,
+          complete: true,
+        };
+      }
+      let canvas = body;
+      for (let length = replyMarker.length - 1; length > 0; length -= 1) {
+        if (canvas.endsWith(replyMarker.slice(0, length))) {
+          canvas = canvas.slice(0, -length);
+          break;
+        }
+      }
+      return { canvas: canvas.replace(/\s+$/, ''), reply: '', started: true, complete: false };
+    }
+
+    async function reviseSummaryWithChat(instruction) {
+      const normalizedInstruction = String(instruction || '').trim();
+      if (!normalizedInstruction || summaryRevisionRunning) return;
+      const transcript = transcriptText();
+      if (!transcript) { showToast('先录入一些会议文字，再完善纪要'); return; }
+      if (!summaryContent()) {
+        await generateSummary();
+        if (!summaryContent()) { showToast('需要先生成一份可修改的摘要'); return; }
+      }
+
+      const requestEpoch = contentEpoch;
+      const controller = new AbortController();
+      const originalSummary = summaryContent();
+      const historyForRequest = summaryChatMessages.filter((message) => !message.streaming).slice(-12).map(({ role, text }) => ({ role, text }));
+      summaryRevisionAbortController = controller;
+      summaryRevisionRunning = true;
+      summaryRevisionOriginal = originalSummary;
+      summaryChatMessages.push({ role: 'user', text: normalizedInstruction });
+      const assistantIndex = summaryChatMessages.push({ role: 'assistant', text: '正在修改纪要…', streaming: true }) - 1;
+      renderSummaryChat();
+      $('summary-chat-input').value = '';
+      $('summary-chat-send').disabled = true;
+      $('summary-chat-status').textContent = '正在修改画布';
+      $('summary-canvas').classList.add('streaming');
+      $('summary-canvas').readOnly = true;
+      updateSummaryCanvasMeta('AI 正在写入画布…');
+
+      let modelOutput = '';
+      let streamError = '';
+      try {
+        const response = await fetch('/api/meeting-notes/revise/stream', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({
+            transcript,
+            current_summary: originalSummary,
+            instruction: normalizedInstruction,
+            messages: historyForRequest,
+          }),
+        });
+        if (!response.ok || !response.body) throw new Error(await responseError(response, '纪要修改服务暂不可用'));
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let pending = '';
+        let streamDone = false;
+        while (!streamDone) {
+          const chunk = await reader.read();
+          pending += decoder.decode(chunk.value || new Uint8Array(), { stream: !chunk.done });
+          const blocks = pending.split(/\r?\n\r?\n/);
+          pending = blocks.pop() || '';
+          for (const block of blocks) {
+            let eventName = 'message';
+            const dataLines = [];
+            block.split(/\r?\n/).forEach((line) => {
+              if (line.startsWith('event:')) eventName = line.slice(6).trim();
+              if (line.startsWith('data:')) dataLines.push(line.slice(5).trim());
+            });
+            if (!dataLines.length) continue;
+            let eventPayload = {};
+            try { eventPayload = JSON.parse(dataLines.join('\n')); } catch (_) { continue; }
+            if (eventName === 'error') throw new Error(eventPayload.message || '纪要修改失败');
+            if (eventName === 'delta') {
+              modelOutput += eventPayload.text || '';
+              const parsed = parseSummaryRevisionOutput(modelOutput);
+              if (parsed.canvas) syncSummaryContent(parsed.canvas, { canvasState: 'AI 正在写入画布…' });
+              if (parsed.complete) {
+                summaryChatMessages[assistantIndex].text = parsed.reply || '纪要已更新。';
+                renderSummaryChat();
+              }
+            }
+            if (eventName === 'done') streamDone = true;
+          }
+          if (chunk.done) streamDone = true;
+        }
+
+        const finalResult = parseSummaryRevisionOutput(modelOutput);
+        if (!finalResult.complete || !finalResult.canvas) throw new Error('模型没有返回完整的纪要画布');
+        if (requestEpoch !== contentEpoch || summaryRevisionAbortController !== controller) return;
+        summaryUndoStack.push(originalSummary);
+        if (summaryUndoStack.length > 10) summaryUndoStack.shift();
+        syncSummaryContent(finalResult.canvas, { canvasState: '刚刚保存 · 用户定制版本' });
+        summaryCustomized = true;
+        hasGeneratedSummary = true;
+        summaryIsDemo = false;
+        lastSummaryAt = Date.now();
+        $('summary-output').className = 'summary-output';
+        $('summary-state').textContent = '已通过对话更新';
+        $('summary-title').textContent = '纪要已根据你的要求完善。';
+        $('summary-description').textContent = '当前为用户定制版本，继续录音不会自动覆盖；仍可手工编辑或继续对话。';
+        summaryChatMessages[assistantIndex] = { role: 'assistant', text: finalResult.reply || '已经按你的要求更新纪要画布。' };
+        renderSummaryChat();
+        ensureActiveMeeting();
+        scheduleMeetingSave(0);
+      } catch (error) {
+        if (error.name === 'AbortError' || requestEpoch !== contentEpoch) return;
+        streamError = error.message || String(error);
+        syncSummaryContent(originalSummary, { canvasState: '修改失败 · 已保留原纪要' });
+        summaryChatMessages[assistantIndex] = { role: 'assistant', text: `这次没有改动纪要：${streamError}` };
+        renderSummaryChat();
+      } finally {
+        if (summaryRevisionAbortController === controller) {
+          summaryRevisionAbortController = null;
+          summaryRevisionRunning = false;
+          summaryRevisionOriginal = '';
+          $('summary-canvas').classList.remove('streaming');
+          $('summary-canvas').readOnly = false;
+          $('summary-chat-send').disabled = false;
+          $('summary-chat-status').textContent = streamError ? '修改失败，可重试' : '画布已同步';
+          updateSummaryCanvasMeta();
+        }
+      }
+    }
+
     function maybeRefreshSummary() {
-      if (activeTab !== 'summary' || summaryRunning) return;
+      if (!['summary', 'summary-chat'].includes(activeTab) || summaryRunning || summaryCustomized) return;
       if (Date.now() - lastSummaryAt < 15000) return;
       generateSummary();
     }
@@ -2950,11 +3254,55 @@
       const option = $('asr-channel').options[$('asr-channel').selectedIndex];
       $('channel-label').textContent = option ? option.textContent.replace(/（.*?）/g, '').trim() : '自动选择识别服务';
     });
-    $('generate-summary').addEventListener('click', generateSummary);
+    $('generate-summary').addEventListener('click', () => generateSummary({ explicit: true }));
     $('copy-summary').addEventListener('click', async () => {
-      await navigator.clipboard.writeText($('summary-output').textContent || '');
+      await navigator.clipboard.writeText(summaryContent());
       showToast('摘要已复制');
     });
+    $('copy-summary-canvas').addEventListener('click', async () => {
+      await navigator.clipboard.writeText(summaryContent());
+      showToast('纪要画布已复制');
+    });
+    $('summary-canvas').addEventListener('input', () => {
+      if (summaryRevisionRunning) return;
+      const content = $('summary-canvas').value;
+      $('summary-output').textContent = content;
+      hasGeneratedSummary = Boolean(content.trim());
+      summaryCustomized = hasGeneratedSummary;
+      summaryIsDemo = false;
+      lastSummaryAt = Date.now();
+      $('summary-output').className = 'summary-output';
+      $('summary-state').textContent = '手工编辑中';
+      $('summary-title').textContent = '纪要正在手工完善。';
+      $('summary-description').textContent = '当前为用户定制版本，继续录音不会自动覆盖。';
+      updateSummaryCanvasMeta('正在编辑 · 自动保存');
+      ensureActiveMeeting();
+      scheduleMeetingSave();
+    });
+    $('undo-summary-revision').addEventListener('click', () => {
+      if (!summaryUndoStack.length || summaryRevisionRunning) return;
+      const previous = summaryUndoStack.pop();
+      syncSummaryContent(previous, { canvasState: '已撤销 · 自动保存' });
+      hasGeneratedSummary = Boolean(previous.trim());
+      summaryCustomized = true;
+      $('summary-state').textContent = '已撤销上次改写';
+      scheduleMeetingSave(0);
+      showToast('已恢复改写前的纪要');
+    });
+    $('summary-chat-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      reviseSummaryWithChat($('summary-chat-input').value);
+    });
+    $('summary-chat-input').addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        $('summary-chat-form').requestSubmit();
+      }
+    });
+    document.querySelectorAll('[data-summary-prompt]').forEach((button) => button.addEventListener('click', () => {
+      $('summary-chat-input').value = button.dataset.summaryPrompt;
+      reviseSummaryWithChat(button.dataset.summaryPrompt);
+    }));
     $('copy-transcript').addEventListener('click', async () => {
       const text = visibleTranscriptSegments().map((segment) => `${segment.time} ${segment.speaker}\n${segment.text}`).join('\n\n');
       await navigator.clipboard.writeText(text);
@@ -2975,7 +3323,8 @@
     window.__demoInjectSummary = (text = '一句话摘要：这是会议录音页面的前端合同测试。') => {
       summaryIsDemo = false;
       hasGeneratedSummary = true;
-      $('summary-output').textContent = text;
+      summaryCustomized = false;
+      syncSummaryContent(text, { canvasState: '测试更新 · 自动摘要' });
       $('summary-state').textContent = '测试更新';
       return $('summary-output').textContent;
     };
@@ -2998,11 +3347,16 @@
       rewrite: rewriteSegments.map((segment) => segment.text),
       live: liveTranscriptText,
       summary: $('summary-output').textContent,
+      summaryCanvas: $('summary-canvas').value,
+      summaryCustomized,
+      summaryChatMessages: summaryChatMessages.map(({ role, text }) => ({ role, text })),
     });
     window.__demoStudioState = () => ({ activeProductView, voice: selectedVoiceId(), format: selectedTtsFormat, cloningConfigured: voiceCloningConfigured, audioReady: Boolean(ttsAudioUrl) });
     window.__demoConversationState = () => ({ activeProductView, realtimeState, model: $('conversation-model').value, voice: $('conversation-voice').value, activeConversationId, messages: realtimeMessages.map(({ role, text, final }) => ({ role, text, final })) });
 
     updateTtsCount();
+    syncSummaryContent($('summary-output').textContent, { canvasState: '示例纪要 · 修改后自动保存' });
+    renderSummaryChat();
     setRealtimeState('idle');
     renderTranscript();
     refreshStatus();
