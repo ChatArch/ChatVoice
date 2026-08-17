@@ -1,6 +1,10 @@
-# Qwen Token Plan Audio Demo
+# Speakr Voice Workspace
 
-A lightweight FastAPI + browser meeting recorder with realtime transcription, local audio capture, and AI meeting notes. The existing Qwen Token Plan audio and GPU-first ASR APIs remain available behind the product UI.
+A FastAPI + browser voice workspace with realtime meeting transcription, local audio capture, AI notes, TTS, and full-duplex voice conversation. The repository name retains its early Qwen Audio Demo history; the deployed product uses Speakr as its canonical domain.
+
+Public site: [https://speakr.public.wzhecnu.cn/](https://speakr.public.wzhecnu.cn/)
+
+The former `qwen-audio-demo.public.wzhecnu.cn` entry is retired and returns HTTP 410.
 
 ## Features
 

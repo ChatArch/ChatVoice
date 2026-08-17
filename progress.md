@@ -93,3 +93,9 @@
 - 公共 `POST /api/auth/register` 固定返回 403，避免绕过前端直接注册
 - 新增 `scripts/manage_accounts.py`，管理员只能在服务器命令行通过隐藏密码交互创建账号或查看非敏感账号元数据
 - 存储合同改为先由内部建号函数创建测试账号，再验证登录、Cookie、CSRF 和账号数据隔离
+
+## 2026-08-17 Speakr 正式域名
+
+- 正式入口统一为 `https://speakr.public.wzhecnu.cn/`
+- 旧 `qwen-audio-demo.public.wzhecnu.cn` 不再代理应用，固定返回 HTTP 410
+- 使用 Speakr 公网域名完成 Qwen TTS → WSS → GPU SenseVoiceSmall → Qwen 摘要真实回归，最终转写相似度为 `1.0`
