@@ -23,11 +23,19 @@ with tempfile.TemporaryDirectory() as directory:
     checks["anonymous_conversations_are_blocked"] = anonymous.get("/api/conversations").status_code == 401
 
     client = TestClient(main.app)
-    register = client.post("/api/auth/register", json={"account": "contract@example.com", "password": "correct-horse-123"})
-    register_payload = register.json()
-    csrf_token = register_payload.get("csrf_token", "")
-    checks["account_can_register"] = register.status_code == 200 and bool(csrf_token) and "meeting_session" in client.cookies
-    checks["password_is_not_returned"] = "password" not in json.dumps(register_payload).lower()
+    register = client.post("/api/auth/register", json={"account": "blocked@example.com", "password": "correct-horse-123"})
+    checks["public_registration_is_disabled"] = register.status_code == 403
+    created = main.provision_managed_account("contract@example.com", "correct-horse-123", "Contract")
+    login = client.post("/api/auth/login", json={"account": "contract@example.com", "password": "correct-horse-123"})
+    login_payload = login.json()
+    csrf_token = login_payload.get("csrf_token", "")
+    checks["managed_account_can_login"] = created["account"] == "contract@example.com" and login.status_code == 200 and bool(csrf_token) and "meeting_session" in client.cookies
+    checks["password_is_not_returned"] = "password" not in json.dumps(login_payload).lower()
+    try:
+        main.provision_managed_account("contract@example.com", "another-password")
+        checks["duplicate_managed_account_is_rejected"] = False
+    except ValueError:
+        checks["duplicate_managed_account_is_rejected"] = True
 
     session = client.get("/api/auth/session")
     checks["cookie_session_is_restored"] = session.status_code == 200 and session.json().get("authenticated") is True
@@ -84,9 +92,10 @@ with tempfile.TemporaryDirectory() as directory:
     )
 
     other = TestClient(main.app)
-    other_register = other.post("/api/auth/register", json={"account": "other@example.com", "password": "correct-horse-456"})
-    checks["accounts_are_isolated"] = other_register.status_code == 200 and other.get("/api/meetings").json().get("meetings") == []
-    checks["conversations_are_isolated"] = other_register.status_code == 200 and other.get("/api/conversations").json().get("conversations") == []
+    main.provision_managed_account("other@example.com", "correct-horse-456", "Other")
+    other_login = other.post("/api/auth/login", json={"account": "other@example.com", "password": "correct-horse-456"})
+    checks["accounts_are_isolated"] = other_login.status_code == 200 and other.get("/api/meetings").json().get("meetings") == []
+    checks["conversations_are_isolated"] = other_login.status_code == 200 and other.get("/api/conversations").json().get("conversations") == []
 
     deleted = client.delete(f"/api/meetings/{meeting_id}", headers={"X-CSRF-Token": csrf_token})
     checks["record_can_be_deleted"] = deleted.status_code == 200 and client.get("/api/meetings").json().get("meetings") == []

@@ -417,9 +417,7 @@
     .privacy-note { margin: 16px 2px 0; color: #a0a2a7; font-size: 8px; line-height: 1.6; }
     .auth-view { max-width: 410px; margin: 0 auto; }
     .auth-back { margin: 0 0 20px; padding: 0; border: 0; background: transparent; color: #777980; font-size: 10px; }
-    .auth-tabs { display: flex; gap: 4px; margin: 20px 0 16px; padding: 4px; border-radius: 11px; background: #f1f1f3; }
-    .auth-tab { flex: 1; height: 35px; border: 0; border-radius: 8px; background: transparent; color: #777980; font-size: 10px; }
-    .auth-tab.active { background: #fff; color: var(--ink); box-shadow: 0 2px 8px rgba(20,24,38,.07); font-weight: 680; }
+    .managed-account-note { margin: 18px 0 14px; padding: 11px 12px; border: 1px solid #e2e2f3; border-radius: 11px; background: #f7f7ff; color: #686a7c; font-size: 9px; line-height: 1.6; }
     .auth-form label { display: block; margin: 13px 0 7px; color: #5f6168; font-size: 9px; font-weight: 650; }
     .auth-form input { width: 100%; height: 44px; padding: 0 13px; border: 1px solid #dfdfe2; border-radius: 11px; outline: 0; }
     .auth-form input:focus { border-color: var(--violet); box-shadow: 0 0 0 3px rgba(105,106,232,.09); }
@@ -830,12 +828,9 @@
       </div>
       <div class="auth-view" id="auth-view" hidden>
         <button class="auth-back" id="auth-back" type="button">← 返回使用方式</button>
-        <h2>账号同步</h2>
-        <p class="access-intro">首版支持用户名或邮箱登录；密码仅以加盐哈希保存。</p>
-        <div class="auth-tabs" role="tablist">
-          <button class="auth-tab active" type="button" data-auth-mode="login">登录</button>
-          <button class="auth-tab" type="button" data-auth-mode="register">创建账号</button>
-        </div>
+        <h2>账号登录</h2>
+        <p class="access-intro">登录后，会议记录会安全同步到服务器。</p>
+        <p class="managed-account-note">仅限受邀账号使用。本站不开放自行注册，如需账号请联系管理员创建。</p>
         <form class="auth-form" id="auth-form">
           <label for="auth-account">用户名或邮箱</label>
           <input id="auth-account" name="account" autocomplete="username" minlength="3" maxlength="80" required placeholder="name@example.com" />
@@ -913,7 +908,6 @@
     let storageMode = null;
     let authUser = null;
     let csrfToken = '';
-    let authMode = 'login';
     let guestDbPromise = null;
     let audioDbPromise = null;
     let activeProductView = 'meeting';
@@ -2131,18 +2125,10 @@
       updateRecordingLimitUi();
     }
 
-    function setAuthMode(mode) {
-      authMode = mode === 'register' ? 'register' : 'login';
-      document.querySelectorAll('.auth-tab').forEach((button) => button.classList.toggle('active', button.dataset.authMode === authMode));
-      $('auth-submit').textContent = authMode === 'register' ? '创建账号并同步' : '登录并同步';
-      $('auth-password').autocomplete = authMode === 'register' ? 'new-password' : 'current-password';
-      $('auth-message').textContent = '';
-    }
-
     function showEntryDialog(view = 'mode') {
       $('mode-view').hidden = view === 'auth';
       $('auth-view').hidden = view !== 'auth';
-      if (view === 'auth') setAuthMode('login');
+      $('auth-message').textContent = '';
       if (!$('entry-dialog').open) $('entry-dialog').showModal();
       if (view === 'auth') setTimeout(() => $('auth-account').focus(), 0);
     }
@@ -2184,7 +2170,7 @@
       $('auth-submit').disabled = true;
       $('auth-message').textContent = '';
       try {
-        const response = await fetch(`/api/auth/${authMode}`, {
+        const response = await fetch('/api/auth/login', {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ account, password }),
         });
         const payload = await response.json();
@@ -2950,7 +2936,6 @@
     $('enter-guest').addEventListener('click', () => activateStorageMode('guest'));
     $('show-login').addEventListener('click', () => showEntryDialog('auth'));
     $('auth-back').addEventListener('click', () => showEntryDialog('mode'));
-    document.querySelectorAll('.auth-tab').forEach((button) => button.addEventListener('click', () => setAuthMode(button.dataset.authMode)));
     $('auth-form').addEventListener('submit', submitAuth);
     $('entry-dialog').addEventListener('cancel', (event) => event.preventDefault());
     $('record-toggle').addEventListener('click', () => {

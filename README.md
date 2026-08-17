@@ -14,7 +14,7 @@ A lightweight FastAPI + browser meeting recorder with realtime transcription, lo
 - **Realtime ASR WebSocket**: `WS /ws/asr/stream` accepts continuous PCM16 microphone frames and returns cumulative revision events. Long recordings transparently roll a bounded context window while confirmed text continues to grow.
 - **会议纪要**: final transcript segments can be sent to a server-side Qwen-compatible model for summary, action items, risks, and open questions.
 - **双模式会议历史**: guests keep meeting text and summaries only in browser IndexedDB; signed-in accounts sync records through authenticated server storage.
-- **账号登录**: first-party username/email registration and login with salted PBKDF2 password hashes, HttpOnly session cookies, and CSRF-protected record writes.
+- **受邀账号登录**: public registration is disabled. Accounts are provisioned from the server CLI; passwords use salted PBKDF2 hashes, sessions use HttpOnly cookies, and record writes require CSRF tokens.
 - **Focused product UI**: 一级工作区为 `会议记录 / 声音工作室 / 实时对话`；会议内部保留 `文字记录 / 实时摘要` 两个内容标签。
 
 ## Security model
@@ -93,7 +93,8 @@ Model cache is written to `playground/model-cache/`, which is ignored by Git.
 - `GET /api/realtime/models`: Realtime models currently exposed by the configured account; the browser selector is populated from this list.
 - `WS /ws/realtime?model=<id>`: browser-to-backend Realtime proxy; upstream events are normalized into `demo_event=transcript.delta` for the Realtime board.
 - `POST /api/meeting-notes/polish`: Qwen-compatible chat completion endpoint for transcript polish + realtime summary structure.
-- `POST /api/auth/register`, `POST /api/auth/login`, `GET /api/auth/session`, `POST /api/auth/logout`: account/session lifecycle.
+- `POST /api/auth/register`: intentionally returns `403`; self-registration is disabled.
+- `POST /api/auth/login`, `GET /api/auth/session`, `POST /api/auth/logout`: invited-account session lifecycle.
 - `GET|PUT|DELETE /api/meetings[/<id>]`: authenticated meeting record storage. Writes require the session CSRF token.
 - `GET|PUT|DELETE /api/conversations[/<id>]`: authenticated text-only Realtime conversation storage. Writes require the session CSRF token.
 
@@ -111,6 +112,17 @@ Model cache is written to `playground/model-cache/`, which is ignored by Git.
 - reaching a segment limit finalizes the last window and returns a normal `done` event instead of failing the recording;
 - each receive cycle processes at most two ASR chunks and reports backpressure if more decoded audio is queued;
 - per-chunk temporary WAV/upload files under `playground/asr-temp/` are cleaned after each ASR attempt.
+
+### Manage invited accounts
+
+Run this only from the server shell. The password is prompted twice and is never passed as a command-line argument:
+
+```bash
+python3 scripts/manage_accounts.py add person@example.com --display-name "Person"
+python3 scripts/manage_accounts.py list
+```
+
+The command uses `MEETING_DB_PATH` when set, otherwise the same default `playground/meetings.sqlite3` database as the service.
 
 ## Verification
 

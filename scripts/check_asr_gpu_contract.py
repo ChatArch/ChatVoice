@@ -189,12 +189,17 @@ with client.websocket_connect("/ws/asr/stream") as ws:
     guest_ready = ws.receive_json()
 checks["guest_stream_limit_is_ten_minutes"] = guest_ready.get("max_connection_seconds") == 10 * 60 and guest_ready.get("stream_mode") == "guest"
 
-account_client = TestClient(main.app)
-account_name = f"stream-contract-{os.getpid()}@example.com"
-registered = account_client.post("/api/auth/register", json={"account": account_name, "password": "ContractPass123!"})
-with account_client.websocket_connect("/ws/asr/stream") as ws:
-    account_ready = ws.receive_json()
-checks["account_stream_limit_is_two_hours"] = registered.status_code == 200 and account_ready.get("max_connection_seconds") == 2 * 60 * 60 and account_ready.get("stream_mode") == "account"
+original_meeting_db_path = main.MEETING_DB_PATH
+with tempfile.TemporaryDirectory() as account_directory:
+    main.MEETING_DB_PATH = Path(account_directory) / "meetings.sqlite3"
+    account_client = TestClient(main.app)
+    account_name = f"stream-contract-{os.getpid()}@example.com"
+    main.provision_managed_account(account_name, "ContractPass123!")
+    logged_in = account_client.post("/api/auth/login", json={"account": account_name, "password": "ContractPass123!"})
+    with account_client.websocket_connect("/ws/asr/stream") as ws:
+        account_ready = ws.receive_json()
+    checks["account_stream_limit_is_two_hours"] = logged_in.status_code == 200 and account_ready.get("max_connection_seconds") == 2 * 60 * 60 and account_ready.get("stream_mode") == "account"
+main.MEETING_DB_PATH = original_meeting_db_path
 
 client = TestClient(main.app)
 with client.websocket_connect("/ws/asr/stream") as ws:

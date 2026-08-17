@@ -363,6 +363,28 @@ def _password_hash(password: str, salt: bytes) -> bytes:
     return hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, PASSWORD_ITERATIONS)
 
 
+def provision_managed_account(account: str, password: str, display_name: str | None = None) -> dict[str, str]:
+    """Create an invited account from trusted server-side tooling; never exposed as an HTTP route."""
+    normalized = _normalized_account(account)
+    if not 8 <= len(password) <= 128:
+        raise ValueError("password must be 8–128 characters")
+    name = (display_name or normalized.split("@", 1)[0]).strip()
+    if not 1 <= len(name) <= 40:
+        raise ValueError("display name must be 1–40 characters")
+    salt = secrets.token_bytes(16)
+    user_id = "usr_" + secrets.token_urlsafe(18)
+    with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
+        try:
+            connection.execute(
+                "INSERT INTO accounts (id, account, display_name, password_salt, password_hash, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (user_id, normalized, name, salt, _password_hash(password, salt), _iso_utc()),
+            )
+        except sqlite3.IntegrityError as exc:
+            raise ValueError("account already exists") from exc
+        connection.commit()
+    return {"id": user_id, "account": normalized, "display_name": name}
+
+
 def _meeting_db() -> sqlite3.Connection:
     MEETING_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(MEETING_DB_PATH, timeout=10)
@@ -496,24 +518,8 @@ def _set_auth_cookie(response: JSONResponse, request: Request, token: str) -> No
 
 
 @app.post("/api/auth/register")
-def register(credentials: AccountCredentials, request: Request) -> JSONResponse:
-    account = _normalized_account(credentials.account)
-    salt = secrets.token_bytes(16)
-    user_id = "usr_" + secrets.token_urlsafe(18)
-    display_name = account.split("@", 1)[0][:40]
-    with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
-        try:
-            connection.execute(
-                "INSERT INTO accounts (id, account, display_name, password_salt, password_hash, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                (user_id, account, display_name, salt, _password_hash(credentials.password, salt), _iso_utc()),
-            )
-        except sqlite3.IntegrityError as exc:
-            raise HTTPException(status_code=409, detail="该账号已存在") from exc
-        token, csrf_token = _create_auth_session(connection, user_id)
-        connection.commit()
-    response = JSONResponse({"authenticated": True, "user": {"id": user_id, "account": account, "display_name": display_name}, "csrf_token": csrf_token})
-    _set_auth_cookie(response, request, token)
-    return response
+def register() -> JSONResponse:
+    raise HTTPException(status_code=403, detail="账号仅由管理员创建，暂不开放注册")
 
 
 @app.post("/api/auth/login")

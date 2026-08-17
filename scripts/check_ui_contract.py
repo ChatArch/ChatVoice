@@ -107,7 +107,10 @@ checks["permission_error_is_handled"] = "NotAllowedError" in text and "未获得
 checks["navigation_guard_exists"] = "beforeunload" in text
 checks["meeting_sidebar_exists"] = all(marker in text for marker in ('id="meeting-sidebar"', 'id="new-meeting"', 'id="meeting-search"', 'id="meeting-groups"'))
 checks["guest_storage_is_browser_only"] = "indexedDB.open" in text and "GUEST_STORE" in text and "X-Client-Id" not in text
-checks["account_mode_is_available"] = all(marker in text for marker in ('id="entry-dialog"', "/api/auth/${authMode}", "/api/auth/session", "/api/auth/logout"))
+checks["account_mode_is_available"] = all(marker in text for marker in ('id="entry-dialog"', "fetch('/api/auth/login'", "/api/auth/session", "/api/auth/logout"))
+checks["self_registration_is_not_offered"] = all(
+    marker in text for marker in ("仅限受邀账号使用", "不开放自行注册", "fetch('/api/auth/login'")
+) and all(marker not in text for marker in ('data-auth-mode="register"', "创建账号并同步", "/api/auth/${authMode}"))
 checks["summary_reset_cancels_stale_request"] = all(marker in text for marker in ("summaryAbortController.abort()", "requestEpoch !== contentEpoch", "persist = true"))
 checks["transcript_has_three_stable_zones"] = all(
     marker in text
