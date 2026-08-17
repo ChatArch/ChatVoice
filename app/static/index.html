@@ -364,6 +364,9 @@
     .extension-chip { padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; color: #85878d; font-size: 9px; background: #fff; }
 
     .recording-console { position: absolute; left: 22px; right: 22px; bottom: 18px; padding: 18px 24px 17px; border: 1px solid #e7e7e9; border-radius: 24px; background: rgba(255, 255, 255, .95); backdrop-filter: blur(22px); box-shadow: 0 18px 55px rgba(27, 30, 44, .14); }
+    .recording-policy { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 2px 8px; color: #92949a; font-size: 8px; }
+    .recording-policy strong { color: #686a71; font-size: 9px; }
+    .recording-policy.warning strong { color: #c17722; }
     .waveform-wrap { position: relative; height: 48px; }
     #recording-waveform { width: 100%; height: 48px; display: block; }
     .waveform-placeholder { position: absolute; inset: 0; display: flex; align-items: center; opacity: .72; }
@@ -648,6 +651,10 @@
       </div>
 
       <footer class="recording-console idle" id="recording-console">
+        <div class="recording-policy" id="recording-policy">
+          <span id="record-limit-status">访客模式每个录音段最多 10 分钟；登录后单段支持 2 小时</span>
+          <strong id="record-limit-remaining">10:00</strong>
+        </div>
         <div class="waveform-wrap">
           <canvas id="recording-waveform" aria-label="实时音量波形"></canvas>
           <div class="waveform-placeholder" id="waveform-placeholder" aria-hidden="true"></div>
@@ -813,10 +820,10 @@
         <p class="access-intro">两种方式都可以使用实时转写与 AI 摘要；区别只在于会议记录保存在哪里。</p>
         <div class="mode-grid">
           <button class="mode-card primary" id="enter-guest" type="button">
-            <span class="mode-icon">⌂</span><strong>访客使用</strong><span>记录仅保存在当前浏览器，不写入声笺数据库。适合快速体验与临时会议。</span>
+            <span class="mode-icon">⌂</span><strong>访客使用 · 单段 10 分钟</strong><span>记录仅保存在当前浏览器；每个录音段最多 10 分钟，暂停不计时，结束后可以继续追加。</span>
           </button>
           <button class="mode-card" id="show-login" type="button">
-            <span class="mode-icon">◎</span><strong>登录账号</strong><span>转写和摘要保存到服务器，可在不同设备查看和继续整理。</span>
+            <span class="mode-icon">◎</span><strong>登录账号 · 单段 2 小时</strong><span>每个连续录音段支持 2 小时，文字和摘要跨设备保存，也可打开旧会议继续追加。</span>
           </button>
         </div>
         <p class="privacy-note">隐私提示：访客模式下，音频与文字仍会临时发送给转写和摘要服务处理，但声笺服务器不会持久化会议内容。</p>
@@ -860,6 +867,10 @@
     let activeTab = 'transcript';
     let elapsedSeconds = 0;
     let timerId = null;
+    let recordingPassSeconds = 0;
+    let asrPassLimitSeconds = 10 * 60;
+    let asrWindowCommitPending = false;
+    let lastAsrWindowCommitAt = 0;
     let sessionStartedAt = null;
     let asrStreamWs = null;
     let audioContext = null;
@@ -937,6 +948,26 @@
       const minutes = Math.floor(seconds / 60).toString().padStart(2, '0');
       const remainder = Math.max(0, seconds % 60).toString().padStart(2, '0');
       return `${minutes}:${remainder}`;
+    }
+
+    function updateRecordingLimitUi() {
+      const accountMode = storageMode === 'account';
+      const policyMinutes = Math.round(asrPassLimitSeconds / 60);
+      const remaining = Math.max(0, asrPassLimitSeconds - recordingPassSeconds);
+      $('record-limit-status').textContent = accountMode
+        ? `登录模式 · 当前录音段最长 ${policyMinutes >= 120 ? '2 小时' : `${policyMinutes} 分钟`}，暂停不计时`
+        : '访客试用 · 每个录音段最长 10 分钟，暂停不计时';
+      $('record-limit-remaining').textContent = ['recording', 'paused', 'connecting', 'finishing'].includes(recorderState)
+        ? `本段剩余 ${formatTime(remaining)}`
+        : `单段上限 ${formatTime(asrPassLimitSeconds)}`;
+      $('recording-policy').classList.toggle('warning', remaining <= 60 && ['recording', 'paused'].includes(recorderState));
+    }
+
+    function requestAsrWindowCommit() {
+      if (asrWindowCommitPending || recorderState !== 'recording' || !asrStreamWs || asrStreamWs.readyState !== WebSocket.OPEN) return;
+      asrWindowCommitPending = true;
+      lastAsrWindowCommitAt = recordingPassSeconds;
+      asrStreamWs.send(JSON.stringify({ type: 'asr.stream.commit' }));
     }
 
     function showToast(message) {
@@ -2033,7 +2064,9 @@
       $('account-name').textContent = loggedIn ? (authUser.display_name || authUser.account) : storageMode === 'guest' ? '访客模式' : '选择使用方式';
       $('account-storage').textContent = loggedIn ? '服务器同步' : storageMode === 'guest' ? '仅此浏览器' : '尚未进入';
       $('account-action').textContent = loggedIn ? '退出' : storageMode === 'guest' ? '登录' : '选择';
+      if (!['recording', 'paused', 'connecting', 'finishing'].includes(recorderState)) asrPassLimitSeconds = loggedIn ? 2 * 60 * 60 : 10 * 60;
       updateSidebarContext();
+      updateRecordingLimitUi();
     }
 
     function setAuthMode(mode) {
@@ -2324,6 +2357,7 @@
         $('record-toggle').setAttribute('aria-label', nextState === 'ended' || nextState === 'error' ? '继续录音' : '开始录音');
         $('local-save-status').textContent = nextState === 'ended' ? '录音已保存在当前设备' : '录音尚未开始';
       }
+      updateRecordingLimitUi();
       renderTranscript();
     }
 
@@ -2332,9 +2366,13 @@
       timerId = setInterval(() => {
         if (recorderState !== 'recording') return;
         elapsedSeconds += 1;
+        recordingPassSeconds += 1;
         $('elapsed').textContent = formatTime(elapsedSeconds);
         $('live-time').textContent = formatTime(elapsedSeconds);
+        updateRecordingLimitUi();
         if (elapsedSeconds % 5 === 0) scheduleMeetingSave(200);
+        if (recordingPassSeconds - lastAsrWindowCommitAt >= 42) requestAsrWindowCommit();
+        if (recordingPassSeconds >= asrPassLimitSeconds) finishRecording('已达到当前录音段上限，最后文字正在提交；可稍后继续录下一段');
       }, 1000);
     }
 
@@ -2470,11 +2508,14 @@
     }
 
     function handleAsrEvent(payload) {
-      if (payload.demo_event === 'asr.stream.result') {
+      if (payload.demo_event === 'asr.stream.ready' || payload.demo_event === 'asr.stream.started') {
+        if (Number(payload.max_connection_seconds) > 0) asrPassLimitSeconds = Number(payload.max_connection_seconds);
+        updateRecordingLimitUi();
+      } else if (payload.demo_event === 'asr.stream.result') {
         const boardEvent = payload.board_event || (payload.result && payload.result.board_event) || {};
         const text = boardEvent.text || (payload.result && payload.result.corrected_text) || '';
         const stream = payload.result && payload.result.stream ? payload.result.stream : {};
-        if (stream.revision_scope === 'session' && stream.replace) {
+        if (['session', 'window'].includes(stream.revision_scope) && stream.replace) {
           applyTranscriptRevision(text, { revision: stream.revision, final: stream.final });
         } else if (/[\p{L}\p{N}]/u.test(text)) {
           appendTranscript(text, { time: formatTime(elapsedSeconds), speaker: '说话人 1' });
@@ -2485,9 +2526,19 @@
       } else if (payload.demo_event === 'asr.stream.backpressure') {
         $('latency-label').textContent = '识别服务正在追赶';
       } else if (payload.demo_event === 'asr.stream.error') {
+        stopTimer();
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+        stopCaptureGraph();
         updateRecorderUi('error', payload.message || '实时转写失败，可重新开始');
-      } else if (payload.demo_event === 'asr.stream.done' && payload.final !== false) {
-        finishSessionUi();
+      } else if (payload.demo_event === 'asr.stream.done') {
+        if (payload.final === false) {
+          asrWindowCommitPending = false;
+          beginTranscriptPass();
+          renderTranscript();
+          $('latency-label').textContent = '长会议窗口已无感衔接';
+        } else {
+          finishSessionUi(payload.limit_reached ? '当前录音段已到上限并完整保存；可点击继续录音追加下一段' : '');
+        }
       }
     }
 
@@ -2521,6 +2572,9 @@
         resetMeetingTitleGeneration();
       }
       elapsedSeconds = 0;
+      recordingPassSeconds = 0;
+      asrWindowCommitPending = false;
+      lastAsrWindowCommitAt = 0;
       $('elapsed').textContent = '00:00';
       $('download-recording').disabled = true;
       $('download-recording').classList.remove('visible');
@@ -2541,6 +2595,10 @@
       clearDemoContent();
       ensureActiveMeeting();
       beginTranscriptPass();
+      recordingPassSeconds = 0;
+      asrPassLimitSeconds = storageMode === 'account' ? 2 * 60 * 60 : 10 * 60;
+      asrWindowCommitPending = false;
+      lastAsrWindowCommitAt = 0;
       $('download-recording').disabled = true;
       $('download-recording').classList.remove('visible');
       if (!continuingMeeting) elapsedSeconds = 0;
@@ -2587,9 +2645,9 @@
       updateRecorderUi('recording');
     }
 
-    function finishRecording() {
+    function finishRecording(message = '') {
       if (!['recording', 'paused'].includes(recorderState)) return;
-      updateRecorderUi('finishing');
+      updateRecorderUi('finishing', typeof message === 'string' && message ? message : undefined);
       stopTimer();
       sendingAudio = false;
       if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
@@ -2674,6 +2732,10 @@
         configureVoiceCloning(status.voice_cloning_configured);
         const channelsResponse = await fetch('/api/asr/channels');
         const channelsData = await channelsResponse.json();
+        if (Number(channelsData.stream_policy && channelsData.stream_policy.max_connection_seconds) > 0) {
+          asrPassLimitSeconds = Number(channelsData.stream_policy.max_connection_seconds);
+          updateRecordingLimitUi();
+        }
         const select = $('asr-channel');
         select.innerHTML = '';
         Object.entries(channelsData.channels || {}).forEach(([id, channel]) => {
@@ -2781,7 +2843,7 @@
       else if (recorderState === 'paused') resumeRecording();
       else startRecordingSession();
     });
-    $('finish-recording').addEventListener('click', finishRecording);
+    $('finish-recording').addEventListener('click', () => finishRecording());
     $('reset-recording').addEventListener('click', () => resetSession());
     $('open-settings').addEventListener('click', () => $('settings-dialog').showModal());
     $('asr-channel').addEventListener('change', () => {

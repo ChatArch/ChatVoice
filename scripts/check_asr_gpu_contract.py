@@ -84,15 +84,32 @@ checks["stream_revision_uses_full_history"] = (
     and not revision_session.buffer
 )
 checks["stream_final_revision_uses_full_history"] = bool(revision_session.commit_revision_wav())
-checks["stream_rejects_total_duration_overflow"] = False
-overflow = main.AsrStreamSession(channel="stub-local", sample_rate=16000, chunk_seconds=1)
-one_second = b"\0" * overflow.chunk_bytes
+checks["stream_uses_bounded_context_windows"] = main.ASR_STREAM_CONTEXT_SECONDS <= 60
+long_session = main.AsrStreamSession(
+    channel="stub-local",
+    sample_rate=8000,
+    chunk_seconds=10,
+    max_connection_seconds=main.ACCOUNT_ASR_STREAM_SECONDS,
+)
+one_second = b"\0" * (long_session.sample_rate * 2)
+max_history_bytes = 0
+rollover_count = 0
+for second in range(main.ACCOUNT_ASR_STREAM_SECONDS):
+    long_session.append_pcm16(one_second)
+    max_history_bytes = max(max_history_bytes, len(long_session.history))
+    if (second % 10 == 9):
+        long_session.pop_ready_revision_wav()
+    if long_session.should_rotate_window:
+        long_session.rotate_window()
+        rollover_count += 1
+checks["stream_simulates_two_hours"] = long_session.total_pcm_bytes == long_session.max_total_bytes
+checks["stream_two_hours_has_bounded_memory"] = max_history_bytes <= long_session.context_bytes + len(one_second) * 10
+checks["stream_two_hours_rolls_context"] = rollover_count >= 100
+checks["stream_rejects_after_account_limit"] = False
 try:
-    for _ in range(int(main.MAX_ASR_STREAM_TOTAL_SECONDS) + 2):
-        overflow.append_pcm16(one_second)
-        overflow.pop_ready_wavs(max_chunks=1)
+    long_session.append_pcm16(one_second)
 except ValueError:
-    checks["stream_rejects_total_duration_overflow"] = True
+    checks["stream_rejects_after_account_limit"] = True
 temp_dir = main.PROJECT_ROOT / "playground" / "asr-temp"
 temp_dir.mkdir(parents=True, exist_ok=True)
 fd, temp_name = tempfile.mkstemp(prefix="qwen-demo-contract-cleanup-", suffix=".wav", dir=str(temp_dir))
@@ -117,6 +134,68 @@ try:
         checks["stream_generic_errors_are_sanitized"] = err.get("demo_event") == "asr.stream.error" and "stream ASR failed" in err.get("message", "") and "internal diagnostic" not in msg
 finally:
     main._send_asr_stream_result = original_send
+
+original_context_seconds = main.ASR_STREAM_CONTEXT_SECONDS
+try:
+    main.ASR_STREAM_CONTEXT_SECONDS = 1.0
+    rollover_client = TestClient(main.app)
+    with rollover_client.websocket_connect("/ws/asr/stream") as ws:
+        ws.receive_json()
+        ws.send_json({"type": "asr.stream.start", "channel": "stub-local", "sample_rate": 8000, "chunk_seconds": 0.5})
+        ws.receive_json()
+        half_second = base64.b64encode(b"\0" * 8000).decode()
+        ws.send_json({"type": "asr.stream.append", "audio": half_second})
+        first_revision = ws.receive_json()
+        ws.send_json({"type": "asr.stream.append", "audio": half_second})
+        final_window_revision = ws.receive_json()
+        rollover_done = ws.receive_json()
+    checks["stream_auto_rollover_protocol"] = (
+        first_revision.get("result", {}).get("stream", {}).get("final") is False
+        and final_window_revision.get("result", {}).get("stream", {}).get("final") is True
+        and rollover_done.get("final") is False
+        and rollover_done.get("rollover") is True
+        and rollover_done.get("window_index") == 2
+    )
+finally:
+    main.ASR_STREAM_CONTEXT_SECONDS = original_context_seconds
+
+original_guest_seconds = main.GUEST_ASR_STREAM_SECONDS
+try:
+    main.GUEST_ASR_STREAM_SECONDS = 1
+    limit_client = TestClient(main.app)
+    with limit_client.websocket_connect("/ws/asr/stream") as ws:
+        limit_ready = ws.receive_json()
+        ws.send_json({"type": "asr.stream.start", "channel": "stub-local", "sample_rate": 8000, "chunk_seconds": 0.5})
+        ws.receive_json()
+        half_second = base64.b64encode(b"\0" * 8000).decode()
+        ws.send_json({"type": "asr.stream.append", "audio": half_second})
+        ws.receive_json()
+        ws.send_json({"type": "asr.stream.append", "audio": half_second})
+        ws.receive_json()
+        ws.send_json({"type": "asr.stream.append", "audio": half_second})
+        limit_final_revision = ws.receive_json()
+        limit_done = ws.receive_json()
+    checks["stream_limit_finishes_cleanly"] = (
+        limit_ready.get("max_connection_seconds") == 1
+        and limit_final_revision.get("result", {}).get("stream", {}).get("final") is True
+        and limit_done.get("limit_reached") is True
+        and limit_done.get("final") is True
+    )
+finally:
+    main.GUEST_ASR_STREAM_SECONDS = original_guest_seconds
+
+client = TestClient(main.app)
+with client.websocket_connect("/ws/asr/stream") as ws:
+    guest_ready = ws.receive_json()
+checks["guest_stream_limit_is_ten_minutes"] = guest_ready.get("max_connection_seconds") == 10 * 60 and guest_ready.get("stream_mode") == "guest"
+
+account_client = TestClient(main.app)
+account_name = f"stream-contract-{os.getpid()}@example.com"
+registered = account_client.post("/api/auth/register", json={"account": account_name, "password": "ContractPass123!"})
+with account_client.websocket_connect("/ws/asr/stream") as ws:
+    account_ready = ws.receive_json()
+checks["account_stream_limit_is_two_hours"] = registered.status_code == 200 and account_ready.get("max_connection_seconds") == 2 * 60 * 60 and account_ready.get("stream_mode") == "account"
+
 client = TestClient(main.app)
 with client.websocket_connect("/ws/asr/stream") as ws:
     ws.receive_json()

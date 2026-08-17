@@ -124,6 +124,16 @@ checks["ended_recording_can_continue_same_meeting"] = all(
     marker in text for marker in ("const continuingMeeting", "beginTranscriptPass();", "正在继续当前会议", "'继续录音'")
 )
 checks["finishing_preserves_live_text"] = "['recording', 'connecting', 'paused', 'finishing'].includes(recorderState)" in text and "settlePendingTranscript()" in text
+checks["recording_limits_are_explicit"] = all(
+    marker in text for marker in ('id="record-limit-status"', 'id="record-limit-remaining"', "访客试用 · 每个录音段最长 10 分钟", "登录模式 · 当前录音段最长")
+)
+checks["pause_does_not_consume_pass_time"] = "if (recorderState !== 'recording') return;\n        elapsedSeconds += 1;\n        recordingPassSeconds += 1;" in text
+checks["long_meeting_rollover_is_wired"] = all(
+    marker in text for marker in ("function requestAsrWindowCommit", "asr.stream.commit", "recordingPassSeconds - lastAsrWindowCommitAt >= 42", "长会议窗口已无感衔接")
+)
+checks["server_policy_controls_frontend_limit"] = all(
+    marker in text for marker in ("payload.max_connection_seconds", "channelsData.stream_policy", "recordingPassSeconds >= asrPassLimitSeconds")
+)
 
 checks["ok"] = all(bool(value) for key, value in checks.items() if key != "ok")
 print(json.dumps(checks, ensure_ascii=False, indent=2))

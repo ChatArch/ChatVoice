@@ -60,9 +60,11 @@ MAX_ASR_STREAM_CHUNK_SECONDS = 10.0
 MAX_ASR_STREAM_FRAME_BYTES = 256 * 1024
 MAX_ASR_STREAM_JSON_FRAME_BYTES = 384 * 1024
 MAX_ASR_STREAM_BUFFER_SECONDS = 20.0
-MAX_ASR_STREAM_TOTAL_SECONDS = 60.0
+ASR_STREAM_CONTEXT_SECONDS = 45.0
+GUEST_ASR_STREAM_SECONDS = 10 * 60
+ACCOUNT_ASR_STREAM_SECONDS = 2 * 60 * 60
 MAX_ASR_STREAM_CHUNKS_PER_RECEIVE = 2
-MAX_ASR_STREAM_CHUNKS_PER_CONNECTION = 80
+MAX_ASR_STREAM_CHUNKS_PER_CONNECTION = 20_000
 ASR_CHANNELS: dict[str, dict[str, Any]] = {
     "funasr-gpu": {
         "label": "FunASR GPU（CUDA PyTorch + SenseVoiceSmall）",
@@ -1170,13 +1172,21 @@ def pcm16_to_wav_bytes(pcm_bytes: bytes, sample_rate: int = 16000) -> bytes:
 
 
 class AsrStreamSession:
-    def __init__(self, channel: str = DEFAULT_ASR_CHANNEL, sample_rate: int = 16000, chunk_seconds: float = 4.0) -> None:
+    def __init__(
+        self,
+        channel: str = DEFAULT_ASR_CHANNEL,
+        sample_rate: int = 16000,
+        chunk_seconds: float = 4.0,
+        max_connection_seconds: int = GUEST_ASR_STREAM_SECONDS,
+    ) -> None:
         self.channel = self._validate_channel(channel or DEFAULT_ASR_CHANNEL)
         self.sample_rate = self._validate_sample_rate(16000 if sample_rate is None else sample_rate)
         self.chunk_seconds = self._validate_chunk_seconds(chunk_seconds)
+        self.max_connection_seconds = max(GUEST_ASR_STREAM_SECONDS, int(max_connection_seconds))
         self.buffer = bytearray()
         self.history = bytearray()
         self.chunk_index = 0
+        self.window_index = 1
         self.total_pcm_bytes = 0
         self.last_revision_total_bytes = 0
 
@@ -1216,7 +1226,15 @@ class AsrStreamSession:
 
     @property
     def max_total_bytes(self) -> int:
-        return int(self.sample_rate * MAX_ASR_STREAM_TOTAL_SECONDS * 2)
+        return int(self.sample_rate * self.max_connection_seconds * 2)
+
+    @property
+    def context_bytes(self) -> int:
+        return int(self.sample_rate * ASR_STREAM_CONTEXT_SECONDS * 2)
+
+    @property
+    def should_rotate_window(self) -> bool:
+        return len(self.history) >= self.context_bytes
 
     def append_pcm16(self, chunk: bytes) -> None:
         if not isinstance(chunk, (bytes, bytearray)):
@@ -1228,7 +1246,7 @@ class AsrStreamSession:
         if len(chunk) % 2:
             raise ValueError("audio chunk must contain whole PCM16 samples")
         if self.total_pcm_bytes + len(chunk) > self.max_total_bytes:
-            raise ValueError(f"stream duration too long for demo; max {MAX_ASR_STREAM_TOTAL_SECONDS:g}s")
+            raise ValueError(f"recording segment reached its {self.max_connection_seconds // 60}-minute limit")
         if len(self.buffer) + len(chunk) > self.max_buffer_bytes:
             raise ValueError(f"stream buffer too large for demo; max {MAX_ASR_STREAM_BUFFER_SECONDS:g}s buffered")
         self.buffer.extend(chunk)
@@ -1280,6 +1298,12 @@ class AsrStreamSession:
         self.buffer.clear()
         return self._next_chunk_index(), pcm16_to_wav_bytes(bytes(self.history), self.sample_rate)
 
+    def rotate_window(self) -> None:
+        self.buffer.clear()
+        self.history.clear()
+        self.last_revision_total_bytes = 0
+        self.window_index += 1
+
 
 async def _send_asr_stream_result(client: WebSocket, session: AsrStreamSession, index: int, wav_bytes: bytes, final: bool = False) -> None:
     started = time.monotonic()
@@ -1294,10 +1318,11 @@ async def _send_asr_stream_result(client: WebSocket, session: AsrStreamSession, 
     result["stream"] = {
         "chunk_index": index,
         "revision": index,
-        "revision_scope": "session",
+        "revision_scope": "window",
         "replace": True,
         "final": final,
         "sample_rate": session.sample_rate,
+        "window_index": session.window_index,
     }
     result["board_event"]["phase"] = "final" if final else "partial"
     result["board_event"]["source_type"] = f"asr.stream.{session.channel}"
@@ -1318,11 +1343,34 @@ async def _close_asr_stream_policy(client: WebSocket, message: str, code: int = 
     await client.close(code=code, reason=message[:120])
 
 
+async def _finish_asr_stream_at_limit(client: WebSocket, session: AsrStreamSession) -> None:
+    committed = session.commit_revision_wav()
+    if committed is not None:
+        await _send_asr_stream_result(client, session, committed[0], committed[1], final=True)
+    await client.send_json({
+        "demo_event": "asr.stream.done",
+        "final": True,
+        "limit_reached": True,
+        "max_connection_seconds": session.max_connection_seconds,
+    })
+
+
 @app.websocket("/ws/asr/stream")
 async def asr_stream(client: WebSocket) -> None:
     await client.accept()
-    session = AsrStreamSession()
-    await client.send_json({"demo_event": "asr.stream.ready", "channel": session.channel, "sample_rate": session.sample_rate, "chunk_seconds": session.chunk_seconds})
+    authenticated = _auth_row(client, required=False) is not None
+    stream_mode = "account" if authenticated else "guest"
+    max_connection_seconds = ACCOUNT_ASR_STREAM_SECONDS if authenticated else GUEST_ASR_STREAM_SECONDS
+    session = AsrStreamSession(max_connection_seconds=max_connection_seconds)
+    await client.send_json({
+        "demo_event": "asr.stream.ready",
+        "channel": session.channel,
+        "sample_rate": session.sample_rate,
+        "chunk_seconds": session.chunk_seconds,
+        "stream_mode": stream_mode,
+        "max_connection_seconds": max_connection_seconds,
+        "context_seconds": ASR_STREAM_CONTEXT_SECONDS,
+    })
     try:
         while True:
             message = await client.receive()
@@ -1332,7 +1380,10 @@ async def asr_stream(client: WebSocket) -> None:
                 try:
                     session.append_pcm16(message["bytes"])
                 except ValueError as exc:
-                    await _close_asr_stream_policy(client, str(exc), 1009)
+                    if str(exc).startswith("recording segment reached"):
+                        await _finish_asr_stream_at_limit(client, session)
+                    else:
+                        await _close_asr_stream_policy(client, str(exc), 1009)
                     break
             elif message.get("text") is not None:
                 if len(message["text"]) > MAX_ASR_STREAM_JSON_FRAME_BYTES:
@@ -1350,6 +1401,7 @@ async def asr_stream(client: WebSocket) -> None:
                             channel=str(payload.get("channel") or DEFAULT_ASR_CHANNEL),
                             sample_rate=payload.get("sample_rate", 16000),
                             chunk_seconds=payload.get("chunk_seconds", 4.0),
+                            max_connection_seconds=max_connection_seconds,
                         )
                     except (TypeError, ValueError) as exc:
                         await _close_asr_stream_policy(client, str(exc), 1008)
@@ -1360,23 +1412,41 @@ async def asr_stream(client: WebSocket) -> None:
                         session.sample_rate,
                         session.chunk_seconds,
                     )
-                    await client.send_json({"demo_event": "asr.stream.started", "channel": session.channel, "sample_rate": session.sample_rate, "chunk_seconds": session.chunk_seconds})
+                    await client.send_json({
+                        "demo_event": "asr.stream.started",
+                        "channel": session.channel,
+                        "sample_rate": session.sample_rate,
+                        "chunk_seconds": session.chunk_seconds,
+                        "stream_mode": stream_mode,
+                        "max_connection_seconds": max_connection_seconds,
+                        "context_seconds": ASR_STREAM_CONTEXT_SECONDS,
+                    })
                     continue
                 if msg_type == "asr.stream.append":
                     try:
                         session.append_base64_pcm16(str(payload.get("audio") or ""))
                     except ValueError as exc:
-                        await _close_asr_stream_policy(client, str(exc), 1009)
+                        if str(exc).startswith("recording segment reached"):
+                            await _finish_asr_stream_at_limit(client, session)
+                        else:
+                            await _close_asr_stream_policy(client, str(exc), 1009)
                         break
                 elif msg_type in {"asr.stream.commit", "asr.stream.finish"}:
                     try:
                         committed = session.commit_revision_wav()
                         if committed is not None:
                             await _send_asr_stream_result(client, session, committed[0], committed[1], final=True)
+                        if msg_type == "asr.stream.commit":
+                            session.rotate_window()
                     except ValueError as exc:
                         await _close_asr_stream_policy(client, str(exc), 1009)
                         break
-                    await client.send_json({"demo_event": "asr.stream.done", "final": msg_type == "asr.stream.finish"})
+                    await client.send_json({
+                        "demo_event": "asr.stream.done",
+                        "final": msg_type == "asr.stream.finish",
+                        "rollover": msg_type == "asr.stream.commit",
+                        "window_index": session.window_index,
+                    })
                     if msg_type == "asr.stream.finish":
                         break
                     continue
@@ -1386,7 +1456,16 @@ async def asr_stream(client: WebSocket) -> None:
             try:
                 revision_wav = session.pop_ready_revision_wav()
                 if revision_wav is not None:
-                    await _send_asr_stream_result(client, session, revision_wav[0], revision_wav[1], final=False)
+                    rollover = session.should_rotate_window
+                    await _send_asr_stream_result(client, session, revision_wav[0], revision_wav[1], final=rollover)
+                    if rollover:
+                        session.rotate_window()
+                        await client.send_json({
+                            "demo_event": "asr.stream.done",
+                            "final": False,
+                            "rollover": True,
+                            "window_index": session.window_index,
+                        })
             except ValueError as exc:
                 await _close_asr_stream_policy(client, str(exc), 1009)
                 break
@@ -1406,8 +1485,19 @@ async def asr_stream(client: WebSocket) -> None:
 
 
 @app.get("/api/asr/channels")
-def asr_channels() -> JSONResponse:
-    return JSONResponse({"default": DEFAULT_ASR_CHANNEL, "channels": ASR_CHANNELS})
+def asr_channels(request: Request) -> JSONResponse:
+    authenticated = _auth_row(request, required=False) is not None
+    return JSONResponse({
+        "default": DEFAULT_ASR_CHANNEL,
+        "channels": ASR_CHANNELS,
+        "stream_policy": {
+            "mode": "account" if authenticated else "guest",
+            "max_connection_seconds": ACCOUNT_ASR_STREAM_SECONDS if authenticated else GUEST_ASR_STREAM_SECONDS,
+            "context_seconds": ASR_STREAM_CONTEXT_SECONDS,
+            "pause_counts_toward_limit": False,
+            "can_continue_existing_meeting": True,
+        },
+    })
 
 
 @app.post("/api/asr")
