@@ -1,9 +1,13 @@
 #!/usr/bin/env node
-const assert = require('node:assert/strict');
+const assert = require('assert').strict;
 const { splitSentences, planRevision } = require('../app/static/transcript-state.js');
 
 function createHarness(existing = []) {
   return { confirmed: [...existing], rewrite: [], live: '', confirmedCount: 0 };
+}
+
+function clone(value) {
+  return JSON.parse(JSON.stringify(value));
 }
 
 function apply(state, text, final = false) {
@@ -35,12 +39,12 @@ assert.deepEqual(state.confirmed, ['第一句话。']);
 assert.deepEqual(state.rewrite, ['第二句话已经纠正。']);
 assert.equal(state.live, '第三句话。');
 
-const beforeRegression = structuredClone(state);
+const beforeRegression = clone(state);
 const regression = apply(state, '第一句话。第二句话。');
 assert.equal(regression.regressive, true);
 assert.deepEqual(state, beforeRegression, 'a shorter ASR revision must not swallow visible text');
 
-const beforePause = structuredClone(state);
+const beforePause = clone(state);
 assert.deepEqual(state, beforePause, 'pause is a transport state change and must not mutate transcript zones');
 
 apply(state, '第一句话。第二句话最终纠正。第三句话。第四句话。');
