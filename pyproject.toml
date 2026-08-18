@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ChatVoice"
+dynamic = ["version"]
+description = "ChatArch voice recording, transcription, and meeting-notes toolkit."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+dependencies = ["click>=8.0", "chatstyle>=0.1.0,<0.2.0", "chatenv>=0.2.0,<0.3.0"]
+authors = [{name = "ChatArch", email = "rex@chatarch.org"}]
+keywords = ["chatvoice", "chatarch", "cli"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/ChatArch/ChatVoice"
+Repository = "https://github.com/ChatArch/ChatVoice"
+Documentation = "https://arch.gh.wzhecnu.cn/ChatVoice/"
+
+[project.scripts]
+chatvoice = "chatvoice.cli:main"
+
+[project.entry-points."chatenv.configs"]
+chatvoice = "chatvoice.config"
+
+[project.optional-dependencies]
+web = ["dashscope>=1.20.0,<2.0", "fastapi>=0.110.0,<1.0", "uvicorn[standard]>=0.27.0,<1.0", "pydantic>=2.0,<3.0", "websockets>=12.0,<16.0", "python-multipart>=0.0.9,<1.0"]
+dev = ["build", "pytest", "twine", "httpx>=0.27,<1.0"]
+docs = ["mkdocs>=1.6,<2.0", "mkdocs-material>=9.5,<10.0", "mkdocs-static-i18n>=1.2,<2.0", "mike>=2.0,<3.0"]
+
+[tool.setuptools.dynamic]
+version = {attr = "chatvoice.__version__"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.package-data]
+"chatvoice.web" = ["static/*"]
+"chatvoice.scripts" = ["*.py"]

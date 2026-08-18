@@ -38,3 +38,9 @@ playground/*.sqlite3-*
 .vscode/
 # Large/static reference snapshots kept on disk, not in baseline commits
 reference/
+
+# Python package build artifacts
+build/
+dist/
+site/
+*.egg-info/
