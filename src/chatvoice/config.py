@@ -32,7 +32,7 @@ class ChatvoiceConfig(BaseEnvConfig):
     )
     CHATVOICE_DATABASE_URL = EnvField(
         "CHATVOICE_DATABASE_URL",
-        desc="Database URL. v0.1.0 packaged web storage supports SQLite only; external DB is detected for migration planning.",
+        desc="Database URL. v0.1.1 packaged web storage supports SQLite only; external DB is detected for migration planning.",
         is_sensitive=True,
     )
     CHATVOICE_HOME = EnvField(

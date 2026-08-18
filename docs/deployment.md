@@ -1,6 +1,6 @@
 # 部署与启动
 
-这一页说明 v0.1.0 发布后，如何只通过 Python 包搭起一套 ChatVoice / Speakr 服务流程：安装、创建账号、启动服务、生成 API Token、读取会议/摘要数据。
+这一页说明 v0.1.1 发布后，如何只通过 Python 包搭起一套 ChatVoice / Speakr 服务流程：安装、创建账号、启动服务、生成 API Token、读取会议/摘要数据。
 
 ## 最小安装
 
@@ -8,7 +8,7 @@
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "ChatVoice[web]==0.1.0"
+python -m pip install "ChatVoice[web]==0.1.1"
 ```
 
 安装后先回读真实 CLI 树和运行目录：
@@ -60,7 +60,7 @@ http://127.0.0.1:18087/
 
 ## ASR provider：API 优先
 
-v0.1.0 的生产推荐方式是 **ChatVoice 后端通过 API 调用 ASR 服务**。这个 ASR 服务可以是：
+v0.1.1 的生产推荐方式是 **ChatVoice 后端通过 API 调用 ASR 服务**。这个 ASR 服务可以是：
 
 - 云服务 API，凭 API key 调用；
 - 自建 GPU ASR server，对外暴露 HTTP API；
@@ -70,14 +70,16 @@ v0.1.0 的生产推荐方式是 **ChatVoice 后端通过 API 调用 ASR 服务**
 
 ```bash
 export CHATVOICE_ASR_CHANNEL=api-server
-<ASR_API_URL_SETTING>="https://<asr-service>/v1/transcribe"
+export CHATVOICE_ASR_API_URL="https://<asr-service>/v1/transcribe"
 # Configure the optional ASR bearer token in server-side config/env storage; do not put it in argv.
 chatvoice serve app --host 127.0.0.1 --port 18087
 ```
 
-ChatVoice 会把上传音频以 multipart `file` 字段 POST 到 the ASR API URL setting，并从 ASR JSON 响应里读取 `corrected_text`、`text`、`transcript`、`raw_text`、`data.text` 或 `result.text`。
+ChatVoice 会把上传音频以 multipart `file` 字段 POST 到 `CHATVOICE_ASR_API_URL`，并从 ASR JSON 响应里读取 `corrected_text`、`text`、`transcript`、`raw_text`、`data.text` 或 `result.text`。
 
 `funasr-gpu` / `funasr-cpu` 仍保留为兼容通道，但不作为默认部署建议。更灵活的做法是把 GPU runtime 独立成 ASR API server，然后让 ChatVoice 用 `api-server` 调它。
+
+Meeting summary 生成同样是 server-side model 边界：会议纪要模型/provider 只在服务端环境或配置存储中设置，浏览器和数据 API 只读取已保存的 summary 文本。
 
 ## 生成 Token 并读取数据
 
@@ -100,7 +102,7 @@ chatvoice data conversations --url http://127.0.0.1:18087 --token-env CHATVOICE_
 
 ## 数据库与并发边界
 
-v0.1.0 packaged Web app 默认使用 SQLite WAL：
+v0.1.1 packaged Web app 默认使用 SQLite WAL：
 
 ```text
 <chatarch-home>/chatvoice/data/meetings.sqlite3
@@ -111,7 +113,7 @@ v0.1.0 packaged Web app 默认使用 SQLite WAL：
 - `chatvoice serve app --workers 1`；
 - 不要用多 worker / 多节点同时写同一个 SQLite 文件；
 - 高并发生产部署应把存储层迁移到 Postgres/MySQL 这类外部数据库后再扩多 worker；
-- an external database URL setting 会被 `doctor` / `service plan` 检测并报告，但 v0.1.0 的 packaged legacy storage 仍只真正支持 SQLite。
+- an external database URL setting 会被 `doctor` / `service plan` 检测并报告，但 v0.1.1 的 packaged legacy storage 仍只真正支持 SQLite。
 
 回读：
 

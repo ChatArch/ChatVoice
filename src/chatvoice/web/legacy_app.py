@@ -33,7 +33,7 @@ from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, Web
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
 
-from chatvoice.paths import state_root
+from chatvoice.paths import state_paths
 from pydantic import BaseModel, Field
 
 try:
@@ -42,9 +42,8 @@ except Exception:  # pragma: no cover
     websockets = None
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
-RUNTIME_ROOT = Path(
-    os.getenv("CHATVOICE_RUNTIME_ROOT", "").strip() or state_root()
-).expanduser()
+_RUNTIME_PATHS = state_paths()
+RUNTIME_ROOT = _RUNTIME_PATHS.root
 PROJECT_ROOT = RUNTIME_ROOT
 STATIC_DIR = Path(os.getenv("CHATVOICE_STATIC_DIR", str(Path(__file__).resolve().parent / "static"))).expanduser()
 PROFILE_ENV_FILE = os.getenv("QWEN_TOKEN_PLAN_ENV_FILE", "").strip()
@@ -107,12 +106,12 @@ ASR_CHANNELS: dict[str, dict[str, Any]] = {
     },
 }
 
-app = FastAPI(title="ChatVoice Speakr", version="0.1.0")
+app = FastAPI(title="ChatVoice Speakr", version="0.1.1")
 logger = logging.getLogger("chatvoice")
 _FUNASR_MODELS: dict[tuple[str, str], Any] = {}
 _FUNASR_MODEL_LOCKS: dict[tuple[str, str], threading.Lock] = {}
 _FUNASR_CACHE_LOCK = threading.Lock()
-MEETING_DB_PATH = Path(os.getenv("MEETING_DB_PATH", os.getenv("CHATVOICE_SQLITE_PATH", str(RUNTIME_ROOT / "data" / "meetings.sqlite3")))).expanduser()
+MEETING_DB_PATH = _RUNTIME_PATHS.database_path
 _MEETING_DB_LOCK = threading.Lock()
 AUTH_COOKIE_NAME = "meeting_session"
 AUTH_SESSION_DAYS = 30
@@ -627,7 +626,7 @@ def _api_token_hash(token: str) -> str:
 
 
 def _normalize_api_token_scopes(scopes: list[str] | tuple[str, ...] | None) -> list[str]:
-    raw = list(scopes or ["read:meetings", "read:conversations"])
+    raw = ["read:meetings", "read:conversations"] if scopes is None else list(scopes)
     normalized: list[str] = []
     for scope in raw:
         value = str(scope or "").strip()
@@ -658,7 +657,9 @@ def _api_token_payload(row: sqlite3.Row) -> dict[str, Any]:
 
 
 def _create_api_token(connection: sqlite3.Connection, owner_id: str, request: ApiTokenCreateRequest) -> dict[str, Any]:
-    scopes = _normalize_api_token_scopes(request.scopes)
+    fields_set = request.model_fields_set if hasattr(request, "model_fields_set") else getattr(request, "__fields_set__", set())
+    requested_scopes = request.scopes if "scopes" in fields_set else None
+    scopes = _normalize_api_token_scopes(requested_scopes)
     raw_token = API_TOKEN_PREFIX + secrets.token_urlsafe(32)
     now = _utc_now()
     expires_at = _iso_utc(now + timedelta(days=request.expires_days)) if request.expires_days else None
@@ -982,7 +983,7 @@ def data_meetings(request: Request) -> JSONResponse:
             "SELECT * FROM meeting_records WHERE owner_id = ? ORDER BY updated_at DESC LIMIT 200",
             (token_row["owner_id"],),
         ).fetchall()
-    return JSONResponse({"meetings": [_meeting_row_payload(row, True) for row in rows]})
+    return JSONResponse({"meetings": [_meeting_row_payload(row, False) for row in rows]})
 
 
 @app.get("/api/data/meetings/{meeting_id}")
@@ -1007,7 +1008,7 @@ def data_conversations(request: Request) -> JSONResponse:
             "SELECT * FROM conversation_records WHERE owner_id = ? ORDER BY updated_at DESC LIMIT 200",
             (token_row["owner_id"],),
         ).fetchall()
-    return JSONResponse({"conversations": [_conversation_row_payload(row, True) for row in rows]})
+    return JSONResponse({"conversations": [_conversation_row_payload(row, False) for row in rows]})
 
 
 @app.get("/api/data/conversations/{conversation_id}")
@@ -1537,7 +1538,7 @@ def _api_server_asr(audio_bytes: bytes, filename: str) -> dict[str, Any]:
     headers = {
         "Accept": "application/json",
         "Content-Type": f"multipart/form-data; boundary={boundary}",
-        "User-Agent": "ChatVoice/0.1.0 ASR API client",
+        "User-Agent": "ChatVoice/0.1.1 ASR API client",
     }
     if ASR_API_KEY:
         headers["Authorization"] = f"Bearer {ASR_API_KEY}"

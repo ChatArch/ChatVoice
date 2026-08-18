@@ -43,7 +43,7 @@ The former `qwen-audio-demo.public.wzhecnu.cn` entry is retired and returns HTTP
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "ChatVoice[web]==0.1.0"
+python -m pip install "ChatVoice[web]==0.1.1"
 
 chatvoice --tree
 chatvoice service plan --ensure-dirs --json
@@ -67,10 +67,12 @@ For a real ASR backend, keep credentials server-side and call an API provider:
 
 ```bash
 export CHATVOICE_ASR_CHANNEL=api-server
-<ASR_API_URL_SETTING>="https://<asr-service>/v1/transcribe"
+export CHATVOICE_ASR_API_URL="https://<asr-service>/v1/transcribe"
 # Configure the optional ASR bearer token in server-side config/env storage; do not put it in argv.
 chatvoice serve app --host 127.0.0.1 --port 18087
 ```
+
+Meeting summary generation is also a server-side model boundary: configure the notes model/provider in server-side environment or config storage, and let the browser/API read only the saved summary text.
 
 ## Fresh account, browser, token, and data flow
 
@@ -109,13 +111,13 @@ chatvoice data conversations --url http://127.0.0.1:18087 --token-env CHATVOICE_
 
 ## Database and concurrency
 
-The packaged v0.1.0 web app defaults to SQLite WAL at:
+The packaged v0.1.1 web app defaults to SQLite WAL at:
 
 ```text
 <chatarch-home>/chatvoice/data/meetings.sqlite3
 ```
 
-Use one service process (`--workers 1`) with SQLite. For high-concurrency production, migrate the storage layer to Postgres/MySQL before scaling workers or nodes. An external database URL setting is detected by `chatvoice doctor` / `chatvoice service plan`, but the v0.1.0 packaged legacy storage layer still supports SQLite only.
+Use one service process (`--workers 1`) with SQLite. For high-concurrency production, migrate the storage layer to Postgres/MySQL before scaling workers or nodes. An external database URL setting is detected by `chatvoice doctor` / `chatvoice service plan`, but the v0.1.1 packaged legacy storage layer still supports SQLite only.
 
 ## API surface
 

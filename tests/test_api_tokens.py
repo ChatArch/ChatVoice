@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timedelta, timezone
 
 from fastapi.testclient import TestClient
 
@@ -34,6 +35,29 @@ def _sample_meeting_payload():
     }
 
 
+def _sample_conversation_payload():
+    return {
+        "title": "实时对话",
+        "model": "qwen-audio-3.0-realtime-plus",
+        "voice": "Cherry",
+        "created_at": "2026-08-18T10:03:00+00:00",
+        "updated_at": "2026-08-18T10:04:00+00:00",
+        "messages": [
+            {"role": "user", "text": "今天同步 ChatVoice 0.1。"},
+            {"role": "assistant", "text": "我会记录 token 和数据读取。"},
+        ],
+    }
+
+
+def _create_token(client, csrf, scopes=None, *, expires_days=30):
+    payload = {"name": "automation", "expires_days": expires_days}
+    if scopes is not None:
+        payload["scopes"] = scopes
+    response = client.post("/api/tokens", headers={"X-CSRF-Token": csrf}, json=payload)
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
 def test_authenticated_user_can_create_list_and_revoke_api_tokens(monkeypatch, tmp_path):
     client, legacy_app = _client_with_temp_db(monkeypatch, tmp_path)
     csrf = _login_user(client, legacy_app)
@@ -67,6 +91,86 @@ def test_authenticated_user_can_create_list_and_revoke_api_tokens(monkeypatch, t
     assert listed_after.json()["tokens"][0]["revoked_at"]
 
 
+def test_api_token_creation_rejects_empty_or_unsupported_scopes(monkeypatch, tmp_path):
+    client, legacy_app = _client_with_temp_db(monkeypatch, tmp_path)
+    csrf = _login_user(client, legacy_app)
+
+    empty = client.post("/api/tokens", headers={"X-CSRF-Token": csrf}, json={"name": "empty", "scopes": []})
+    assert empty.status_code == 400, empty.text
+    assert "at least one" in empty.text
+
+    unsupported = client.post(
+        "/api/tokens",
+        headers={"X-CSRF-Token": csrf},
+        json={"name": "bad", "scopes": ["read:meetings", "write:meetings"]},
+    )
+    assert unsupported.status_code == 400, unsupported.text
+    assert "unsupported token scope" in unsupported.text
+
+    listed = client.get("/api/tokens")
+    assert listed.status_code == 200, listed.text
+    assert listed.json()["tokens"] == []
+
+
+def test_token_create_and_revoke_require_csrf(monkeypatch, tmp_path):
+    client, legacy_app = _client_with_temp_db(monkeypatch, tmp_path)
+    csrf = _login_user(client, legacy_app)
+
+    no_csrf_create = client.post("/api/tokens", json={"name": "missing-csrf"})
+    assert no_csrf_create.status_code == 403
+
+    created = _create_token(client, csrf)
+    no_csrf_revoke = client.delete(f"/api/tokens/{created['token_info']['id']}")
+    assert no_csrf_revoke.status_code == 403
+
+
+def test_single_scope_token_only_authorizes_matching_data(monkeypatch, tmp_path):
+    client, legacy_app = _client_with_temp_db(monkeypatch, tmp_path)
+    csrf = _login_user(client, legacy_app)
+    meeting_token = _create_token(client, csrf, ["read:meetings"])["token"]
+    conversation_token = _create_token(client, csrf, ["read:conversations"])["token"]
+
+    assert client.put("/api/meetings/meeting_20260818", headers={"X-CSRF-Token": csrf}, json=_sample_meeting_payload()).status_code == 200
+    assert client.put("/api/conversations/conversation_20260818", headers={"X-CSRF-Token": csrf}, json=_sample_conversation_payload()).status_code == 200
+
+    meeting_list = client.get("/api/data/meetings", headers={"Authorization": f"Bearer {meeting_token}"})
+    assert meeting_list.status_code == 200, meeting_list.text
+    assert "transcript_segments" not in meeting_list.json()["meetings"][0]
+    assert "summary_content" not in meeting_list.json()["meetings"][0]
+
+    meeting_detail = client.get("/api/data/meetings/meeting_20260818", headers={"Authorization": f"Bearer {meeting_token}"})
+    assert meeting_detail.status_code == 200, meeting_detail.text
+    assert meeting_detail.json()["transcript_segments"][1]["text"] == "后续自动化可以拉取摘要和转写。"
+    assert meeting_detail.json()["summary_content"].startswith("确认新增 API Token")
+
+    blocked_conversations = client.get("/api/data/conversations", headers={"Authorization": f"Bearer {meeting_token}"})
+    assert blocked_conversations.status_code == 403
+
+    conversation_list = client.get("/api/data/conversations", headers={"Authorization": f"Bearer {conversation_token}"})
+    assert conversation_list.status_code == 200, conversation_list.text
+    assert "messages" not in conversation_list.json()["conversations"][0]
+
+    conversation_detail = client.get("/api/data/conversations/conversation_20260818", headers={"Authorization": f"Bearer {conversation_token}"})
+    assert conversation_detail.status_code == 200, conversation_detail.text
+    assert conversation_detail.json()["messages"][1]["text"] == "我会记录 token 和数据读取。"
+
+    blocked_meetings = client.get("/api/data/meetings", headers={"Authorization": f"Bearer {conversation_token}"})
+    assert blocked_meetings.status_code == 403
+
+
+def test_expired_token_is_rejected(monkeypatch, tmp_path):
+    client, legacy_app = _client_with_temp_db(monkeypatch, tmp_path)
+    issued_at = datetime(2026, 8, 18, 10, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(legacy_app, "_utc_now", lambda: issued_at)
+    csrf = _login_user(client, legacy_app)
+    token = _create_token(client, csrf, ["read:meetings"], expires_days=1)["token"]
+
+    monkeypatch.setattr(legacy_app, "_utc_now", lambda: issued_at + timedelta(days=2))
+    rejected = client.get("/api/data/meetings", headers={"Authorization": f"Bearer {token}"})
+    assert rejected.status_code == 401
+    assert "expired" in rejected.text
+
+
 def test_bearer_token_can_read_meeting_text_and_summary(monkeypatch, tmp_path):
     client, legacy_app = _client_with_temp_db(monkeypatch, tmp_path)
     csrf = _login_user(client, legacy_app)
@@ -91,13 +195,16 @@ def test_bearer_token_can_read_meeting_text_and_summary(monkeypatch, tmp_path):
     assert listed.status_code == 200, listed.text
     meeting = listed.json()["meetings"][0]
     assert meeting["id"] == "meeting_20260818"
-    assert meeting["summary_title"] == "ChatVoice 0.1 数据接口"
-    assert meeting["summary_content"].startswith("确认新增 API Token")
-    assert meeting["transcript_segments"][1]["text"] == "后续自动化可以拉取摘要和转写。"
+    assert meeting["title"] == "项目周会"
+    assert "summary_content" not in meeting
+    assert "transcript_segments" not in meeting
 
     single = client.get("/api/data/meetings/meeting_20260818", headers={"Authorization": f"Bearer {token}"})
     assert single.status_code == 200, single.text
     assert single.json()["title"] == "项目周会"
+    assert single.json()["summary_title"] == "ChatVoice 0.1 数据接口"
+    assert single.json()["summary_content"].startswith("确认新增 API Token")
+    assert single.json()["transcript_segments"][1]["text"] == "后续自动化可以拉取摘要和转写。"
 
     revoked = client.delete(f"/api/tokens/{token_payload['token_info']['id']}", headers={"X-CSRF-Token": csrf})
     assert revoked.status_code == 200, revoked.text
