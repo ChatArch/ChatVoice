@@ -12,3 +12,9 @@ def test_packaged_web_app_factory_exposes_core_routes(monkeypatch, tmp_path):
     assert "/api/status" in paths
     assert "/api/asr/channels" in paths
     assert "/api/asr" in paths
+    assert "/api/tokens" in paths
+    assert "/api/tokens/{token_id}" in paths
+    assert "/api/data/meetings" in paths
+    assert "/api/data/meetings/{meeting_id}" in paths
+    assert "/api/data/conversations" in paths
+    assert "/api/data/conversations/{conversation_id}" in paths

@@ -32,6 +32,8 @@ from dashscope.audio.tts_v2 import AudioFormat, SpeechSynthesizer
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
+
+from chatvoice.paths import state_root
 from pydantic import BaseModel, Field
 
 try:
@@ -40,7 +42,9 @@ except Exception:  # pragma: no cover
     websockets = None
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
-RUNTIME_ROOT = Path(os.getenv("CHATVOICE_RUNTIME_ROOT", str(Path.home() / ".chatarch" / "chatvoice"))).expanduser()
+RUNTIME_ROOT = Path(
+    os.getenv("CHATVOICE_RUNTIME_ROOT", "").strip() or state_root()
+).expanduser()
 PROJECT_ROOT = RUNTIME_ROOT
 STATIC_DIR = Path(os.getenv("CHATVOICE_STATIC_DIR", str(Path(__file__).resolve().parent / "static"))).expanduser()
 PROFILE_ENV_FILE = os.getenv("QWEN_TOKEN_PLAN_ENV_FILE", "").strip()
@@ -103,7 +107,7 @@ ASR_CHANNELS: dict[str, dict[str, Any]] = {
     },
 }
 
-app = FastAPI(title="ChatVoice Speakr", version="0.0.2")
+app = FastAPI(title="ChatVoice Speakr", version="0.1.0")
 logger = logging.getLogger("chatvoice")
 _FUNASR_MODELS: dict[tuple[str, str], Any] = {}
 _FUNASR_MODEL_LOCKS: dict[tuple[str, str], threading.Lock] = {}
@@ -195,6 +199,12 @@ class ConversationRecordInput(BaseModel):
 class AccountCredentials(BaseModel):
     account: str = Field(..., min_length=3, max_length=80)
     password: str = Field(..., min_length=8, max_length=128)
+
+
+class ApiTokenCreateRequest(BaseModel):
+    name: str = Field("automation", min_length=1, max_length=80)
+    expires_days: int | None = Field(default=None, ge=1, le=365)
+    scopes: list[str] = Field(default_factory=lambda: ["read:meetings", "read:conversations"], max_length=8)
 
 
 def _read_profile() -> dict[str, str]:
@@ -446,6 +456,23 @@ def _meeting_db() -> sqlite3.Connection:
     )
     connection.execute(
         """
+        CREATE TABLE IF NOT EXISTS api_tokens (
+            id TEXT PRIMARY KEY,
+            owner_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            token_hash TEXT NOT NULL UNIQUE,
+            token_prefix TEXT NOT NULL,
+            scopes_json TEXT NOT NULL DEFAULT '[]',
+            created_at TEXT NOT NULL,
+            last_used_at TEXT,
+            expires_at TEXT,
+            revoked_at TEXT,
+            FOREIGN KEY (owner_id) REFERENCES accounts(id) ON DELETE CASCADE
+        )
+        """
+    )
+    connection.execute(
+        """
         CREATE TABLE IF NOT EXISTS meeting_records (
             owner_id TEXT NOT NULL,
             meeting_id TEXT NOT NULL,
@@ -589,6 +616,147 @@ def logout(request: Request) -> JSONResponse:
     response = JSONResponse({"authenticated": False})
     response.delete_cookie(AUTH_COOKIE_NAME, path="/")
     return response
+
+
+API_TOKEN_SCOPES = {"read:meetings", "read:conversations"}
+API_TOKEN_PREFIX = "cv_"
+
+
+def _api_token_hash(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _normalize_api_token_scopes(scopes: list[str] | tuple[str, ...] | None) -> list[str]:
+    raw = list(scopes or ["read:meetings", "read:conversations"])
+    normalized: list[str] = []
+    for scope in raw:
+        value = str(scope or "").strip()
+        if value not in API_TOKEN_SCOPES:
+            raise HTTPException(status_code=400, detail=f"unsupported token scope: {value}")
+        if value not in normalized:
+            normalized.append(value)
+    if not normalized:
+        raise HTTPException(status_code=400, detail="at least one token scope is required")
+    return normalized
+
+
+def _api_token_payload(row: sqlite3.Row) -> dict[str, Any]:
+    try:
+        scopes = json.loads(row["scopes_json"])
+    except Exception:
+        scopes = []
+    return {
+        "id": row["id"],
+        "name": row["name"],
+        "prefix": row["token_prefix"],
+        "scopes": scopes,
+        "created_at": row["created_at"],
+        "last_used_at": row["last_used_at"],
+        "expires_at": row["expires_at"],
+        "revoked_at": row["revoked_at"],
+    }
+
+
+def _create_api_token(connection: sqlite3.Connection, owner_id: str, request: ApiTokenCreateRequest) -> dict[str, Any]:
+    scopes = _normalize_api_token_scopes(request.scopes)
+    raw_token = API_TOKEN_PREFIX + secrets.token_urlsafe(32)
+    now = _utc_now()
+    expires_at = _iso_utc(now + timedelta(days=request.expires_days)) if request.expires_days else None
+    token_id = "tok_" + secrets.token_urlsafe(12)
+    connection.execute(
+        """
+        INSERT INTO api_tokens (id, owner_id, name, token_hash, token_prefix, scopes_json, created_at, expires_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            token_id,
+            owner_id,
+            request.name.strip(),
+            _api_token_hash(raw_token),
+            raw_token[len(API_TOKEN_PREFIX): len(API_TOKEN_PREFIX) + 8],
+            json.dumps(scopes, ensure_ascii=False),
+            _iso_utc(now),
+            expires_at,
+        ),
+    )
+    row = connection.execute("SELECT * FROM api_tokens WHERE id = ?", (token_id,)).fetchone()
+    return {"token": raw_token, "token_info": _api_token_payload(row)}
+
+
+def _api_token_auth_row(request: Request, *, scope: str) -> sqlite3.Row:
+    authorization = request.headers.get("Authorization", "")
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token.startswith(API_TOKEN_PREFIX):
+        raise HTTPException(status_code=401, detail="missing API token")
+    token_hash = _api_token_hash(token.strip())
+    now = _utc_now()
+    with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
+        row = connection.execute(
+            """
+            SELECT t.*, a.account, a.display_name
+            FROM api_tokens AS t JOIN accounts AS a ON a.id = t.owner_id
+            WHERE t.token_hash = ?
+            """,
+            (token_hash,),
+        ).fetchone()
+        if row is None:
+            raise HTTPException(status_code=401, detail="invalid API token")
+        if row["revoked_at"]:
+            raise HTTPException(status_code=401, detail="revoked API token")
+        if row["expires_at"] and datetime.fromisoformat(row["expires_at"]) <= now:
+            raise HTTPException(status_code=401, detail="expired API token")
+        try:
+            scopes = json.loads(row["scopes_json"])
+        except Exception:
+            scopes = []
+        if scope not in scopes:
+            raise HTTPException(status_code=403, detail="API token scope is not allowed")
+        connection.execute("UPDATE api_tokens SET last_used_at = ? WHERE id = ?", (_iso_utc(now), row["id"]))
+        connection.commit()
+    return row
+
+
+def _validated_token_id(value: str) -> str:
+    normalized = str(value or "").strip()
+    if not re.fullmatch(r"tok_[A-Za-z0-9_-]{8,80}", normalized):
+        raise HTTPException(status_code=400, detail="invalid token id")
+    return normalized
+
+
+@app.get("/api/tokens")
+def list_api_tokens(request: Request) -> JSONResponse:
+    owner_id = _auth_row(request)["user_id"]
+    with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
+        rows = connection.execute(
+            "SELECT * FROM api_tokens WHERE owner_id = ? ORDER BY created_at DESC LIMIT 100",
+            (owner_id,),
+        ).fetchall()
+    return JSONResponse({"tokens": [_api_token_payload(row) for row in rows]})
+
+
+@app.post("/api/tokens")
+def create_api_token(token_request: ApiTokenCreateRequest, request: Request) -> JSONResponse:
+    auth = _auth_row(request)
+    _require_csrf(request, auth)
+    with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
+        payload = _create_api_token(connection, auth["user_id"], token_request)
+        connection.commit()
+    return JSONResponse(payload)
+
+
+@app.delete("/api/tokens/{token_id}")
+def revoke_api_token(token_id: str, request: Request) -> JSONResponse:
+    auth = _auth_row(request)
+    _require_csrf(request, auth)
+    record_id = _validated_token_id(token_id)
+    now = _iso_utc()
+    with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
+        cursor = connection.execute(
+            "UPDATE api_tokens SET revoked_at = COALESCE(revoked_at, ?) WHERE owner_id = ? AND id = ?",
+            (now, auth["user_id"], record_id),
+        )
+        connection.commit()
+    return JSONResponse({"revoked": cursor.rowcount > 0, "id": record_id})
 
 
 def _meeting_row_payload(row: sqlite3.Row, include_content: bool) -> dict[str, Any]:
@@ -804,6 +972,56 @@ def delete_conversation(conversation_id: str, request: Request) -> JSONResponse:
         )
         connection.commit()
     return JSONResponse({"deleted": cursor.rowcount > 0, "id": record_id})
+
+
+@app.get("/api/data/meetings")
+def data_meetings(request: Request) -> JSONResponse:
+    token_row = _api_token_auth_row(request, scope="read:meetings")
+    with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
+        rows = connection.execute(
+            "SELECT * FROM meeting_records WHERE owner_id = ? ORDER BY updated_at DESC LIMIT 200",
+            (token_row["owner_id"],),
+        ).fetchall()
+    return JSONResponse({"meetings": [_meeting_row_payload(row, True) for row in rows]})
+
+
+@app.get("/api/data/meetings/{meeting_id}")
+def data_meeting(meeting_id: str, request: Request) -> JSONResponse:
+    token_row = _api_token_auth_row(request, scope="read:meetings")
+    record_id = _validated_record_key(meeting_id, "meeting id")
+    with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
+        row = connection.execute(
+            "SELECT * FROM meeting_records WHERE owner_id = ? AND meeting_id = ?",
+            (token_row["owner_id"], record_id),
+        ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="meeting not found")
+    return JSONResponse(_meeting_row_payload(row, True))
+
+
+@app.get("/api/data/conversations")
+def data_conversations(request: Request) -> JSONResponse:
+    token_row = _api_token_auth_row(request, scope="read:conversations")
+    with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
+        rows = connection.execute(
+            "SELECT * FROM conversation_records WHERE owner_id = ? ORDER BY updated_at DESC LIMIT 200",
+            (token_row["owner_id"],),
+        ).fetchall()
+    return JSONResponse({"conversations": [_conversation_row_payload(row, True) for row in rows]})
+
+
+@app.get("/api/data/conversations/{conversation_id}")
+def data_conversation(conversation_id: str, request: Request) -> JSONResponse:
+    token_row = _api_token_auth_row(request, scope="read:conversations")
+    record_id = _validated_record_key(conversation_id, "conversation id")
+    with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
+        row = connection.execute(
+            "SELECT * FROM conversation_records WHERE owner_id = ? AND conversation_id = ?",
+            (token_row["owner_id"], record_id),
+        ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="conversation not found")
+    return JSONResponse(_conversation_row_payload(row, True))
 
 
 @app.post("/api/tts")
@@ -1319,7 +1537,7 @@ def _api_server_asr(audio_bytes: bytes, filename: str) -> dict[str, Any]:
     headers = {
         "Accept": "application/json",
         "Content-Type": f"multipart/form-data; boundary={boundary}",
-        "User-Agent": "ChatVoice/0.0.2 ASR API client",
+        "User-Agent": "ChatVoice/0.1.0 ASR API client",
     }
     if ASR_API_KEY:
         headers["Authorization"] = f"Bearer {ASR_API_KEY}"

@@ -17,7 +17,7 @@
 
 # ChatVoice
 
-ChatArch voice recording, transcription, and meeting-notes toolkit. ChatVoice packages the Speakr FastAPI + browser service so a release can be installed and started from the Python package.
+ChatArch voice recording, transcription, and meeting-notes toolkit. ChatVoice packages the Speakr FastAPI + browser service so a release can be installed, started, account-provisioned, and queried from the Python package.
 
 Documentation entry: <https://arch.gh.wzhecnu.cn/ChatVoice/en/>
 
@@ -27,7 +27,7 @@ Documentation entry: <https://arch.gh.wzhecnu.cn/ChatVoice/en/>
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "ChatVoice[web]==0.0.2"
+python -m pip install "ChatVoice[web]==0.1.0"
 
 chatvoice --tree
 chatvoice service plan --ensure-dirs --json
@@ -38,6 +38,33 @@ Open:
 
 ```text
 http://127.0.0.1:18087/
+```
+
+## Fresh account and data flow
+
+Create a managed account in the packaged runtime database:
+
+```bash
+read -r -s CHATVOICE_ACCOUNT_LOGIN
+export CHATVOICE_ACCOUNT_LOGIN
+chatvoice accounts add person@example.com --display-name "Person" --password-env CHATVOICE_ACCOUNT_LOGIN --json
+chatvoice accounts list --json
+```
+
+Log in through the browser, create a meeting, generate a summary, then create a one-time-visible API token from **Settings → API Token**. The CLI can also create/list/revoke tokens against a running service:
+
+```bash
+chatvoice tokens create --url http://127.0.0.1:18087 --account person@example.com --password-env CHATVOICE_ACCOUNT_LOGIN --name automation --json
+chatvoice tokens list --url http://127.0.0.1:18087 --account person@example.com --password-env CHATVOICE_ACCOUNT_LOGIN --json
+```
+
+Use the token to read meetings, summaries, and realtime conversations:
+
+```bash
+read -r -s CHATVOICE_DATA_READ
+export CHATVOICE_DATA_READ
+chatvoice data meetings --url http://127.0.0.1:18087 --token-env CHATVOICE_DATA_READ --json
+chatvoice data conversations --url http://127.0.0.1:18087 --token-env CHATVOICE_DATA_READ --json
 ```
 
 ## ASR provider model
@@ -62,13 +89,13 @@ chatvoice serve app --host 127.0.0.1 --port 18087
 
 ## Database and concurrency
 
-v0.0.2 defaults to SQLite WAL under:
+v0.1.0 defaults to SQLite WAL under:
 
 ```text
 <chatarch-home>/chatvoice/data/meetings.sqlite3
 ```
 
-Use one service process with SQLite (`--workers 1`). High-concurrency production should migrate the storage layer to Postgres/MySQL before scaling workers or nodes. an external database URL setting is detected in `chatvoice doctor` / `chatvoice service plan`, but the v0.0.2 packaged legacy storage layer still supports SQLite only.
+Use one service process with SQLite (`--workers 1`). High-concurrency production should migrate the storage layer to Postgres/MySQL before scaling workers or nodes. An external database URL setting is detected in `chatvoice doctor` / `chatvoice service plan`, but the v0.1.0 packaged legacy storage layer still supports SQLite only.
 
 ## CLI contract
 
@@ -76,6 +103,7 @@ Use one service process with SQLite (`--workers 1`). High-concurrency production
 chatvoice --tree
 chatvoice paths --json
 chatvoice doctor --json
+chatvoice accounts list --json
 chatvoice asr channels --json
 chatvoice health status --url http://127.0.0.1:18087 --json
 ```
@@ -89,6 +117,7 @@ Choose documentation by scenario:
 | Scenario | Document |
 | --- | --- |
 | Install from PyPI and start the service | `docs/deployment.en.md` |
+| Generate tokens and read data APIs | `docs/api-access.en.md` |
 | Check implemented commands | `docs/cli-tree.en.md` |
 | Check package capabilities and boundaries | `docs/capability-map.en.md` |
 | Call package behavior directly from Python | `docs/interface-tree.md` |
