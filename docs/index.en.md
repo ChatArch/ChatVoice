@@ -1,60 +1,60 @@
 # ChatVoice Docs
 
-ChatVoice is a ChatArch Python package. This documentation site should hold long-lived usage notes, a command map, a capability map, and Python interface entry points. After scaffolding, replace placeholders with behavior that is actually implemented, explored, or planned for this package.
+ChatVoice is a ChatArch Python package that packages the Speakr recording, transcription, meeting-notes, and voice-workspace service into an installable and maintainable runtime.
 
-Site entry: <https://arch.gh.wzhecnu.cn/ChatVoice/en/>
+Documentation entry: <https://arch.gh.wzhecnu.cn/ChatVoice/en/>
 
-## Choose Documentation by Scenario
+## Choose by scenario
 
 | Scenario | Document |
 | --- | --- |
-| Install the package, run the CLI, and confirm it works | [CLI Tree](cli-tree.md) |
+| Install from PyPI and start the service | [Deployment and Startup](deployment.md) |
+| Read back the real command tree and boundaries | [CLI Tree](cli-tree.md) |
 | Check first-class capabilities and current boundaries | [Capability Map](capability-map.md) |
 | Call package behavior directly from Python | [Python Interface Tree](interface-tree.md) |
 
-## Documentation Organization
-
-This template keeps only durable documentation entry points; it does not generate a plan placeholder:
-
-- **CLI tree**: the most direct command entry point, including the real command tree, status, and update checklist.
-- **Capability map**: first-class capabilities, boundaries, and out-of-scope areas.
-- **Interface tree**: importable Python APIs behind the CLI.
-
-## Primary Entry Points
+## Core entries
 
 <div class="grid cards" markdown>
 
+- **Deployment and Startup**
+
+    From `pip install "ChatVoice[web]==0.0.2"` to `chatvoice serve app`, including runtime paths, ASR API provider wiring, and database concurrency boundaries.
+
+    [Read deployment guide](deployment.md)
+
 - **CLI Tree**
 
-    Start from the CLI entry point and record implemented commands, command status, and interactive conventions.
+    The real implemented command tree, command status, and update rules.
 
-    [Open CLI Tree](cli-tree.md)
+    [Read CLI tree](cli-tree.md)
 
 - **Capability Map**
 
-    Review current package boundaries and avoid presenting planned work as implemented behavior.
+    Review current package boundaries and avoid presenting planned work as implemented functionality.
 
-    [Open Capability Map](capability-map.md)
+    [Read capability map](capability-map.md)
 
 - **Python Interface Tree**
 
     Keep the CLI thin and put substantive behavior in importable Python APIs.
 
-    [Open Interface Tree](interface-tree.md)
+    [Read interface tree](interface-tree.md)
 
 </div>
 
-## Documentation Status
+## v0.0.2 deployment boundary
 
-- **Implemented**: code, tests, or CLI routes exist.
-- **Verified**: covered by local smoke, CI, or real-service practice.
-- **Not implemented**: keep as boundary and planning notes only; turn into operation docs after implementation and validation.
+- The packaged FastAPI app starts with `chatvoice serve app`.
+- Production ASR should use `api-server` against a managed API or self-hosted GPU ASR server.
+- `stub-local` is only for credential-free / GPU-free contract smoke.
+- v0.0.2 defaults to SQLite WAL for one service process and light concurrency; high-concurrency storage migration needs a separate release.
 
-## Local Preview
+## Preview docs locally
 
 ```bash
 python -m pip install -e ".[docs]"
 mkdocs serve
 ```
 
-The Chinese home page is available at <https://arch.gh.wzhecnu.cn/ChatVoice/>. Topic pages without English translations fall back to the default Chinese content through the i18n plugin.
+Chinese home is available at <https://arch.gh.wzhecnu.cn/ChatVoice/>.

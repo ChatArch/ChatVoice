@@ -1,48 +1,66 @@
-# CLI 能力地图
+# CLI 树
 
-这篇文档是 `ChatVoice` CLI 的简明能力地图，用来校对哪些命令已经是一等入口、哪些仍然只是边界或规划。生成后请按真实命令树更新；不要把未实现命令写成已可用操作。
+`chatvoice --tree` 是每次 CLI 更新都要同步回读的真实命令契约。CLI 只做参数解析和展示，实际能力放在可 import 的 Python 函数中。
 
-可导入 Python 函数映射见 [接口树](interface-tree.md)。当前包能力边界见 [能力地图](capability-map.md)。
+可导入 Python 函数映射见 [接口树](interface-tree.md)。部署教程见 [部署与启动](deployment.md)。
 
-## 顶层命令
+## 当前已实现命令
 
 ```text
-chatvoice                  # ChatVoice 命令行入口
-├── --help                     # 显示 CLI 帮助和已注册命令
-├── --version                  # 输出当前包版本
-└── --tree                     # 输出真实已注册 CLI 树
+chatvoice  # ChatVoice command line interface
+├── --help  # Show help for the current command.
+├── --version  # Show package version.
+├── --tree  # Print the registered CLI tree.
+├── paths [--json]  # Show resolved ChatVoice runtime paths
+├── doctor [--json]  # Check local ChatVoice service readiness without secrets
+├── serve  # Start packaged ChatVoice services
+│   └── app [--host HOST] [--port PORT] [--reload] [--workers WORKERS] [--dry-run] [--json]  # Start the packaged Speakr web application
+├── health  # Read health from a running ChatVoice service
+│   └── status [--url URL] [--timeout TIMEOUT] [--json]  # Read the /api/status endpoint
+├── asr  # Inspect ASR provider configuration
+│   └── channels [--json]  # List ASR channels and API-provider readiness
+└── service  # Plan and inspect ChatVoice service deployment
+    └── plan [--host HOST] [--port PORT] [--workers WORKERS] [--ensure-dirs] [--json]  # Render a sanitized service deployment plan
 ```
 
 ## 基础入口
 
-```text
-chatvoice --help           # 验证命令已安装，并查看当前命令树
-chatvoice --version        # 验证当前安装版本
-chatvoice --tree           # 回读真实 CLI contract
+```bash
+chatvoice --help
+chatvoice --version
+chatvoice --tree
+chatvoice paths --json
+chatvoice doctor --json
 ```
 
-`--help`、`--version` 和 `--tree` 是模板默认可验证入口。新增业务命令后，应像 ChatTea 的 CLI 树一样，把命令组单独展开，并给每个命令写一行注释。
+## 启动服务
 
-## 业务命令槽位
-
-```text
-chatvoice <group>          # 按当前包真实能力命名的命令组
-├── <command>                  # 说明这个命令做什么
-└── <command>                  # 说明状态、边界或 checkpoint
+```bash
+python -m pip install "ChatVoice[web]==0.0.2"
+chatvoice service plan --ensure-dirs --json
+chatvoice serve app --host 127.0.0.1 --port 18087
 ```
 
-这里是占位槽位，不是未来能力承诺。只有当命令、Python 函数和测试都存在时，才把它写成已实现入口。
+如果接自建 GPU ASR server 或云 ASR：
+
+```bash
+export CHATVOICE_ASR_CHANNEL=api-server
+<ASR_API_URL_SETTING>="https://<asr-service>/v1/transcribe"
+# Configure the optional ASR bearer token in server-side config/env storage; do not put it in argv.
+chatvoice serve app --host 127.0.0.1 --port 18087
+```
 
 ## 状态约定
 
 | 状态 | 含义 |
 | --- | --- |
 | 已实现 | 命令、函数和测试已经存在 |
-| 已验证 | 已通过 CI、本地 smoke 或真实服务实践 |
+| 已验证 | 已通过本地测试、构建或发布后 smoke |
 | 规划 / checkpoint | 只保留边界说明；实现前不要写操作教程 |
 
-## 实现合约
+## 更新清单
 
-- 每个已实现命令都要能追到 Python 函数、类或 service 层。
-- 如果命令会写远端状态，文档必须说明凭据、权限、dry-run/checkpoint 或确认边界。
-- 新增命令时，同步更新 README、接口树、能力地图、测试和相关 Flow 页面。
+- 每个实质 CLI 命令都要能映射到 Python 函数、类或 service 层。
+- 新增命令后同步更新 README、CLI 树、接口树、能力地图、测试和部署文档。
+- 涉及远端状态或服务重启的命令必须先有 dry-run / plan / readback 边界。
+- 不在 CLI 或日志中输出 token、cookie、Authorization header、原始录音或完整 transcript。

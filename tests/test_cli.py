@@ -15,7 +15,10 @@ def test_tree_option_prints_registered_cli_tree():
     result = CliRunner().invoke(main, ["--tree"])
 
     assert result.exit_code == 0, result.output
-    assert "chatvoice  # chatvoice command line interface" in result.output
+    assert "chatvoice  # ChatVoice command line interface" in result.output
     assert "├── --help  # Show help for the current command." in result.output
     assert "├── --version  # Show package version." in result.output
-    assert "└── --tree  # Print the registered CLI tree." in result.output
+    assert "├── --tree  # Print the registered CLI tree." in result.output
+    assert "paths" in result.output
+    assert "serve" in result.output
+    assert "service" in result.output

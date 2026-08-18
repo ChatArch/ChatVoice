@@ -6,7 +6,9 @@ Public site: [https://speakr.public.wzhecnu.cn/](https://speakr.public.wzhecnu.c
 
 Repository: [https://github.com/ChatArch/ChatVoice](https://github.com/ChatArch/ChatVoice)
 
-PyPI placeholder: [https://pypi.org/project/ChatVoice/0.0.1/](https://pypi.org/project/ChatVoice/0.0.1/)
+PyPI package: [https://pypi.org/project/ChatVoice/](https://pypi.org/project/ChatVoice/)
+
+Documentation: [https://arch.gh.wzhecnu.cn/ChatVoice/](https://arch.gh.wzhecnu.cn/ChatVoice/)
 
 The former `qwen-audio-demo.public.wzhecnu.cn` entry is retired and returns HTTP 410.
 
@@ -18,7 +20,7 @@ The former `qwen-audio-demo.public.wzhecnu.cn` entry is retired and returns HTTP
 - **会议录音首页**: a mobile-first recording surface with live transcript, waveform, pause/resume, finish, and local audio download.
 - **Bounded local archive**: MediaRecorder emits one-second chunks into a browser-only IndexedDB store; the full Blob is assembled only when the user requests a download, with an explicit in-memory fallback if browser storage fails.
 - **语音转写**: the recorder streams microphone PCM16 to the existing ASR WebSocket and appends normalized final segments to the timeline.
-- **GPU-first ASR**: default ASR channel is `funasr-gpu` (CUDA PyTorch + FunASR/SenseVoiceSmall worker). `funasr-cpu` remains an explicit fallback, and `stub-local` remains available for smoke tests.
+- **API-first ASR**: production ASR is designed around `api-server`, where the ChatVoice backend calls either a managed ASR API or a self-hosted GPU ASR server. `stub-local` remains available for contract smoke, and `funasr-gpu` / `funasr-cpu` remain compatibility channels.
 - **Realtime ASR WebSocket**: `WS /ws/asr/stream` accepts continuous PCM16 microphone frames and returns cumulative revision events. Long recordings transparently roll a bounded context window while confirmed text continues to grow.
 - **会议纪要**: final transcript segments can be sent to a server-side Qwen-compatible model for summary, action items, risks, and open questions.
 - **双模式会议历史**: guests keep meeting text and summaries only in browser IndexedDB; signed-in accounts sync records through authenticated server storage.
@@ -28,23 +30,24 @@ The former `qwen-audio-demo.public.wzhecnu.cn` entry is retired and returns HTTP
 ## Security model
 
 - The browser never receives or stores the Qwen API key.
-- Set the key only on the server via `OPENAI_API_KEY` or `DASHSCOPE_API_KEY`.
-- Optional local env-file loading is available with `QWEN_TOKEN_PLAN_ENV_FILE=/path/to/local.env`.
-- Do not commit real `.env` files, model caches, probe output, audio files, or runtime logs.
+- Set provider keys only in server-side environment/config storage; never expose them to the browser.
+- Optional host-local env-file loading is supported, but public docs use placeholders instead of secret-bearing file names.
+- Do not commit real env files, model caches, probe output, audio files, or runtime logs.
 - Guest meeting and conversation records never enter the server database. Audio/transcript data still passes through the ASR/summary or Realtime service while a request is processed.
 - Raw recording blobs are not uploaded by the meeting-history feature; the current page keeps them only for local download.
 - Realtime history stores text, model and voice only; raw conversation audio is never written to history storage.
 
-## Quick start
+## Quick start from the released package
 
 ```bash
-cd ChatVoice
-python3 -m venv .venv
+python -m venv .venv
 . .venv/bin/activate
-pip install -r requirements.txt
-# Set OPENAI_API_KEY or DASHSCOPE_API_KEY in the server environment first.
-# Keep credentials out of the browser, repository, logs, and shell history.
-uvicorn app.main:app --host 127.0.0.1 --port 18087
+python -m pip install --upgrade pip
+python -m pip install "ChatVoice[web]==0.0.2"
+
+chatvoice --tree
+chatvoice service plan --ensure-dirs --json
+chatvoice serve app --host 127.0.0.1 --port 18087
 ```
 
 Open:
@@ -53,41 +56,57 @@ Open:
 http://127.0.0.1:18087/
 ```
 
-For remote development, use an SSH tunnel or a properly protected reverse proxy. Keep the API key server-side.
-
-## Optional env file
+For a real ASR backend, keep credentials server-side and call an API provider:
 
 ```bash
-cp .env.example .env.local
-# edit .env.local locally; never commit it
-export QWEN_TOKEN_PLAN_ENV_FILE="$PWD/.env.local"
-uvicorn app.main:app --host 127.0.0.1 --port 18087
+export CHATVOICE_ASR_CHANNEL=api-server
+<ASR_API_URL_SETTING>="https://<asr-service>/v1/transcribe"
+# Configure the optional ASR bearer token in server-side config/env storage; do not put it in argv.
+chatvoice serve app --host 127.0.0.1 --port 18087
 ```
 
-## GPU ASR environment
-
-Real GPU ASR uses an ignored project-local GPU venv. For low-latency streaming, install the web dependencies in the same venv and run Uvicorn with it so the model remains cached in process:
+For a credential-free wiring smoke, use:
 
 ```bash
-python3 -m venv .venv-asr-gpu
-.venv-asr-gpu/bin/python -m pip install --upgrade pip setuptools wheel
-.venv-asr-gpu/bin/python -m pip install --index-url https://download.pytorch.org/whl/cu121 torch torchvision torchaudio
-.venv-asr-gpu/bin/python -m pip install funasr modelscope soundfile scipy librosa pydub ffmpeg-python
-.venv-asr-gpu/bin/python -m pip install -r requirements.txt
-.venv-asr-gpu/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 18087
+export CHATVOICE_ASR_CHANNEL=stub-local
+chatvoice serve app --host 127.0.0.1 --port 18087
 ```
 
-Running the web service from the lightweight `.venv` remains supported through the subprocess worker fallback, but each chunk may pay model startup cost and is not recommended for interactive use.
 
-Recommended server env:
+## Optional env file for Qwen-compatible APIs
 
 ```bash
-export DEFAULT_ASR_CHANNEL=funasr-gpu
-export FUNASR_GPU_DEVICE=cuda:0
-export FUNASR_MODEL=iic/SenseVoiceSmall
+# Configure a host-local provider-env file through your deployment secret store.
+# Keep file names and values outside public docs and Git.
+chatvoice serve app --host 127.0.0.1 --port 18087
 ```
 
-Model cache is written to `playground/model-cache/`, which is ignored by Git.
+## ASR API server and optional local GPU mode
+
+Recommended production shape:
+
+```bash
+export CHATVOICE_ASR_CHANNEL=api-server
+<ASR_API_URL_SETTING>="https://<asr-service>/v1/transcribe"
+# Configure the optional ASR bearer token in server-side config/env storage; do not put it in argv.
+chatvoice serve app --host 127.0.0.1 --port 18087
+```
+
+The ASR service can be a managed API or a self-hosted GPU server. ChatVoice sends multipart field `file` and reads `corrected_text`, `text`, `transcript`, `raw_text`, `data.text`, or `result.text` from the JSON response.
+
+`funasr-gpu` remains available as a compatibility channel when the web service and GPU runtime intentionally live on the same host. It is no longer the recommended default packaging model because separating the GPU worker behind an API server is easier to scale, restart, and secure.
+
+Default runtime paths are under `<chatarch-home>/chatvoice/`; model caches are under `<chatarch-home>/chatvoice/model-cache/` unless overridden.
+
+## Database and concurrency
+
+The packaged v0.0.2 web app defaults to SQLite WAL at:
+
+```text
+<chatarch-home>/chatvoice/data/meetings.sqlite3
+```
+
+Use one service process (`--workers 1`) with SQLite. For high-concurrency production, migrate the storage layer to Postgres/MySQL before scaling workers or nodes. an external database URL setting is detected by `chatvoice doctor` / `chatvoice service plan`, but the v0.0.2 packaged legacy storage layer still supports SQLite only.
 
 ## API surface
 
@@ -95,8 +114,8 @@ Model cache is written to `playground/model-cache/`, which is ignored by Git.
 - `POST /api/tts`: JSON `{text, voice, format}` -> `audio/mpeg` or `audio/wav`.
 - `POST /api/voice-cloning/create`: JSON `{audio_url, prefix, target_model, language_hints}` -> server-created `voice_id`.
 - `GET /api/voice-cloning/list`: list server-side voice enrollment ids by prefix.
-- `GET /api/asr/channels`: available ASR channels; default is `funasr-gpu`.
-- `POST /api/asr`: programmatic/smoke multipart upload endpoint with `channel=funasr-gpu|funasr-cpu|stub-local` and `correct=true|false`; not the browser ASR product flow.
+- `GET /api/asr/channels`: available ASR channels; packaged default is `api-server` when the ASR API URL setting is configured, otherwise `stub-local`.
+- `POST /api/asr`: programmatic/smoke multipart upload endpoint with `channel=api-server|funasr-gpu|funasr-cpu|stub-local` and `correct=true|false`; not the browser ASR product flow.
 - `WS /ws/asr/stream`: bounded PCM16 stream used by the recorder. Results include `stream.revision`, `stream.revision_scope=window`, `stream.window_index`, `stream.replace=true`, and `stream.final`; clients replace only the current rolling window and append confirmed windows.
 - `GET /api/realtime/models`: Realtime models currently exposed by the configured account; the browser selector is populated from this list.
 - `WS /ws/realtime?model=<id>`: browser-to-backend Realtime proxy; upstream events are normalized into `demo_event=transcript.delta` for the Realtime board.

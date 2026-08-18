@@ -1,6 +1,6 @@
 # Python 接口树
 
-`ChatVoice` 的 CLI 应保持薄入口；实质能力应放在可 import 的 Python 函数、类或 service 层里。
+`ChatVoice` 的 CLI 保持薄入口；实质能力放在可 import 的 Python 函数、类或 service 层里。
 
 ## 包入口
 
@@ -8,16 +8,45 @@
 from chatvoice import __version__
 ```
 
-## 待补接口
+## 已实现接口
 
 ```text
 chatvoice
-├── cli.py          # Click 入口，只做参数解析和输出
-└── <service>.py    # 放包的核心可调用能力
+├── asr.py
+│   ├── configured_api_endpoint()        # 读取 ASR API URL，不输出 key
+│   ├── default_asr_channel()            # 解析默认 ASR channel
+│   └── get_asr_channels()               # 返回脱敏 channel map
+├── paths.py
+│   ├── state_root()                     # 解析 ChatVoice state root
+│   ├── state_paths()                    # 返回 RuntimePaths
+│   ├── ensure_runtime_dirs()            # 创建 data/logs/run/temp/cache 目录
+│   └── database_settings()              # 返回脱敏 DB/concurrency 摘要
+├── service.py
+│   ├── render_service_plan()            # 生成部署 plan，不启动服务
+│   └── serve_app()                      # 通过 uvicorn 启 packaged app
+├── health.py
+│   └── get_status()                     # 读取 /api/status
+├── doctor.py
+│   └── run_doctor()                     # 本地 readiness 摘要
+└── web/server.py
+    └── create_app()                     # FastAPI app factory
 ```
+
+## CLI 到 Python API 映射
+
+| CLI | Python API |
+| --- | --- |
+| `chatvoice paths` | `chatvoice.paths.state_paths()` |
+| `chatvoice doctor` | `chatvoice.doctor.run_doctor()` |
+| `chatvoice serve app --dry-run` | `chatvoice.service.render_service_plan()` |
+| `chatvoice serve app` | `chatvoice.service.serve_app()` |
+| `chatvoice health status` | `chatvoice.health.get_status()` |
+| `chatvoice asr channels` | `chatvoice.asr.get_asr_channels()` |
+| `chatvoice service plan` | `chatvoice.service.render_service_plan()` |
 
 ## 更新清单
 
 - 每个实质 CLI 命令都要能映射到 importable API。
 - 文档里的函数签名应和代码一致。
-- 对外输出默认不要泄漏 token、cookie、内部 URL 或人员信息。
+- 对外输出默认不要泄漏 token、cookie、内部 URL、原始录音或完整 transcript。
+- 涉及数据库或服务重启的 API 要先暴露 plan/readback，再加 mutation。

@@ -1,0 +1,3367 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#ffffff" />
+  <title>声笺 · 实时会议记录</title>
+  <style>
+    :root {
+      --ink: #17181b;
+      --ink-soft: #666970;
+      --muted: #96989e;
+      --line: #ececee;
+      --panel: #ffffff;
+      --soft: #f6f6f7;
+      --violet: #696ae8;
+      --violet-soft: #eeeeff;
+      --green: #20a66e;
+      --red: #ff625e;
+      --orange: #e89b38;
+      --shadow: 0 28px 80px rgba(30, 34, 50, .12);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { min-height: 100%; }
+    body {
+      margin: 0;
+      background: #f3f4f6;
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    button, input, select { font: inherit; color: inherit; }
+    button { cursor: pointer; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+    .site-shell { min-height: 100vh; padding-left: 252px; transition: padding-left .22s ease; }
+    .meeting-sidebar { position: fixed; z-index: 30; inset: 0 auto 0 0; width: 252px; display: flex; flex-direction: column; padding: 18px 14px 14px; border-right: 1px solid #e8e9eb; background: #fafafa; transition: transform .22s ease; }
+    .sidebar-header { height: 42px; display: flex; align-items: center; justify-content: space-between; padding: 0 8px; }
+    .sidebar-brand { display: inline-flex; align-items: center; gap: 9px; color: var(--ink); text-decoration: none; font-size: 15px; font-weight: 760; }
+    .sidebar-collapse { width: 31px; height: 31px; border: 1px solid #e4e4e6; border-radius: 10px; background: #fff; color: #777980; }
+    .new-meeting { width: 100%; height: 43px; margin-top: 14px; padding: 0 13px; display: flex; align-items: center; gap: 10px; border: 0; border-radius: 12px; background: #f0f0f1; text-align: left; font-size: 12px; font-weight: 690; }
+    .new-meeting i { font-style: normal; font-size: 19px; font-weight: 380; }
+    .meeting-search { position: relative; margin-top: 8px; }
+    .meeting-search::before { content: "⌕"; position: absolute; left: 13px; top: 8px; color: #777980; font-size: 20px; line-height: 1; }
+    .meeting-search input { width: 100%; height: 40px; padding: 0 12px 0 38px; border: 0; border-radius: 11px; outline: 0; background: transparent; font-size: 11px; }
+    .meeting-search input:focus { background: #f1f1f2; }
+    .sidebar-label { margin: 19px 9px 8px; color: #85878c; font-size: 10px; font-weight: 720; }
+    .meeting-groups { flex: 1; min-height: 0; overflow-y: auto; }
+    .meeting-group-title { margin: 15px 9px 6px; color: #a0a2a7; font-size: 9px; font-weight: 680; }
+    .meeting-item { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px; margin: 2px 0; border-radius: 12px; }
+    .meeting-item.active { background: #eaeaec; }
+    .meeting-open { min-width: 0; padding: 10px 8px 10px 12px; border: 0; background: transparent; text-align: left; }
+    .meeting-open strong, .meeting-open small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .meeting-open strong { font-size: 11px; font-weight: 650; }
+    .meeting-open small { margin-top: 4px; color: #999ba0; font-size: 8px; }
+    .meeting-delete { width: 28px; height: 28px; margin-right: 5px; border: 0; border-radius: 9px; background: transparent; color: #a0a2a7; opacity: 0; }
+    .meeting-item:hover .meeting-delete, .meeting-item.active .meeting-delete { opacity: 1; }
+    .meeting-delete:hover { background: #fff; color: #b64646; }
+    .meeting-empty { margin: 28px 12px; color: #a0a2a7; font-size: 9px; line-height: 1.7; text-align: center; }
+    .account-card { margin-top: 10px; padding: 11px; display: grid; grid-template-columns: 29px 1fr auto; align-items: center; gap: 9px; border: 1px solid #e7e7e9; border-radius: 13px; background: #fff; }
+    .account-avatar { width: 29px; height: 29px; display: grid; place-items: center; border-radius: 9px; background: var(--ink); color: #fff; font-size: 10px; font-weight: 750; }
+    .account-copy { min-width: 0; }
+    .account-copy strong, .account-copy small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .account-copy strong { font-size: 10px; }
+    .account-copy small { margin-top: 3px; color: #9a9ca2; font-size: 8px; }
+    .account-action { padding: 6px 8px; border: 0; border-radius: 8px; background: #f3f3f4; font-size: 8px; }
+    .sidebar-footnote { margin: 9px 8px 2px; color: #b0b1b5; font-size: 8px; line-height: 1.55; }
+    .sidebar-backdrop { display: none; }
+    body.sidebar-collapsed .site-shell { padding-left: 0; }
+    body.sidebar-collapsed .meeting-sidebar { transform: translateX(-100%); }
+    .site-bar {
+      height: 64px;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      gap: 20px;
+      padding: 0 26px;
+      border-bottom: 1px solid #e8e9eb;
+      background: rgba(248, 248, 249, .92);
+      backdrop-filter: blur(18px);
+    }
+    .brand { display: inline-flex; width: fit-content; align-items: center; gap: 9px; color: var(--ink); text-decoration: none; letter-spacing: -.03em; }
+    .brand-mark { width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; gap: 2px; border-radius: 8px; background: var(--ink); }
+    .brand-mark i { display: block; width: 2px; height: 7px; border-radius: 2px; background: #fff; }
+    .brand-mark i:nth-child(2) { height: 15px; }.brand-mark i:nth-child(3) { height: 11px; }.brand-mark i:nth-child(4) { height: 5px; }
+    .brand strong { font-size: 15px; }
+    .brand small { color: var(--muted); font-size: 9px; font-weight: 600; letter-spacing: .04em; }
+
+    .service-state { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 10px; }
+    .service-state i { width: 6px; height: 6px; border-radius: 50%; background: #b5b7bc; }
+    .service-state.ready { color: var(--green); }.service-state.ready i { background: var(--green); box-shadow: 0 0 0 4px rgba(32, 166, 110, .1); }
+    .service-state.error { color: var(--red); }.service-state.error i { background: var(--red); }
+
+    .product-tabs { justify-self: center; display: inline-flex; align-items: center; gap: 4px; padding: 4px; border: 1px solid #e5e5e8; border-radius: 13px; background: #eeeef0; }
+    .product-tab { min-width: 92px; height: 34px; padding: 0 13px; border: 0; border-radius: 10px; background: transparent; color: #777980; font-size: 10px; font-weight: 680; transition: background .16s ease, color .16s ease, box-shadow .16s ease; }
+    .product-tab.active { background: #fff; color: var(--ink); box-shadow: 0 2px 9px rgba(27, 29, 38, .08); }
+
+    .utility-actions { display: flex; justify-content: flex-end; gap: 8px; }
+    .icon-button { width: 36px; height: 36px; padding: 0; display: grid; place-items: center; border: 1px solid #e7e7e9; border-radius: 12px; background: #fff; font-size: 12px; font-weight: 700; }
+    .icon-button:hover { background: #f8f8f9; }
+    .settings-icon { position: relative; width: 15px; height: 15px; border: 2px solid currentColor; border-radius: 50%; }
+    .settings-icon::after { content: ""; position: absolute; width: 4px; height: 4px; border-radius: 50%; background: currentColor; left: 3.5px; top: 3.5px; }
+
+    .recorder-shell {
+      position: relative;
+      width: min(960px, calc(100% - 44px));
+      height: calc(100vh - 92px);
+      min-height: 660px;
+      margin: 14px auto;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      background: var(--panel);
+      border: 1px solid #e9e9eb;
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+    }
+
+    .voice-studio {
+      width: min(1040px, calc(100% - 44px));
+      height: calc(100vh - 92px);
+      min-height: 660px;
+      margin: 14px auto;
+      overflow-y: auto;
+      padding: 40px;
+      background: #f9f9fa;
+      border: 1px solid #e7e7e9;
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+      scrollbar-width: thin;
+    }
+    .studio-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 25px; }
+    .studio-kicker { display: flex; align-items: center; gap: 7px; margin: 0 0 9px; color: var(--violet); font-size: 9px; font-weight: 760; letter-spacing: .09em; text-transform: uppercase; }
+    .studio-kicker::before { content: ""; width: 18px; height: 2px; border-radius: 2px; background: currentColor; }
+    .studio-hero h1 { margin: 0; font-size: clamp(29px, 4vw, 43px); line-height: 1.08; letter-spacing: -.055em; }
+    .studio-hero p:last-child { max-width: 530px; margin: 12px 0 0; color: #777980; font-size: 11px; line-height: 1.75; }
+    .studio-model-badge { flex: none; padding: 9px 12px; border: 1px solid #e2e2e5; border-radius: 11px; background: #fff; color: #696b72; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 8px; }
+    .studio-grid { display: grid; grid-template-columns: minmax(0, 1.16fr) minmax(300px, .84fr); gap: 14px; }
+    .studio-card { border: 1px solid #e5e5e8; border-radius: 21px; background: #fff; }
+    .studio-composer { padding: 24px; }
+    .studio-card-header { display: flex; align-items: center; justify-content: space-between; gap: 15px; }
+    .studio-card-header h2 { margin: 0; font-size: 14px; letter-spacing: -.025em; }
+    .studio-step { display: grid; place-items: center; width: 25px; height: 25px; border-radius: 8px; background: #f0f0f2; color: #777980; font-size: 9px; font-weight: 760; }
+    .studio-text-wrap { position: relative; margin-top: 16px; }
+    .studio-text-wrap textarea { width: 100%; min-height: 158px; resize: vertical; padding: 17px 18px 32px; border: 1px solid #dedee2; border-radius: 16px; outline: 0; background: #fbfbfc; color: #292a30; font: inherit; font-size: 13px; line-height: 1.75; transition: border-color .15s ease, box-shadow .15s ease; }
+    .studio-text-wrap textarea:focus { border-color: #aaaaf0; box-shadow: 0 0 0 4px rgba(105, 106, 232, .08); }
+    .studio-count { position: absolute; right: 14px; bottom: 11px; color: #a0a2a7; font-size: 8px; }
+    .studio-label { display: flex; align-items: center; justify-content: space-between; margin: 20px 1px 10px; color: #65676e; font-size: 9px; font-weight: 700; }
+    .studio-label small { color: #a0a2a7; font-size: 8px; font-weight: 500; }
+    .voice-options { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+    .voice-card { min-width: 0; display: grid; grid-template-columns: 36px 1fr 16px; align-items: center; gap: 10px; padding: 11px; border: 1px solid #e4e4e7; border-radius: 14px; background: #fff; text-align: left; }
+    .voice-card:hover { border-color: #c6c6e9; }
+    .voice-card.active { border-color: #9999ec; background: #fafaff; box-shadow: inset 0 0 0 1px #9999ec; }
+    .voice-avatar { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 12px; background: linear-gradient(145deg, #d0d0ff, #f0f0ff); color: #6465d9; font-size: 11px; font-weight: 760; }
+    .voice-card:nth-child(2) .voice-avatar { background: linear-gradient(145deg, #c9ebdc, #effaf4); color: #28865f; }
+    .voice-card strong, .voice-card small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .voice-card strong { font-size: 10px; }
+    .voice-card small { margin-top: 3px; color: #989aa0; font-size: 8px; }
+    .voice-check { width: 15px; height: 15px; border: 1.5px solid #d1d2d6; border-radius: 50%; }
+    .voice-card.active .voice-check { border: 4px solid var(--violet); }
+    .custom-voice-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 9px; }
+    .custom-voice-row input { min-width: 0; height: 40px; padding: 0 12px; border: 1px solid #e1e1e4; border-radius: 11px; outline: 0; background: #fbfbfc; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 9px; }
+    .custom-voice-row input:focus { border-color: #aaaaf0; }
+    .voice-list-button { padding: 0 12px; border: 1px solid #e3e3e6; border-radius: 11px; background: #fff; color: #74767d; font-size: 9px; }
+    .voice-list-button:disabled { opacity: .45; cursor: not-allowed; }
+    .studio-footer { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 20px; }
+    .format-toggle { display: flex; gap: 3px; padding: 3px; border-radius: 10px; background: #f1f1f3; }
+    .format-button { min-width: 49px; height: 31px; border: 0; border-radius: 8px; background: transparent; color: #888a90; font-size: 8px; font-weight: 700; }
+    .format-button.active { background: #fff; color: var(--ink); box-shadow: 0 2px 7px rgba(20, 22, 30, .07); }
+    .primary-studio-button { min-width: 142px; height: 42px; padding: 0 17px; border: 0; border-radius: 13px; background: var(--ink); color: #fff; font-size: 10px; font-weight: 700; box-shadow: 0 8px 22px rgba(22, 23, 28, .15); }
+    .primary-studio-button:disabled { opacity: .5; cursor: wait; }
+    .studio-result { min-height: 100%; display: flex; flex-direction: column; overflow: hidden; background: linear-gradient(150deg, #202127, #30313a); color: #fff; }
+    .result-head { padding: 24px 24px 10px; }
+    .result-head small { color: #b5b6bd; font-size: 8px; letter-spacing: .08em; }
+    .result-head h2 { margin: 8px 0 0; font-size: 20px; letter-spacing: -.035em; }
+    .result-visual { flex: 1; min-height: 158px; display: grid; place-items: center; padding: 20px 24px; }
+    .sound-orbit { position: relative; width: 112px; height: 112px; display: grid; place-items: center; border-radius: 50%; background: radial-gradient(circle at 36% 30%, #a5a6ff, #6667df 49%, #41429a); box-shadow: 0 22px 52px rgba(82, 83, 201, .34); }
+    .sound-orbit::before, .sound-orbit::after { content: ""; position: absolute; border: 1px solid rgba(255,255,255,.22); border-radius: 50%; }
+    .sound-orbit::before { inset: -13px; }.sound-orbit::after { inset: -27px; border-color: rgba(255,255,255,.1); }
+    .sound-bars { height: 31px; display: flex; align-items: center; gap: 4px; }
+    .sound-bars i { width: 3px; height: 13px; border-radius: 3px; background: #fff; opacity: .92; }
+    .sound-bars i:nth-child(2), .sound-bars i:nth-child(4) { height: 25px; }.sound-bars i:nth-child(3) { height: 31px; }
+    .studio-result.ready .sound-bars i { animation: studio-wave .8s ease-in-out infinite alternate; }
+    .studio-result.ready .sound-bars i:nth-child(2) { animation-delay: -.25s; }.studio-result.ready .sound-bars i:nth-child(3) { animation-delay: -.5s; }
+    .result-empty { margin: 0; color: #b7b8bf; font-size: 9px; text-align: center; line-height: 1.7; }
+    .result-player { padding: 0 18px 18px; }
+    .result-player audio { width: 100%; height: 38px; }
+    .result-meta { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-top: 10px; }
+    .result-meta span { min-width: 0; padding: 9px; border-radius: 10px; background: rgba(255,255,255,.07); }
+    .result-meta small, .result-meta strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .result-meta small { color: #9fa0aa; font-size: 7px; }.result-meta strong { margin-top: 3px; font-size: 8px; }
+    .download-voice { width: 100%; height: 38px; margin-top: 9px; border: 1px solid rgba(255,255,255,.15); border-radius: 11px; background: rgba(255,255,255,.09); color: #fff; font-size: 9px; font-weight: 680; }
+    .clone-card { margin-top: 14px; padding: 24px; }
+    .clone-copy { max-width: 620px; margin: 8px 0 0; color: #8b8d93; font-size: 9px; line-height: 1.7; }
+    .capability-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 9px; border-radius: 9px; background: #fff5e6; color: #b56d17; font-size: 8px; font-weight: 700; }
+    .capability-badge::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+    .capability-badge.ready { background: #eaf8f1; color: var(--green); }
+    .clone-form { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(120px, .5fr) 92px auto; gap: 9px; margin-top: 17px; }
+    .clone-field { min-width: 0; }
+    .clone-field label { display: block; margin: 0 0 6px 2px; color: #8a8c92; font-size: 8px; }
+    .clone-field input, .clone-field select { width: 100%; height: 40px; padding: 0 11px; border: 1px solid #e0e0e3; border-radius: 11px; outline: 0; background: #fbfbfc; font-size: 9px; }
+    .clone-submit { align-self: end; height: 40px; padding: 0 15px; border: 0; border-radius: 11px; background: #eeeeff; color: var(--violet); font-size: 9px; font-weight: 720; }
+    .clone-submit:disabled { background: #f1f1f2; color: #a4a5aa; cursor: not-allowed; }
+    .clone-help { margin: 11px 1px 0; color: #aaaab0; font-size: 8px; line-height: 1.65; }
+
+    .realtime-chat {
+      position: relative;
+      width: min(960px, calc(100% - 44px));
+      height: calc(100vh - 92px);
+      min-height: 660px;
+      margin: 14px auto;
+      overflow: hidden;
+      background: linear-gradient(180deg, #fbfbfc 0%, #f8f8fa 58%, #f3f3f6 100%);
+      border: 1px solid #e7e7e9;
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+    }
+    .conversation-header { position: relative; z-index: 4; height: 77px; display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 0 28px 0 32px; border-bottom: 1px solid rgba(224,224,228,.85); background: rgba(255,255,255,.76); backdrop-filter: blur(20px); }
+    .conversation-title { display: flex; align-items: center; gap: 12px; }
+    .conversation-title-mark { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 12px; background: #202126; color: #fff; }
+    .conversation-title-mark i { width: 11px; height: 15px; border: 2px solid currentColor; border-radius: 7px; position: relative; }
+    .conversation-title-mark i::before { content: ""; position: absolute; left: 50%; bottom: -6px; width: 7px; height: 5px; border-left: 1.5px solid currentColor; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; border-radius: 0 0 6px 6px; transform: translateX(-50%); }
+    .conversation-title strong, .conversation-title small { display: block; }
+    .conversation-title strong { font-size: 13px; letter-spacing: -.02em; }
+    .conversation-title small { margin-top: 3px; color: #96989e; font-size: 8px; }
+    .conversation-head-actions { display: flex; align-items: center; gap: 8px; }
+    .conversation-status { display: inline-flex; align-items: center; gap: 7px; min-width: 98px; justify-content: flex-end; color: #92949a; font-size: 9px; }
+    .conversation-status i { width: 6px; height: 6px; border-radius: 50%; background: #b8b9bd; }
+    .conversation-status.live { color: var(--green); }.conversation-status.live i { background: var(--green); box-shadow: 0 0 0 4px rgba(32,166,110,.1); }
+    .conversation-status.thinking { color: var(--orange); }.conversation-status.thinking i { background: var(--orange); }
+    .conversation-status.speaking { color: var(--violet); }.conversation-status.speaking i { background: var(--violet); box-shadow: 0 0 0 4px rgba(105,106,232,.1); }
+    .conversation-status.error { color: var(--red); }.conversation-status.error i { background: var(--red); }
+    .conversation-select { height: 36px; max-width: 210px; padding: 0 29px 0 11px; border: 1px solid #e3e3e6; border-radius: 11px; outline: 0; background: #fff; color: #676970; font-size: 9px; }
+    .conversation-select:disabled { opacity: .55; }
+    .conversation-voice { max-width: 128px; }
+    .conversation-export { height: 36px; padding: 0 12px; border: 1px solid #e3e3e6; border-radius: 11px; background: #fff; color: #676970; font-size: 9px; }
+    .conversation-export:hover:not(:disabled) { border-color: #c8c8e8; color: var(--violet); }
+    .conversation-export:disabled { opacity: .45; cursor: not-allowed; }
+    .conversation-scroll { position: absolute; inset: 77px 0 132px; overflow-y: auto; padding: 28px max(28px, calc((100% - 720px) / 2)); scrollbar-width: thin; scrollbar-color: #ddd transparent; }
+    .conversation-intro { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; padding-bottom: 30px; text-align: center; }
+    .conversation-intro[hidden] { display: none; }
+    .conversation-orb-wrap { position: relative; width: 186px; height: 186px; display: grid; place-items: center; }
+    .conversation-orb-ring { position: absolute; inset: 5px; border: 1px solid rgba(105,106,232,.12); border-radius: 50%; transform: scale(calc(1 + var(--voice-level, 0) * .12)); transition: transform .08s linear; }
+    .conversation-orb-ring:nth-child(2) { inset: 22px; border-color: rgba(105,106,232,.18); transform: scale(calc(1 + var(--voice-level, 0) * .08)); }
+    .conversation-orb { position: relative; width: 118px; height: 118px; display: grid; place-items: center; overflow: hidden; border-radius: 43% 57% 55% 45% / 46% 43% 57% 54%; background: radial-gradient(circle at 32% 27%, #d8d8ff 0 9%, #9697f3 31%, #6869de 62%, #484994 100%); box-shadow: 0 26px 68px rgba(83,84,196,.32), inset -12px -16px 30px rgba(36,37,111,.28); transform: scale(calc(1 + var(--voice-level, 0) * .06)); animation: orb-drift 5s ease-in-out infinite alternate; }
+    .conversation-orb::before { content: ""; position: absolute; width: 82px; height: 82px; left: -20px; top: -16px; border-radius: 50%; background: rgba(255,255,255,.24); filter: blur(10px); }
+    .conversation-orb::after { content: ""; width: 33px; height: 24px; border-radius: 50%; background: rgba(255,255,255,.85); filter: blur(12px); transform: translate(-20px,-24px); }
+    .realtime-chat[data-state="speaking"] .conversation-orb { animation: orb-speaking .55s ease-in-out infinite alternate; }
+    .realtime-chat[data-state="thinking"] .conversation-orb { animation: orb-thinking 1.25s ease-in-out infinite; }
+    .realtime-chat[data-state="muted"] .conversation-orb { filter: grayscale(.55); opacity: .72; }
+    .conversation-intro h1 { margin: 17px 0 7px; font-size: 26px; letter-spacing: -.045em; }
+    .conversation-intro > p { max-width: 430px; margin: 0; color: #898b91; font-size: 10px; line-height: 1.7; }
+    .conversation-prompts { display: flex; flex-wrap: wrap; justify-content: center; gap: 7px; margin-top: 20px; }
+    .conversation-prompts button { padding: 8px 11px; border: 1px solid #e3e3e7; border-radius: 11px; background: rgba(255,255,255,.82); color: #777980; font-size: 8px; }
+    .conversation-prompts button:hover { border-color: #c4c4e9; color: var(--violet); }
+    .conversation-messages { display: flex; flex-direction: column; gap: 18px; }
+    .conversation-message { display: flex; gap: 10px; max-width: 82%; animation: fade-in .2s ease; }
+    .conversation-message.user { align-self: flex-end; flex-direction: row-reverse; }
+    .message-avatar { flex: none; width: 27px; height: 27px; display: grid; place-items: center; border-radius: 9px; background: #202126; color: #fff; font-size: 8px; font-weight: 760; }
+    .conversation-message.user .message-avatar { background: #ececff; color: var(--violet); }
+    .message-body { min-width: 0; }
+    .message-body small { display: block; margin: 0 4px 5px; color: #a0a2a7; font-size: 8px; }
+    .conversation-message.user .message-body small { text-align: right; }
+    .message-bubble { padding: 12px 14px; border: 1px solid #e4e4e7; border-radius: 6px 16px 16px 16px; background: #fff; color: #303137; font-size: 12px; line-height: 1.75; white-space: pre-wrap; word-break: break-word; box-shadow: 0 7px 22px rgba(35,37,48,.045); }
+    .conversation-message.user .message-bubble { border-color: #ddddf8; border-radius: 16px 6px 16px 16px; background: #f0f0ff; }
+    .message-bubble.streaming::after { content: ""; display: inline-block; width: 4px; height: 4px; margin-left: 6px; border-radius: 50%; background: var(--violet); box-shadow: 8px 0 0 rgba(105,106,232,.55), 16px 0 0 rgba(105,106,232,.28); animation: message-dots .8s ease-in-out infinite alternate; vertical-align: 2px; }
+    .conversation-dock { position: absolute; z-index: 4; left: 18px; right: 18px; bottom: 16px; min-height: 100px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 13px 25px; border: 1px solid rgba(222,222,226,.9); border-radius: 23px; background: rgba(255,255,255,.9); backdrop-filter: blur(22px); box-shadow: 0 18px 50px rgba(30,32,45,.11); }
+    .conversation-side-control { display: flex; align-items: center; gap: 8px; width: fit-content; padding: 8px 10px; border: 0; border-radius: 11px; background: transparent; color: #777980; font-size: 9px; }
+    .conversation-side-control:hover:not(:disabled) { background: #f3f3f5; }
+    .conversation-side-control:disabled { color: #babcc1; cursor: not-allowed; }
+    .conversation-side-control.end { justify-self: end; }
+    .side-control-icon { width: 27px; height: 27px; display: grid; place-items: center; border-radius: 9px; background: #f0f0f2; color: #55575e; font-size: 12px; }
+    .conversation-main-control { min-width: 154px; height: 60px; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 0 18px; border: 0; border-radius: 20px; background: #202126; color: #fff; box-shadow: 0 10px 28px rgba(28,29,35,.2); }
+    .conversation-main-control .mic-shape { position: relative; width: 14px; height: 20px; border: 2px solid currentColor; border-radius: 8px; }
+    .conversation-main-control .mic-shape::before { content: ""; position: absolute; left: 50%; bottom: -7px; width: 10px; height: 6px; border-left: 2px solid currentColor; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; border-radius: 0 0 7px 7px; transform: translateX(-50%); }
+    .conversation-main-control .mic-shape::after { content: ""; position: absolute; left: 50%; bottom: -10px; width: 2px; height: 4px; background: currentColor; transform: translateX(-50%); }
+    .conversation-main-control strong, .conversation-main-control small { display: block; text-align: left; }
+    .conversation-main-control strong { font-size: 10px; }.conversation-main-control small { margin-top: 2px; color: #bfc0c5; font-size: 7px; font-weight: 500; }
+    .realtime-chat[data-state="listening"] .conversation-main-control { background: var(--violet); box-shadow: 0 10px 30px rgba(105,106,232,.28); }
+    .realtime-chat[data-state="speaking"] .conversation-main-control { background: #5556c8; }
+    .realtime-chat[data-state="error"] .conversation-main-control { background: #a74747; }
+    .conversation-privacy { position: absolute; left: 50%; bottom: 4px; transform: translateX(-50%); color: #b0b1b6; font-size: 7px; white-space: nowrap; }
+
+    .meeting-header { padding: 39px 48px 20px; }
+    .meeting-header input { width: 100%; padding: 0; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: clamp(25px, 3.2vw, 38px); font-weight: 740; line-height: 1.25; letter-spacing: -.045em; }
+    .meeting-meta { display: flex; align-items: center; gap: 8px; margin-top: 13px; color: var(--muted); font-size: 10px; }
+    .meeting-meta > i { width: 3px; height: 3px; border-radius: 50%; background: #b7b8bc; }
+    .title-state { padding: 3px 7px; border-radius: 7px; background: #f0f0ff; color: var(--violet); font-size: 8px; font-weight: 680; }
+    .title-state.generating { background: #fff5e6; color: #b56d17; }
+    .title-state.manual { background: #f1f1f2; color: #888a90; }
+    .clock-icon { width: 12px; height: 12px; border: 1.5px solid currentColor; border-radius: 50%; position: relative; }
+    .clock-icon::before { content: ""; position: absolute; left: 5px; top: 2px; width: 1px; height: 4px; background: currentColor; }
+    .clock-icon::after { content: ""; position: absolute; left: 5px; top: 5px; width: 3px; height: 1px; background: currentColor; transform: rotate(20deg); transform-origin: left center; }
+
+    .content-tabs { display: flex; gap: 34px; padding: 0 48px; border-bottom: 1px solid var(--line); }
+    .content-tab { position: relative; padding: 15px 0 16px; border: 0; background: transparent; color: #85868c; font-size: 14px; font-weight: 680; }
+    .content-tab.active { color: var(--ink); }
+    .content-tab.active::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 3px; border-radius: 3px; background: var(--ink); }
+    .content-tab .live-tag { margin-left: 5px; padding: 2px 5px; border-radius: 5px; background: var(--violet-soft); color: var(--violet); font-size: 8px; vertical-align: 2px; }
+
+    .content-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 21px 48px 205px; scrollbar-width: thin; scrollbar-color: #ddd transparent; }
+    .tab-panel { display: none; width: min(100%, 760px); margin: 0 auto; }
+    .tab-panel.active { display: block; }
+    .stream-status { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; color: #9a9ca2; font-size: 9px; }
+    .stream-status span { display: flex; align-items: center; gap: 6px; }
+    .stream-status i { width: 5px; height: 5px; border-radius: 50%; background: #b5b7bc; }
+    .stream-status.recording i { background: var(--green); }.stream-status.connecting i { background: var(--orange); }.stream-status.error i { background: var(--red); }
+
+    .transcript-list, .rewrite-list { min-height: 0; }
+    .history-label { display: none; align-items: center; gap: 9px; margin: 3px 0 7px; color: #a0a2a7; font-size: 8px; font-weight: 680; letter-spacing: .06em; }
+    .history-label.visible { display: flex; }
+    .history-label::after { content: ""; height: 1px; flex: 1; background: #f0f0f1; }
+    .transcript-block { display: grid; grid-template-columns: 30px 1fr; gap: 14px; padding: 15px 0; animation: fade-in .2s ease; }
+    .speaker-dot { width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(145deg, #c7c7ff 0 48%, #e8e8ff 49%); }
+    .transcript-block:nth-child(even) .speaker-dot { background: linear-gradient(145deg, #bce6ff 0 48%, #e4f5ff 49%); }
+    .transcript-block header { display: flex; align-items: center; gap: 8px; color: #8c8e94; font-size: 10px; }
+    .transcript-block header strong { color: #777980; font-size: 11px; }
+    .transcript-block header em { margin-left: 2px; padding: 3px 6px; border-radius: 6px; background: #f0f0ff; color: var(--violet); font-style: normal; font-size: 8px; }
+    .transcript-block p { margin: 8px 0 0; color: #24252a; font-size: 15px; line-height: 1.85; letter-spacing: .01em; white-space: pre-wrap; word-break: break-word; }
+    .transcript-block.demo { opacity: .72; }
+    .transcript-block.revisable p { color: #565861; }
+    .transcript-block.revisable header em { background: #fff4df; color: #b3741d; }
+    .transcript-block.demo header::after { content: "示例"; padding: 2px 5px; border-radius: 5px; background: #f2f2f3; color: #a0a2a7; font-size: 7px; }
+    .rewrite-region { display: none; margin-top: 8px; padding: 8px 14px 3px; border: 1px solid #f0e7d7; border-radius: 16px; background: #fffdfa; }
+    .rewrite-region.visible { display: block; }
+    .rewrite-label { display: flex; align-items: center; gap: 8px; margin: 1px 0 2px; color: #b3741d; font-size: 8px; font-weight: 690; letter-spacing: .06em; }
+    .rewrite-label::after { content: ""; height: 1px; flex: 1; background: #f2e7d5; }
+    .rewrite-region .transcript-block { padding: 11px 0; }
+    .live-region { display: none; margin-top: 18px; }
+    .live-region.visible { display: block; }
+    .live-divider { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; color: #989aa0; font-size: 8px; font-weight: 690; letter-spacing: .06em; }
+    .live-divider::before, .live-divider::after { content: ""; height: 1px; flex: 1; background: #e9e9ec; }
+    .live-block { display: grid; grid-template-columns: 30px 1fr; gap: 14px; padding: 17px 18px; border: 1px solid #e5e5f4; border-radius: 17px; background: linear-gradient(145deg, #fafaff, #f7f7fb); box-shadow: 0 8px 26px rgba(62, 63, 116, .06); }
+    .live-block header { display: flex; align-items: center; gap: 8px; color: #8c8e94; font-size: 10px; }
+    .live-block header strong { color: #777980; font-size: 11px; }
+    .live-block header em { margin-left: 2px; padding: 3px 6px; border-radius: 6px; background: #eeeeff; color: var(--violet); font-style: normal; font-size: 8px; }
+    .live-block p { min-height: 1.8em; margin: 8px 0 0; color: #303138; font-size: 15px; line-height: 1.8; white-space: pre-wrap; word-break: break-word; }
+    .live-hint { display: flex; align-items: center; gap: 6px; margin-top: 8px; color: #a0a2a7; font-size: 8px; }
+    .typing-caret { display: inline-block; width: 2px; height: 1.05em; margin-left: 3px; vertical-align: -.12em; background: var(--violet); animation: blink 1s steps(1) infinite; }
+    .listening { display: flex; align-items: center; gap: 6px; margin-top: 10px; color: #96989e; font-size: 9px; }
+    .listening > i { width: 5px; height: 5px; border-radius: 50%; background: var(--red); }
+    .listening b { width: 3px; height: 3px; border-radius: 50%; background: currentColor; animation: bounce .8s ease-in-out infinite alternate; }
+    .listening b:nth-child(3) { animation-delay: -.25s; }.listening b:nth-child(4) { animation-delay: -.5s; }
+    .empty-transcript { display: none; min-height: 300px; place-items: center; text-align: center; color: var(--muted); }
+    .empty-transcript.visible { display: grid; }
+    .empty-transcript strong { display: block; margin-bottom: 7px; color: #64666c; font-size: 13px; }
+    .empty-transcript span { font-size: 10px; }
+
+    .summary-toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+    .summary-toolbar > div { display: flex; align-items: center; gap: 8px; color: #898b91; font-size: 10px; }
+    .ai-mark { display: grid; place-items: center; width: 25px; height: 25px; border-radius: 8px; background: var(--ink); color: #fff; font-size: 8px; font-weight: 760; }
+    .summary-actions { display: flex; gap: 7px; }
+    .summary-actions button { padding: 7px 10px; border: 1px solid var(--line); border-radius: 9px; background: #fff; color: #76787e; font-size: 9px; }
+    .summary-actions button:disabled { opacity: .45; cursor: not-allowed; }
+    .summary-lead { padding: 23px 25px; border-radius: 19px; background: #f6f6f8; }
+    .summary-lead small { color: var(--violet); font-size: 9px; font-weight: 720; }
+    .summary-lead h2 { max-width: 650px; margin: 12px 0 8px; font-size: clamp(20px, 2.8vw, 29px); line-height: 1.3; letter-spacing: -.035em; }
+    .summary-lead p { margin: 0; color: #7c7e84; font-size: 11px; line-height: 1.75; }
+    .summary-output { min-height: 170px; margin-top: 13px; padding: 21px 23px; border: 1px solid var(--line); border-radius: 17px; color: #4e5056; font-size: 12px; line-height: 1.85; white-space: pre-wrap; word-break: break-word; }
+    .summary-output.loading { color: var(--muted); }
+    .summary-output.error { color: #b84040; background: #fff8f8; border-color: #f4dada; }
+    .extension-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 13px; }
+    .extension-chip { padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; color: #85878d; font-size: 9px; background: #fff; }
+
+    .summary-copilot { display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(290px, .92fr); gap: 14px; min-height: 340px; }
+    .summary-canvas-card, .summary-chat-card { min-width: 0; border: 1px solid var(--line); border-radius: 20px; background: #fff; overflow: hidden; }
+    .summary-canvas-card { display: flex; flex-direction: column; }
+    .summary-canvas-header, .summary-chat-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 61px; padding: 0 18px; border-bottom: 1px solid #ededf0; }
+    .summary-canvas-heading, .summary-chat-heading { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .summary-canvas-heading > span, .summary-chat-heading > span { display: grid; place-items: center; width: 30px; height: 30px; flex: 0 0 auto; border-radius: 10px; background: #f0efff; color: var(--violet); font-size: 14px; }
+    .summary-canvas-heading strong, .summary-chat-heading strong { display: block; color: #44464c; font-size: 11px; }
+    .summary-canvas-heading small, .summary-chat-heading small { display: block; margin-top: 2px; color: #9a9ca2; font-size: 8px; font-weight: 500; }
+    .summary-canvas-actions { display: flex; align-items: center; gap: 7px; }
+    .summary-canvas-actions button { padding: 7px 9px; border: 1px solid var(--line); border-radius: 9px; background: #fff; color: #777980; font-size: 8px; }
+    .summary-canvas-actions button:disabled { opacity: .42; cursor: not-allowed; }
+    .summary-canvas { width: 100%; min-height: 230px; flex: 1; padding: 20px; border: 0; outline: 0; resize: vertical; background: #fcfcfd; color: #41434a; font-family: inherit; font-size: 11px; line-height: 1.85; }
+    .summary-canvas:focus { background: #fff; box-shadow: inset 0 0 0 2px rgba(97, 87, 217, .08); }
+    .summary-canvas.streaming { color: #55576a; background: linear-gradient(135deg, #fbfaff, #fff); }
+    .summary-canvas-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 45px; padding: 0 18px; border-top: 1px solid #ededf0; color: #96989f; font-size: 8px; }
+    .summary-canvas-footer strong { color: #6d6f77; font-weight: 650; }
+    .summary-chat-card { display: grid; grid-template-rows: auto minmax(140px, 1fr) auto auto; }
+    .summary-chat-status { color: #8a8c93; font-size: 8px; }
+    .summary-chat-messages { display: flex; flex-direction: column; gap: 12px; min-height: 140px; max-height: 260px; padding: 18px; overflow: auto; background: #fafafd; }
+    .summary-chat-empty { margin: auto; max-width: 250px; color: #8d8f96; text-align: center; font-size: 9px; line-height: 1.7; }
+    .summary-chat-empty strong { display: block; margin-bottom: 7px; color: #55575e; font-size: 12px; }
+    .summary-chat-message { max-width: 88%; padding: 10px 12px; border-radius: 13px; font-size: 9px; line-height: 1.65; white-space: pre-wrap; word-break: break-word; }
+    .summary-chat-message.user { align-self: flex-end; background: var(--ink); color: #fff; border-bottom-right-radius: 5px; }
+    .summary-chat-message.assistant { align-self: flex-start; border: 1px solid #e7e5f8; background: #fff; color: #5d5f67; border-bottom-left-radius: 5px; }
+    .summary-chat-message.streaming::after { content: ""; display: inline-block; width: 5px; height: 10px; margin-left: 3px; vertical-align: -1px; background: var(--violet); animation: blink 1s steps(1) infinite; }
+    .summary-prompts { display: flex; gap: 6px; padding: 10px 14px 0; overflow-x: auto; }
+    .summary-prompt { flex: 0 0 auto; padding: 7px 9px; border: 1px solid #e5e3f7; border-radius: 999px; background: #faf9ff; color: #6d66ae; font-size: 8px; }
+    .summary-chat-composer { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 11px 14px 14px; }
+    .summary-chat-composer textarea { min-height: 42px; max-height: 100px; padding: 11px 12px; resize: none; border: 1px solid var(--line); border-radius: 13px; outline: 0; color: #45474e; font-family: inherit; font-size: 9px; line-height: 1.55; }
+    .summary-chat-composer textarea:focus { border-color: #c8c4ee; box-shadow: 0 0 0 3px rgba(97, 87, 217, .07); }
+    .summary-chat-send { align-self: end; width: 42px; height: 42px; border: 0; border-radius: 13px; background: var(--ink); color: #fff; font-size: 15px; }
+    .summary-chat-send:disabled { opacity: .42; cursor: not-allowed; }
+
+    .recording-console { position: absolute; left: 22px; right: 22px; bottom: 18px; padding: 18px 24px 17px; border: 1px solid #e7e7e9; border-radius: 24px; background: rgba(255, 255, 255, .95); backdrop-filter: blur(22px); box-shadow: 0 18px 55px rgba(27, 30, 44, .14); }
+    body.summary-chat-active .recording-console { padding-top: 11px; padding-bottom: 11px; }
+    body.summary-chat-active .recording-policy, body.summary-chat-active .waveform-wrap { display: none; }
+    body.summary-chat-active .console-controls { margin-top: 0; }
+    body.summary-chat-active .content-scroll { padding-bottom: 118px; }
+    .recording-policy { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 2px 8px; color: #92949a; font-size: 8px; }
+    .recording-policy strong { color: #686a71; font-size: 9px; }
+    .recording-policy.warning strong { color: #c17722; }
+    .waveform-wrap { position: relative; height: 48px; }
+    #recording-waveform { width: 100%; height: 48px; display: block; }
+    .waveform-placeholder { position: absolute; inset: 0; display: flex; align-items: center; opacity: .72; }
+    .waveform-placeholder.hidden { display: none; }
+    .waveform-placeholder::before { content: ""; width: 100%; height: 2px; border-radius: 2px; background: linear-gradient(90deg, transparent, #d2d3d7 8%, #d2d3d7 92%, transparent); }
+    .console-controls { display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: center; margin-top: 12px; }
+    .elapsed-time strong, .elapsed-time small { display: block; }
+    .elapsed-time strong { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 19px; letter-spacing: -.04em; }
+    .elapsed-time small { display: flex; align-items: center; gap: 5px; margin-top: 4px; color: #a0a2a7; font-size: 8px; }
+    .elapsed-time small i { width: 5px; height: 5px; border-radius: 50%; background: var(--green); }
+    .record-toggle { justify-self: center; width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; gap: 6px; border: 0; border-radius: 19px; background: var(--ink); color: #fff; box-shadow: 0 7px 22px rgba(21, 22, 27, .18); }
+    .record-toggle > i { width: 5px; height: 19px; border-radius: 5px; background: currentColor; }
+    .record-toggle .record-icon { width: 19px; height: 19px; border-radius: 50%; background: var(--red); box-shadow: 0 0 0 6px rgba(255, 98, 94, .12); }
+    .record-toggle .play-icon { width: 0; height: 0; margin-left: 4px; border-top: 10px solid transparent; border-bottom: 10px solid transparent; border-left: 16px solid currentColor; }
+    .finish-wrap { display: flex; justify-content: flex-end; gap: 8px; }
+    .finish-control, .download-control, .reset-control { min-width: 72px; height: 47px; border: 0; border-radius: 16px; background: #f5f5f6; color: #292a2f; font-size: 11px; font-weight: 680; }
+    .download-control, .reset-control { display: none; border: 1px solid var(--line); background: #fff; }
+    .download-control.visible, .reset-control.visible { display: inline-block; }
+    .finish-control.hidden { display: none; }
+    .finish-control:disabled, .download-control:disabled, .reset-control:disabled { color: #a0a2a7; cursor: not-allowed; }
+
+    dialog { width: min(420px, calc(100vw - 32px)); padding: 0; border: 0; border-radius: 22px; color: var(--ink); box-shadow: 0 30px 90px rgba(20, 24, 38, .25); }
+    dialog::backdrop { background: rgba(22, 24, 30, .28); backdrop-filter: blur(4px); }
+    .settings-card { padding: 23px; }
+    .settings-card header { display: flex; align-items: center; justify-content: space-between; }
+    .settings-card h2 { margin: 0; font-size: 18px; letter-spacing: -.03em; }
+    .settings-card .close-dialog { width: 32px; height: 32px; border: 0; border-radius: 10px; background: var(--soft); }
+    .settings-card label { display: block; margin: 22px 0 8px; color: var(--ink-soft); font-size: 11px; font-weight: 650; }
+    .settings-card select { width: 100%; height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; outline: 0; }
+    .settings-card p { margin: 12px 0 0; color: var(--muted); font-size: 10px; line-height: 1.65; }
+
+    #entry-dialog { width: min(720px, calc(100vw - 32px)); }
+    #entry-dialog[open] { animation: fade-in .2s ease; }
+    .access-card { padding: 30px; }
+    .access-brand { display: flex; align-items: center; gap: 10px; }
+    .access-brand strong { font-size: 15px; }
+    .access-card h2 { margin: 27px 0 8px; font-size: clamp(24px, 4vw, 34px); letter-spacing: -.045em; }
+    .access-intro { margin: 0; color: var(--ink-soft); font-size: 11px; line-height: 1.7; }
+    .mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 13px; margin-top: 23px; }
+    .mode-card { min-height: 173px; padding: 21px; border: 1px solid #e5e5e8; border-radius: 18px; background: #fff; text-align: left; transition: transform .15s ease, border-color .15s ease; }
+    .mode-card:hover { transform: translateY(-2px); border-color: #babbe9; }
+    .mode-card.primary { background: #222329; color: #fff; border-color: #222329; }
+    .mode-icon { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 11px; background: #f1f1f3; color: #42434a; font-size: 16px; }
+    .mode-card.primary .mode-icon { background: rgba(255,255,255,.12); color: #fff; }
+    .mode-card strong { display: block; margin-top: 20px; font-size: 14px; }
+    .mode-card span { display: block; margin-top: 7px; color: #898b91; font-size: 9px; line-height: 1.65; }
+    .mode-card.primary span { color: #c4c5ca; }
+    .privacy-note { margin: 16px 2px 0; color: #a0a2a7; font-size: 8px; line-height: 1.6; }
+    .auth-view { max-width: 410px; margin: 0 auto; }
+    .auth-back { margin: 0 0 20px; padding: 0; border: 0; background: transparent; color: #777980; font-size: 10px; }
+    .managed-account-note { margin: 18px 0 14px; padding: 11px 12px; border: 1px solid #e2e2f3; border-radius: 11px; background: #f7f7ff; color: #686a7c; font-size: 9px; line-height: 1.6; }
+    .auth-form label { display: block; margin: 13px 0 7px; color: #5f6168; font-size: 9px; font-weight: 650; }
+    .auth-form input { width: 100%; height: 44px; padding: 0 13px; border: 1px solid #dfdfe2; border-radius: 11px; outline: 0; }
+    .auth-form input:focus { border-color: var(--violet); box-shadow: 0 0 0 3px rgba(105,106,232,.09); }
+    .auth-submit { width: 100%; height: 44px; margin-top: 18px; border: 0; border-radius: 12px; background: var(--ink); color: #fff; font-size: 10px; font-weight: 680; }
+    .auth-submit:disabled { opacity: .55; cursor: wait; }
+    .auth-message { min-height: 18px; margin: 10px 0 0; color: #b84040; font-size: 9px; }
+    [hidden] { display: none !important; }
+
+    .toast { position: fixed; z-index: 50; left: 50%; bottom: 28px; transform: translate(-50%, 20px); max-width: min(440px, calc(100vw - 32px)); padding: 10px 14px; border-radius: 12px; background: #202126; color: #fff; opacity: 0; pointer-events: none; font-size: 10px; transition: .2s ease; }
+    .toast.visible { opacity: 1; transform: translate(-50%, 0); }
+
+    @keyframes blink { 50% { opacity: 0; } }
+    @keyframes bounce { to { transform: translateY(-4px); opacity: .35; } }
+    @keyframes fade-in { from { opacity: 0; transform: translateY(5px); } }
+    @keyframes studio-wave { to { transform: scaleY(.45); opacity: .55; } }
+    @keyframes orb-drift { to { border-radius: 57% 43% 44% 56% / 54% 57% 43% 46%; transform: translateY(-3px) scale(calc(1 + var(--voice-level, 0) * .06)); } }
+    @keyframes orb-speaking { to { transform: scale(1.08); filter: saturate(1.2) brightness(1.08); } }
+    @keyframes orb-thinking { 50% { transform: rotate(8deg) scale(.94); filter: hue-rotate(14deg); } }
+    @keyframes message-dots { to { opacity: .35; transform: translateY(-2px); } }
+
+    @media (max-width: 900px) {
+      .site-shell { padding-left: 0; }
+      .meeting-sidebar { width: min(286px, calc(100vw - 44px)); transform: translateX(-100%); box-shadow: 24px 0 70px rgba(20, 24, 38, .15); }
+      body.sidebar-open .meeting-sidebar { transform: translateX(0); }
+      .sidebar-backdrop { position: fixed; z-index: 29; inset: 0; display: block; border: 0; background: rgba(23, 24, 29, .24); opacity: 0; pointer-events: none; transition: opacity .2s ease; }
+      body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
+      body.sidebar-collapsed .meeting-sidebar { transform: translateX(-100%); }
+    }
+
+    @media (max-width: 680px) {
+      .site-shell { background: #fff; }
+      .site-bar { height: 60px; grid-template-columns: auto 1fr auto; gap: 8px; padding: 0 12px; background: #fff; }
+      .brand small, .service-state { display: none; }
+      .brand strong { display: none; }
+      .product-tabs { justify-self: center; }
+      .product-tab { min-width: 64px; height: 32px; padding: 0 7px; font-size: 8px; }
+      .utility-actions .language-button { display: none; }
+      .icon-button { width: 34px; height: 34px; border: 0; }
+      .recorder-shell { width: 100%; height: calc(100dvh - 60px); min-height: 590px; margin: 0; border: 0; border-radius: 0; box-shadow: none; }
+      .meeting-header { padding: 29px 22px 17px; }
+      .meeting-header input { font-size: 28px; }
+      .meeting-meta { gap: 6px; font-size: 9px; overflow: hidden; white-space: nowrap; }
+      .meeting-meta span:last-child, .meeting-meta i:last-of-type { display: none; }
+      .content-tabs { padding: 0 22px; gap: 30px; }
+      .content-tab { font-size: 13px; }
+      .content-scroll { padding: 16px 22px 190px; }
+      .transcript-block { grid-template-columns: 27px 1fr; gap: 11px; padding: 13px 0; }
+      .speaker-dot { width: 25px; height: 25px; }
+      .transcript-block p { font-size: 14px; line-height: 1.78; }
+      .transcript-block.demo:first-of-type { display: none; }
+      .recording-console { left: 10px; right: 10px; bottom: max(9px, env(safe-area-inset-bottom)); padding: 15px 16px 14px; border-radius: 22px; }
+      body.summary-chat-active .recording-console { padding: 10px 13px; }
+      body.summary-chat-active .content-scroll { padding-bottom: 110px; }
+      .waveform-wrap, #recording-waveform { height: 42px; }
+      .console-controls { margin-top: 10px; }
+      .elapsed-time strong { font-size: 17px; }
+      .elapsed-time small { display: none; }
+      .record-toggle { width: 52px; height: 52px; border-radius: 17px; }
+      .finish-control, .download-control, .reset-control { min-width: 58px; height: 44px; }
+      .summary-lead { padding: 20px; }
+      .summary-copilot { grid-template-columns: 1fr; }
+      .summary-canvas { min-height: 220px; }
+      .summary-chat-messages { max-height: 330px; }
+      .access-card { padding: 24px 19px; }
+      .mode-grid { grid-template-columns: 1fr; }
+      .mode-card { min-height: 137px; }
+      .mode-card strong { margin-top: 14px; }
+      .voice-studio { width: 100%; height: calc(100dvh - 60px); min-height: 0; margin: 0; padding: 27px 17px 50px; border: 0; border-radius: 0; box-shadow: none; }
+      .studio-hero { display: block; margin-bottom: 20px; }
+      .studio-model-badge { display: inline-block; margin-top: 13px; }
+      .studio-grid { grid-template-columns: 1fr; }
+      .studio-composer { padding: 19px; }
+      .voice-options { grid-template-columns: 1fr; }
+      .studio-result { min-height: 380px; }
+      .clone-card { padding: 19px; }
+      .clone-form { grid-template-columns: 1fr 1fr; }
+      .clone-field:first-child { grid-column: 1 / -1; }
+      .clone-submit { width: 100%; }
+      .realtime-chat { width: 100%; height: calc(100dvh - 60px); min-height: 570px; margin: 0; border: 0; border-radius: 0; box-shadow: none; }
+      .conversation-header { height: 64px; padding: 0 14px 0 17px; }
+      .conversation-title-mark { width: 31px; height: 31px; }
+      .conversation-title small, .conversation-status { display: none; }
+      .conversation-select { max-width: 112px; height: 34px; padding-left: 8px; font-size: 8px; }
+      .conversation-voice { max-width: 85px; }
+      .conversation-export { width: 34px; height: 34px; overflow: hidden; padding: 0; font-size: 0; }
+      .conversation-export::before { content: "⇩"; font-size: 15px; }
+      .conversation-scroll { inset: 64px 0 124px; padding: 20px 17px; }
+      .conversation-orb-wrap { width: 165px; height: 165px; }
+      .conversation-orb { width: 104px; height: 104px; }
+      .conversation-intro h1 { font-size: 23px; }
+      .conversation-message { max-width: 92%; }
+      .conversation-dock { left: 8px; right: 8px; bottom: max(7px, env(safe-area-inset-bottom)); min-height: 92px; padding: 10px 13px; border-radius: 20px; }
+      .conversation-side-control { padding: 6px; }
+      .conversation-side-control > span:last-child { display: none; }
+      .conversation-main-control { min-width: 132px; height: 55px; border-radius: 18px; }
+      .conversation-privacy { display: none; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="site-shell">
+    <aside class="meeting-sidebar" id="meeting-sidebar" aria-label="会议记录管理">
+      <header class="sidebar-header">
+        <a class="sidebar-brand" href="/" aria-label="声笺首页">
+          <span class="brand-mark"><i></i><i></i><i></i><i></i></span>
+          <span>声笺</span>
+        </a>
+        <button class="sidebar-collapse" id="collapse-sidebar" type="button" aria-label="收起会议记录">‹</button>
+      </header>
+
+      <button class="new-meeting" id="new-meeting" type="button"><i>＋</i><span id="new-session-label">新会议</span></button>
+      <label class="meeting-search"><span class="sr-only" id="sidebar-search-label">搜索会议记录</span><input id="meeting-search" type="search" placeholder="搜索会议记录" /></label>
+      <p class="sidebar-label" id="sidebar-section-label">会议记录</p>
+      <nav class="meeting-groups" id="meeting-groups" aria-label="历史会议">
+        <p class="meeting-empty">暂时没有会议记录<br />开始录音后会自动保存在这里</p>
+      </nav>
+      <div class="account-card">
+        <span class="account-avatar" id="account-avatar">访</span>
+        <span class="account-copy"><strong id="account-name">选择使用方式</strong><small id="account-storage">尚未进入</small></span>
+        <button class="account-action" id="account-action" type="button">选择</button>
+      </div>
+      <p class="sidebar-footnote" id="storage-note">访客记录仅保存在浏览器；登录后才会同步到服务器。原始录音默认不上传保存。</p>
+    </aside>
+    <button class="sidebar-backdrop" id="sidebar-backdrop" type="button" aria-label="关闭会议记录"></button>
+
+    <header class="site-bar">
+      <a class="brand" href="/" aria-label="声笺首页">
+        <span class="brand-mark"><i></i><i></i><i></i><i></i></span>
+        <strong>声笺</strong>
+        <small>VoiceNote</small>
+      </a>
+
+      <nav class="product-tabs" aria-label="产品功能" role="tablist">
+        <button class="product-tab active" id="meeting-product-tab" data-product="meeting" type="button" role="tab" aria-selected="true">会议记录</button>
+        <button class="product-tab" id="studio-product-tab" data-product="studio" type="button" role="tab" aria-selected="false">声音工作室</button>
+        <button class="product-tab" id="conversation-product-tab" data-product="conversation" type="button" role="tab" aria-selected="false">实时对话</button>
+      </nav>
+
+      <nav class="utility-actions" aria-label="录音工具">
+        <span class="service-state" id="service-state"><i></i><span>检查识别服务…</span></span>
+        <button class="icon-button" id="toggle-sidebar" type="button" aria-label="打开会议记录">☰</button>
+        <button class="icon-button language-button" type="button" aria-label="当前语言">中</button>
+        <button class="icon-button meeting-only-action" id="open-settings" type="button" aria-label="识别设置"><span class="settings-icon"></span></button>
+        <button class="icon-button meeting-only-action" id="copy-transcript" type="button" aria-label="复制文字记录">•••</button>
+      </nav>
+    </header>
+
+    <section class="recorder-shell product-view" id="recorder-shell" data-product-view="meeting">
+      <header class="meeting-header">
+        <input id="meeting-title" aria-label="录音标题" value="新录音" />
+        <div class="meeting-meta">
+          <span class="clock-icon"></span>
+          <span id="created-at">8 月 17 日 04:08</span>
+          <i></i>
+          <span>网页录音</span>
+          <i></i>
+          <span id="channel-label">自动选择识别服务</span>
+          <i></i>
+          <span class="title-state" id="title-state">AI 可自动命名</span>
+        </div>
+      </header>
+
+      <nav class="content-tabs" role="tablist" aria-label="会议内容">
+        <button class="content-tab active" id="transcript-tab" data-tab="transcript" type="button" role="tab" aria-selected="true">文字记录 <span class="live-tag">实时</span></button>
+        <button class="content-tab" id="summary-tab" data-tab="summary" type="button" role="tab" aria-selected="false">实时摘要</button>
+        <button class="content-tab" id="summary-chat-tab" data-tab="summary-chat" type="button" role="tab" aria-selected="false"><span aria-hidden="true">✦</span> 完善纪要</button>
+      </nav>
+
+      <div class="content-scroll" id="content-scroll">
+        <section class="tab-panel active" id="transcript-panel" data-panel="transcript" role="tabpanel">
+          <div class="stream-status idle" id="stream-status">
+            <span><i></i><b id="status-message">点击下方按钮开始录音</b></span>
+            <span id="latency-label">尚未连接</span>
+          </div>
+
+          <div class="history-label" id="history-label">已确认记录</div>
+          <div class="transcript-list" id="transcript-list"></div>
+
+          <section class="rewrite-region" id="rewrite-region" aria-label="上下文回写内容">
+            <div class="rewrite-label">上下文回写</div>
+            <div class="rewrite-list" id="rewrite-list"></div>
+          </section>
+
+          <section class="live-region" id="live-region" aria-label="实时识别内容">
+            <div class="live-divider"><span>实时识别</span></div>
+            <article class="live-block" id="live-block">
+              <span class="speaker-dot"></span>
+              <div>
+                <header><strong>说话人 1</strong><span>·</span><time id="live-time">00:00</time><em id="live-badge">正在识别</em></header>
+                <p id="live-text"><span class="typing-caret"></span></p>
+                <div class="listening" id="live-listening"><i></i><span id="live-hint">正在聆听，临时文字会根据上下文继续修正</span><b></b><b></b><b></b></div>
+              </div>
+            </article>
+          </section>
+
+          <div class="empty-transcript" id="empty-transcript">
+            <div><strong>等待第一段文字</strong><span>识别结果会自动出现在这里</span></div>
+          </div>
+        </section>
+
+        <section class="tab-panel" id="summary-panel" data-panel="summary" role="tabpanel">
+          <div class="summary-toolbar">
+            <div><span class="ai-mark">AI</span><span id="summary-state">示例摘要</span></div>
+            <div class="summary-actions">
+              <button id="generate-summary" type="button">更新摘要</button>
+              <button id="copy-summary" type="button">复制</button>
+            </div>
+          </div>
+
+          <article class="summary-lead">
+            <small>一句话摘要</small>
+            <h2 id="summary-title">前端以实时转写为核心，通过统一协议兼容不同语音识别服务。</h2>
+            <p id="summary-description">原始录音与实时识别彼此独立，后续摘要、待办和更多处理能力都消费标准化的转写结果。</p>
+          </article>
+
+          <div class="summary-output" id="summary-output">核心结论
+• 页面重点呈现实时时间轴、说话人和识别状态。
+• 浏览器只连接自己的后端，不接触供应商密钥。
+• 实时转写完成后，可继续生成摘要、行动项和后续工作流。
+
+下一步
+• 接入真实会议内容后，摘要会随转写结果持续更新。</div>
+
+          <div class="extension-row" aria-label="后续处理能力">
+            <span class="extension-chip">行动项</span>
+            <span class="extension-chip">风险与问题</span>
+            <span class="extension-chip">润色校对</span>
+            <span class="extension-chip">自定义工作流</span>
+          </div>
+        </section>
+
+        <section class="tab-panel" id="summary-chat-panel" data-panel="summary-chat" role="tabpanel">
+          <div class="summary-copilot">
+            <section class="summary-canvas-card" aria-label="纪要画布">
+              <header class="summary-canvas-header">
+                <div class="summary-canvas-heading">
+                  <span aria-hidden="true">▤</span>
+                  <div><strong>纪要画布</strong><small>编辑会同步回实时摘要</small></div>
+                </div>
+                <div class="summary-canvas-actions">
+                  <button id="undo-summary-revision" type="button" disabled>撤销本次</button>
+                  <button id="copy-summary-canvas" type="button">复制</button>
+                </div>
+              </header>
+              <textarea class="summary-canvas" id="summary-canvas" aria-label="可编辑会议纪要">核心结论
+• 页面重点呈现实时时间轴、说话人和识别状态。
+• 浏览器只连接自己的后端，不接触供应商密钥。
+• 实时转写完成后，可继续生成摘要、行动项和后续工作流。
+
+下一步
+• 接入真实会议内容后，摘要会随转写结果持续更新。</textarea>
+              <footer class="summary-canvas-footer">
+                <span id="summary-canvas-state">示例纪要 · 修改后自动保存</span>
+                <strong id="summary-canvas-count">0 字</strong>
+              </footer>
+            </section>
+
+            <section class="summary-chat-card" aria-label="纪要修改对话">
+              <header class="summary-chat-header">
+                <div class="summary-chat-heading">
+                  <span aria-hidden="true">✦</span>
+                  <div><strong>和纪要一起工作</strong><small>说清目标，不必重写全文</small></div>
+                </div>
+                <span class="summary-chat-status" id="summary-chat-status">等待指令</span>
+              </header>
+              <div class="summary-chat-messages" id="summary-chat-messages" aria-live="polite"></div>
+              <div class="summary-prompts" aria-label="常用修改要求">
+                <button class="summary-prompt" type="button" data-summary-prompt="压缩成三点，保留关键数字和结论。">压缩成三点</button>
+                <button class="summary-prompt" type="button" data-summary-prompt="把所有行动项整理成负责人、事项和时间要求清晰的清单；没有明确负责人或时间时标注待确认。">整理行动项</button>
+                <button class="summary-prompt" type="button" data-summary-prompt="改成适合发送给参会人的正式会议纪要，语气简洁客观。">正式纪要</button>
+                <button class="summary-prompt" type="button" data-summary-prompt="只根据转写检查当前纪要是否遗漏重要决定，补充遗漏并说明改了哪里。">检查遗漏</button>
+              </div>
+              <form class="summary-chat-composer" id="summary-chat-form">
+                <textarea id="summary-chat-input" rows="1" maxlength="2000" placeholder="例如：把行动项放到最前面，语气更简洁…" aria-label="输入纪要修改要求"></textarea>
+                <button class="summary-chat-send" id="summary-chat-send" type="submit" aria-label="发送修改要求">↑</button>
+              </form>
+            </section>
+          </div>
+        </section>
+      </div>
+
+      <footer class="recording-console idle" id="recording-console">
+        <div class="recording-policy" id="recording-policy">
+          <span id="record-limit-status">访客模式每个录音段最多 10 分钟；登录后单段支持 2 小时</span>
+          <strong id="record-limit-remaining">10:00</strong>
+        </div>
+        <div class="waveform-wrap">
+          <canvas id="recording-waveform" aria-label="实时音量波形"></canvas>
+          <div class="waveform-placeholder" id="waveform-placeholder" aria-hidden="true"></div>
+        </div>
+
+        <div class="console-controls">
+          <div class="elapsed-time">
+            <strong id="elapsed">00:00</strong>
+            <small><i></i><span id="local-save-status">录音尚未开始</span></small>
+          </div>
+
+          <button class="record-toggle" id="record-toggle" type="button" aria-label="开始录音"><span class="record-icon"></span></button>
+
+          <div class="finish-wrap">
+            <button class="reset-control" id="reset-recording" type="button">清空</button>
+            <button class="download-control" id="download-recording" type="button" disabled>下载</button>
+            <button class="finish-control" id="finish-recording" type="button" disabled>结束</button>
+          </div>
+        </div>
+      </footer>
+    </section>
+
+    <section class="voice-studio product-view" id="voice-studio" data-product-view="studio" hidden>
+      <header class="studio-hero">
+        <div>
+          <p class="studio-kicker">Voice workspace</p>
+          <h1>让文字拥有合适的声音。</h1>
+          <p>选择系统音色，或接入经过授权的复刻声音。生成后的音频可直接试听、下载，并继续用于播客、旁白和内容工作流。</p>
+        </div>
+        <span class="studio-model-badge">qwen-audio-3.0-tts-plus</span>
+      </header>
+
+      <div class="studio-grid">
+        <section class="studio-card studio-composer" aria-labelledby="tts-composer-title">
+          <header class="studio-card-header"><h2 id="tts-composer-title">文字与声音</h2><span class="studio-step">01</span></header>
+          <div class="studio-text-wrap">
+            <textarea id="tts-text" maxlength="800" aria-label="需要合成的文字" placeholder="输入要转换成语音的内容……">欢迎使用声笺声音工作室。把文字交给一个恰当的声音，让表达更自然，也更有温度。</textarea>
+            <span class="studio-count"><b id="tts-char-count">0</b> / 800</span>
+          </div>
+
+          <div class="studio-label"><span>选择音色</span><small>系统音色可直接使用</small></div>
+          <div class="voice-options" id="voice-options">
+            <button class="voice-card active" data-voice="longanlingxin" type="button">
+              <span class="voice-avatar">灵</span><span><strong>龙安灵心</strong><small>温暖 · 细腻 · 女声</small></span><i class="voice-check"></i>
+            </button>
+            <button class="voice-card" data-voice="longanlufeng" type="button">
+              <span class="voice-avatar">风</span><span><strong>龙安鲁风</strong><small>明亮 · 开朗 · 男声</small></span><i class="voice-check"></i>
+            </button>
+          </div>
+
+          <div class="studio-label"><span>自定义音色</span><small>粘贴已创建的 voice id</small></div>
+          <div class="custom-voice-row">
+            <input id="custom-voice-id" maxlength="80" list="cloned-voice-list" aria-label="自定义音色 ID" placeholder="qwen-audio-3.0-tts-plus-…" />
+            <datalist id="cloned-voice-list"></datalist>
+            <button class="voice-list-button" id="refresh-voices" type="button" disabled>读取复刻音色</button>
+          </div>
+
+          <footer class="studio-footer">
+            <div class="format-toggle" aria-label="音频格式">
+              <button class="format-button active" data-format="mp3" type="button">MP3</button>
+              <button class="format-button" data-format="wav" type="button">WAV</button>
+            </div>
+            <button class="primary-studio-button" id="synthesize-voice" type="button">生成声音&nbsp; →</button>
+          </footer>
+        </section>
+
+        <section class="studio-card studio-result" id="studio-result" aria-labelledby="result-title">
+          <header class="result-head"><small>GENERATED AUDIO</small><h2 id="result-title">试听结果</h2></header>
+          <div class="result-visual">
+            <div>
+              <div class="sound-orbit"><span class="sound-bars"><i></i><i></i><i></i><i></i><i></i></span></div>
+              <p class="result-empty" id="result-empty">生成后，声音会出现在这里</p>
+            </div>
+          </div>
+          <div class="result-player" id="result-player" hidden>
+            <audio id="tts-audio" controls preload="metadata"></audio>
+            <div class="result-meta">
+              <span><small>VOICE</small><strong id="result-voice">—</strong></span>
+              <span><small>ELAPSED</small><strong id="result-elapsed">—</strong></span>
+              <span><small>SIZE</small><strong id="result-size">—</strong></span>
+            </div>
+            <button class="download-voice" id="download-voice" type="button">下载生成音频</button>
+          </div>
+        </section>
+      </div>
+
+      <section class="studio-card clone-card" aria-labelledby="clone-title">
+        <header class="studio-card-header">
+          <div><h2 id="clone-title">复刻一个经过授权的声音</h2><p class="clone-copy">准备 10–20 秒干净、单人、无背景音乐的参考音频。创建成功后会得到专属 voice id，并自动填入上方合成器。</p></div>
+          <span class="capability-badge" id="clone-capability">检查服务配置…</span>
+        </header>
+        <div class="clone-form">
+          <div class="clone-field"><label for="clone-audio-url">参考音频公网 URL</label><input id="clone-audio-url" type="url" placeholder="https://…/voice-sample.wav" /></div>
+          <div class="clone-field"><label for="clone-prefix">音色前缀</label><input id="clone-prefix" value="voicenote" minlength="2" maxlength="9" pattern="[a-z0-9]+" /></div>
+          <div class="clone-field"><label for="clone-language">语言</label><select id="clone-language"><option value="zh">中文</option><option value="en">English</option></select></div>
+          <button class="clone-submit" id="create-cloned-voice" type="button" disabled>创建复刻音色</button>
+        </div>
+        <p class="clone-help" id="clone-help">参考音频仅用于供应商创建音色；请确保已获得声音本人明确授权。首版使用公网 URL，后续会增加页面内录制与临时上传。</p>
+      </section>
+    </section>
+
+    <section class="realtime-chat product-view" id="realtime-chat" data-product-view="conversation" data-state="idle" hidden>
+      <header class="conversation-header">
+        <div class="conversation-title">
+          <span class="conversation-title-mark"><i></i></span>
+          <span><strong>实时对话</strong><small>自然打断 · 流式语音回复</small></span>
+        </div>
+        <div class="conversation-head-actions">
+          <span class="conversation-status" id="conversation-status"><i></i><span>等待开始</span></span>
+          <label><span class="sr-only">实时模型</span><select class="conversation-select conversation-model" id="conversation-model" title="实时模型">
+            <option value="qwen-audio-3.0-realtime-plus">Qwen Audio 3.0 Realtime Plus</option>
+          </select></label>
+          <label><span class="sr-only">助手音色</span><select class="conversation-select conversation-voice" id="conversation-voice" title="助手音色">
+            <option value="longanqian">龙安浅 · 自然</option>
+            <option value="longanlingxin">龙安灵心 · 温暖</option>
+            <option value="longanlufeng">龙安鲁风 · 明亮</option>
+          </select></label>
+          <button class="conversation-export" id="conversation-export" type="button" disabled>导出</button>
+        </div>
+      </header>
+
+      <div class="conversation-scroll" id="conversation-scroll">
+        <section class="conversation-intro" id="conversation-intro">
+          <div class="conversation-orb-wrap" id="conversation-orb-wrap">
+            <span class="conversation-orb-ring"></span><span class="conversation-orb-ring"></span><span class="conversation-orb"></span>
+          </div>
+          <h1>现在，可以开始说话。</h1>
+          <p>不需要按住按钮。开始后直接说话，声笺会自动判断停顿，并用自然语音回答你。</p>
+          <div class="conversation-prompts" aria-label="对话建议">
+            <button type="button" data-conversation-prompt="帮我梳理一下今天最重要的三件事。">梳理今天的计划</button>
+            <button type="button" data-conversation-prompt="请和我进行一段简单的英语口语练习。">练习英语口语</button>
+            <button type="button" data-conversation-prompt="我们随便聊聊，先问我一个轻松的问题。">随便聊聊</button>
+          </div>
+        </section>
+        <div class="conversation-messages" id="conversation-messages" aria-live="polite"></div>
+      </div>
+
+      <footer class="conversation-dock">
+        <button class="conversation-side-control" id="conversation-mute" type="button" disabled><span class="side-control-icon">⌁</span><span>静音</span></button>
+        <button class="conversation-main-control" id="conversation-main" type="button">
+          <span class="mic-shape"></span><span><strong id="conversation-main-label">开始对话</strong><small id="conversation-main-hint">点击并授权麦克风</small></span>
+        </button>
+        <button class="conversation-side-control end" id="conversation-end" type="button" disabled><span class="side-control-icon">×</span><span>结束</span></button>
+        <span class="conversation-privacy">语音仅用于当前实时会话，声笺不保存对话音频</span>
+      </footer>
+    </section>
+  </main>
+
+  <dialog id="settings-dialog">
+    <form class="settings-card" method="dialog">
+      <header><h2>识别设置</h2><button class="close-dialog" value="close" aria-label="关闭">×</button></header>
+      <label for="asr-channel">实时转写通道</label>
+      <select id="asr-channel"><option value="funasr-gpu">读取服务端配置中…</option></select>
+      <p>页面始终使用统一转写协议。未来接入阿里、火山、讯飞或 Whisper 服务时，录音页不需要改变。</p>
+    </form>
+  </dialog>
+
+  <dialog id="entry-dialog" aria-labelledby="entry-title">
+    <section class="access-card">
+      <div class="access-brand"><span class="brand-mark"><i></i><i></i><i></i><i></i></span><strong>声笺 VoiceNote</strong></div>
+      <div id="mode-view">
+        <h2 id="entry-title">选择记录保存方式</h2>
+        <p class="access-intro">两种方式都可以使用实时转写与 AI 摘要；区别只在于会议记录保存在哪里。</p>
+        <div class="mode-grid">
+          <button class="mode-card primary" id="enter-guest" type="button">
+            <span class="mode-icon">⌂</span><strong>访客使用 · 单段 10 分钟</strong><span>记录仅保存在当前浏览器；每个录音段最多 10 分钟，暂停不计时，结束后可以继续追加。</span>
+          </button>
+          <button class="mode-card" id="show-login" type="button">
+            <span class="mode-icon">◎</span><strong>登录账号 · 单段 2 小时</strong><span>每个连续录音段支持 2 小时，文字和摘要跨设备保存，也可打开旧会议继续追加。</span>
+          </button>
+        </div>
+        <p class="privacy-note">隐私提示：访客模式下，音频与文字仍会临时发送给转写和摘要服务处理，但声笺服务器不会持久化会议内容。</p>
+      </div>
+      <div class="auth-view" id="auth-view" hidden>
+        <button class="auth-back" id="auth-back" type="button">← 返回使用方式</button>
+        <h2>账号登录</h2>
+        <p class="access-intro">登录后，会议记录会安全同步到服务器。</p>
+        <p class="managed-account-note">仅限受邀账号使用。本站不开放自行注册，如需账号请联系管理员创建。</p>
+        <form class="auth-form" id="auth-form">
+          <label for="auth-account">用户名或邮箱</label>
+          <input id="auth-account" name="account" autocomplete="username" minlength="3" maxlength="80" required placeholder="name@example.com" />
+          <label for="auth-password">密码</label>
+          <input id="auth-password" name="password" type="password" autocomplete="current-password" minlength="8" maxlength="128" required placeholder="至少 8 位" />
+          <button class="auth-submit" id="auth-submit" type="submit">登录并同步</button>
+          <p class="auth-message" id="auth-message" role="status"></p>
+        </form>
+      </div>
+    </section>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="/assets/transcript-state.js?v=20260817-zoned"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const GUEST_DB_NAME = 'voicenote-guest-v1';
+    const GUEST_DB_VERSION = 2;
+    const GUEST_STORE = 'meetings';
+    const GUEST_CONVERSATION_STORE = 'conversations';
+    const AUDIO_DB_NAME = 'voicenote-audio-v1';
+    const AUDIO_DB_VERSION = 1;
+    const AUDIO_CHUNK_STORE = 'recording-chunks';
+    const createRecordId = () => (crypto.randomUUID ? crypto.randomUUID() : `meeting-${Date.now()}-${Math.random().toString(16).slice(2)}`).replace(/[^A-Za-z0-9_-]/g, '');
+    const demoSegments = [
+      { speaker: '说话人 1', time: '00:18', text: '我们先专注主要的会议录音体验，用户进入页面以后应该能够很快开始。', demo: true },
+      { speaker: '说话人 2', time: '01:26', text: '最基础的是实时转写，摘要和后续处理都建立在统一的文字结果之上。', demo: true },
+      { speaker: '说话人 1', time: '03:08', text: '后端可以接不同供应商，也可以切换成服务化的 Whisper，前端不需要知道这些差异。', demo: true },
+    ];
+    let recorderState = 'idle';
+    let activeTab = 'transcript';
+    let elapsedSeconds = 0;
+    let timerId = null;
+    let recordingPassSeconds = 0;
+    let asrPassLimitSeconds = 10 * 60;
+    let asrWindowCommitPending = false;
+    let lastAsrWindowCommitAt = 0;
+    let sessionStartedAt = null;
+    let asrStreamWs = null;
+    let audioContext = null;
+    let audioSource = null;
+    let audioProcessor = null;
+    let audioAnalyser = null;
+    let microphoneStream = null;
+    let sendingAudio = false;
+    let animationFrameId = null;
+    let mediaRecorder = null;
+    let archiveChunks = [];
+    let archiveSessionId = null;
+    let archiveChunkIndex = 0;
+    let archiveMimeType = 'audio/webm';
+    let archiveWriteChain = Promise.resolve();
+    let archiveStorageDegraded = false;
+    let recordingUrl = null;
+    let transcriptSegments = [...demoSegments];
+    let rewriteSegments = [];
+    let liveTranscriptText = '';
+    let sessionConfirmedCount = 0;
+    let showingDemo = true;
+    let summaryIsDemo = true;
+    let summaryRunning = false;
+    let hasGeneratedSummary = false;
+    let summaryCustomized = false;
+    let summaryChatMessages = [];
+    let summaryRevisionRunning = false;
+    let summaryRevisionAbortController = null;
+    let summaryRevisionOriginal = '';
+    let summaryUndoStack = [];
+    let lastSummaryAt = 0;
+    let toastTimer = null;
+    let finishFallbackTimer = null;
+    let waveformLevels = [];
+    let meetingIndex = [];
+    let activeMeetingId = null;
+    let activeMeetingCreatedAt = null;
+    let meetingSaveTimer = null;
+    let meetingSaveChain = Promise.resolve();
+    let summaryAbortController = null;
+    let contentEpoch = 0;
+    let storageMode = null;
+    let authUser = null;
+    let csrfToken = '';
+    let guestDbPromise = null;
+    let audioDbPromise = null;
+    let activeProductView = 'meeting';
+    let selectedTtsVoice = 'longanlingxin';
+    let selectedTtsFormat = 'mp3';
+    let ttsAudioUrl = null;
+    let voiceCloningConfigured = false;
+    let ttsGenerating = false;
+    let meetingTitleMode = 'default';
+    let titleGenerationAttempted = false;
+    let titleGenerationTimer = null;
+    let titleAbortController = null;
+    let realtimeState = 'idle';
+    let realtimeSocket = null;
+    let realtimeMicStream = null;
+    let realtimeInputContext = null;
+    let realtimeInputSource = null;
+    let realtimeInputProcessor = null;
+    let realtimeOutputContext = null;
+    let realtimeOutputCursor = 0;
+    let realtimeOutputSources = new Set();
+    let realtimeMessages = [];
+    let realtimeDrafts = { user: null, assistant: null };
+    let realtimeMuted = false;
+    let realtimeSendingAudio = false;
+    let realtimeClosing = false;
+    let realtimeSessionConfigured = false;
+    let realtimeResponseDone = false;
+    let pendingRealtimePrompt = '';
+    let conversationIndex = [];
+    let activeConversationId = null;
+    let activeConversationCreatedAt = null;
+    let conversationSaveTimer = null;
+    let conversationSaveChain = Promise.resolve();
+
+    function escapeHtml(value) {
+      return String(value || '').replace(/[&<>'"]/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
+    }
+
+    function formatTime(seconds) {
+      const minutes = Math.floor(seconds / 60).toString().padStart(2, '0');
+      const remainder = Math.max(0, seconds % 60).toString().padStart(2, '0');
+      return `${minutes}:${remainder}`;
+    }
+
+    function updateRecordingLimitUi() {
+      const accountMode = storageMode === 'account';
+      const policyMinutes = Math.round(asrPassLimitSeconds / 60);
+      const remaining = Math.max(0, asrPassLimitSeconds - recordingPassSeconds);
+      $('record-limit-status').textContent = accountMode
+        ? `登录模式 · 当前录音段最长 ${policyMinutes >= 120 ? '2 小时' : `${policyMinutes} 分钟`}，暂停不计时`
+        : '访客试用 · 每个录音段最长 10 分钟，暂停不计时';
+      $('record-limit-remaining').textContent = ['recording', 'paused', 'connecting', 'finishing'].includes(recorderState)
+        ? `本段剩余 ${formatTime(remaining)}`
+        : `单段上限 ${formatTime(asrPassLimitSeconds)}`;
+      $('recording-policy').classList.toggle('warning', remaining <= 60 && ['recording', 'paused'].includes(recorderState));
+    }
+
+    function requestAsrWindowCommit() {
+      if (asrWindowCommitPending || recorderState !== 'recording' || !asrStreamWs || asrStreamWs.readyState !== WebSocket.OPEN) return;
+      asrWindowCommitPending = true;
+      lastAsrWindowCommitAt = recordingPassSeconds;
+      asrStreamWs.send(JSON.stringify({ type: 'asr.stream.commit' }));
+    }
+
+    function showToast(message) {
+      $('toast').textContent = message;
+      $('toast').classList.add('visible');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => $('toast').classList.remove('visible'), 2200);
+    }
+
+    function switchProductView(view) {
+      if (!['meeting', 'studio', 'conversation'].includes(view) || view === activeProductView) return true;
+      if (view !== 'meeting' && ['connecting', 'recording', 'paused', 'finishing'].includes(recorderState)) {
+        showToast('请先结束当前录音，再切换功能');
+        return false;
+      }
+      if (activeProductView === 'conversation' && view !== 'conversation' && isRealtimeActive()) {
+        showToast('请先结束当前实时对话');
+        return false;
+      }
+      activeProductView = view;
+      document.querySelectorAll('[data-product-view]').forEach((panel) => { panel.hidden = panel.dataset.productView !== view; });
+      document.querySelectorAll('.product-tab').forEach((button) => {
+        const active = button.dataset.product === view;
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-selected', active ? 'true' : 'false');
+      });
+      document.querySelectorAll('.meeting-only-action').forEach((button) => { button.hidden = view !== 'meeting'; });
+      document.title = view === 'meeting' ? '声笺 · 实时会议记录' : view === 'studio' ? '声笺 · 声音工作室' : '声笺 · 实时对话';
+      $('meeting-search').value = '';
+      updateSidebarContext();
+      closeSidebarOnSmallScreen();
+      return true;
+    }
+
+    async function responseError(response, fallback) {
+      try {
+        const payload = await response.json();
+        if (typeof payload.detail === 'string') return payload.detail;
+        if (payload.detail && payload.detail.message) return payload.detail.message;
+        if (payload.message) return payload.message;
+      } catch (_) {}
+      return fallback;
+    }
+
+    function selectTtsVoice(voice) {
+      selectedTtsVoice = voice;
+      $('custom-voice-id').value = '';
+      document.querySelectorAll('.voice-card').forEach((card) => card.classList.toggle('active', card.dataset.voice === voice));
+    }
+
+    function selectedVoiceId() {
+      return $('custom-voice-id').value.trim() || selectedTtsVoice;
+    }
+
+    function updateTtsCount() {
+      $('tts-char-count').textContent = String($('tts-text').value.length);
+    }
+
+    function setMeetingTitleMode(mode, label = '') {
+      meetingTitleMode = mode;
+      $('title-state').className = `title-state${mode === 'generating' ? ' generating' : mode === 'manual' ? ' manual' : ''}`;
+      $('title-state').textContent = label || ({ default: 'AI 可自动命名', generating: '正在生成标题…', auto: 'AI 已命名', manual: '已手动命名' }[mode] || '');
+    }
+
+    function resetMeetingTitleGeneration(mode = 'default') {
+      clearTimeout(titleGenerationTimer);
+      titleGenerationTimer = null;
+      if (titleAbortController) titleAbortController.abort();
+      titleAbortController = null;
+      titleGenerationAttempted = mode !== 'default';
+      setMeetingTitleMode(mode);
+    }
+
+    function markMeetingTitleManual() {
+      clearTimeout(titleGenerationTimer);
+      titleGenerationTimer = null;
+      if (titleAbortController) titleAbortController.abort();
+      titleAbortController = null;
+      titleGenerationAttempted = true;
+      setMeetingTitleMode('manual');
+    }
+
+    function maybeGenerateMeetingTitle({ force = false } = {}) {
+      if (meetingTitleMode !== 'default' || (titleGenerationAttempted && !force)) return;
+      const transcript = transcriptText().replace(/\s+/g, ' ').trim();
+      const meaningfulLength = transcript.replace(/[^\p{L}\p{N}]/gu, '').length;
+      if (meaningfulLength < (force ? 12 : 36)) return;
+      clearTimeout(titleGenerationTimer);
+      titleGenerationTimer = setTimeout(() => generateMeetingTitle(transcript), force ? 0 : 900);
+    }
+
+    async function generateMeetingTitle(transcript) {
+      if (meetingTitleMode !== 'default') return;
+      titleGenerationAttempted = true;
+      const recordId = activeMeetingId;
+      const controller = new AbortController();
+      if (titleAbortController) titleAbortController.abort();
+      titleAbortController = controller;
+      setMeetingTitleMode('generating');
+      try {
+        const response = await fetch('/api/meeting-title', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({ transcript: transcript.slice(0, 2400) }),
+        });
+        if (!response.ok) throw new Error(await responseError(response, '标题生成失败'));
+        const payload = await response.json();
+        if (titleAbortController !== controller || activeMeetingId !== recordId || meetingTitleMode === 'manual') return;
+        const title = String(payload.title || '').trim();
+        if (!title) throw new Error('标题生成结果为空');
+        $('meeting-title').value = title;
+        setMeetingTitleMode('auto');
+        scheduleMeetingSave(0);
+      } catch (error) {
+        if (error.name === 'AbortError') return;
+        if (titleAbortController === controller && meetingTitleMode !== 'manual') setMeetingTitleMode('default', 'AI 命名稍后重试');
+      } finally {
+        if (titleAbortController === controller) titleAbortController = null;
+      }
+    }
+
+    function isRealtimeActive() {
+      return ['connecting', 'listening', 'thinking', 'speaking', 'muted'].includes(realtimeState);
+    }
+
+    function setRealtimeState(state, detail = '') {
+      realtimeState = state;
+      $('realtime-chat').dataset.state = state;
+      const copy = {
+        idle: ['等待开始', '开始对话', '点击并授权麦克风'],
+        connecting: ['正在连接', '连接中…', '正在准备实时语音'],
+        listening: ['正在聆听', '正在聆听', '直接说话，我会自动回应'],
+        thinking: ['正在思考', '正在思考', '已经听到，正在组织回答'],
+        speaking: ['正在回复', '正在回复', '可以随时开口打断'],
+        muted: ['麦克风已关闭', '已静音', '点击恢复麦克风'],
+        ended: ['对话已结束', '再次对话', '开始一个新的实时会话'],
+        error: ['连接异常', '重新连接', '点击重新建立会话'],
+      }[state] || ['状态更新', '开始对话', ''];
+      const statusClass = state === 'listening' ? 'live' : state === 'thinking' ? 'thinking' : state === 'speaking' ? 'speaking' : state === 'error' ? 'error' : '';
+      $('conversation-status').className = `conversation-status${statusClass ? ` ${statusClass}` : ''}`;
+      $('conversation-status').querySelector('span').textContent = detail || copy[0];
+      $('conversation-main-label').textContent = copy[1];
+      $('conversation-main-hint').textContent = copy[2];
+      $('conversation-main').disabled = state === 'connecting';
+      $('conversation-mute').disabled = !isRealtimeActive() || state === 'connecting';
+      $('conversation-end').disabled = !isRealtimeActive();
+      $('conversation-voice').disabled = isRealtimeActive();
+      $('conversation-model').disabled = isRealtimeActive();
+      $('conversation-mute').querySelector('span:last-child').textContent = realtimeMuted ? '恢复声音' : '静音';
+      $('conversation-mute').querySelector('.side-control-icon').textContent = realtimeMuted ? '○' : '⌁';
+    }
+
+    function clearRealtimeMessages() {
+      realtimeMessages = [];
+      realtimeDrafts = { user: null, assistant: null };
+      renderRealtimeMessages();
+    }
+
+    function renderRealtimeMessages() {
+      $('conversation-intro').hidden = realtimeMessages.length > 0;
+      $('conversation-messages').innerHTML = realtimeMessages.map((message) => `
+        <article class="conversation-message ${message.role}">
+          <span class="message-avatar">${message.role === 'assistant' ? '声' : '我'}</span>
+          <div class="message-body">
+            <small>${message.role === 'assistant' ? '声笺' : '你'}</small>
+            <div class="message-bubble${message.final ? '' : ' streaming'}">${escapeHtml(message.text || (message.role === 'assistant' ? '正在组织回答' : '正在识别'))}</div>
+          </div>
+        </article>
+      `).join('');
+      $('conversation-export').disabled = !realtimeMessages.some((message) => message.final && message.text.trim());
+      requestAnimationFrame(() => { $('conversation-scroll').scrollTop = $('conversation-scroll').scrollHeight; });
+    }
+
+    function mergeRealtimeDelta(current, delta) {
+      const prior = String(current || '');
+      const next = String(delta || '');
+      if (!next) return prior;
+      if (next.startsWith(prior)) return next;
+      if (prior.endsWith(next)) return prior;
+      return prior + next;
+    }
+
+    function handleRealtimeTranscript(payload) {
+      const role = payload.role === 'assistant' ? 'assistant' : 'user';
+      const text = String(payload.text || '').trim();
+      if (!text) return;
+      const source = String(payload.source_type || '');
+      let draftIndex = realtimeDrafts[role];
+      const draft = draftIndex === null ? null : realtimeMessages[draftIndex];
+      if (role === 'assistant' && source.startsWith('response.text') && draft && draft.source.startsWith('response.audio_transcript')) return;
+      if (role === 'assistant' && source.startsWith('response.audio_transcript') && draft && draft.source.startsWith('response.text')) {
+        draft.text = '';
+        draft.source = source;
+      }
+      if (payload.phase === 'final') {
+        if (draft && !draft.final) {
+          draft.text = text;
+          draft.final = true;
+          draft.source = source;
+        } else {
+          const lastSameRole = [...realtimeMessages].reverse().find((message) => message.role === role);
+          if (!lastSameRole || lastSameRole.text !== text) realtimeMessages.push({ role, text, final: true, source });
+        }
+        realtimeDrafts[role] = null;
+        ensureActiveConversation();
+        scheduleConversationSave();
+      } else {
+        if (!draft || draft.final) {
+          draftIndex = realtimeMessages.length;
+          realtimeMessages.push({ role, text: '', final: false, source });
+          realtimeDrafts[role] = draftIndex;
+        }
+        const current = realtimeMessages[draftIndex];
+        current.source = source || current.source;
+        current.text = mergeRealtimeDelta(current.text, text);
+      }
+      renderRealtimeMessages();
+    }
+
+    function ensureAssistantRealtimeDraft() {
+      if (realtimeDrafts.assistant !== null) return;
+      realtimeDrafts.assistant = realtimeMessages.length;
+      realtimeMessages.push({ role: 'assistant', text: '', final: false, source: 'response.created' });
+      renderRealtimeMessages();
+    }
+
+    function ensureUserRealtimeDraft() {
+      if (realtimeDrafts.user !== null) return;
+      realtimeDrafts.user = realtimeMessages.length;
+      realtimeMessages.push({ role: 'user', text: '', final: false, source: 'speech_started' });
+      renderRealtimeMessages();
+    }
+
+    function stopRealtimePlayback(cancelUpstream = false) {
+      realtimeOutputSources.forEach((source) => { try { source.stop(); } catch (_) {} });
+      realtimeOutputSources.clear();
+      realtimeOutputCursor = 0;
+      realtimeResponseDone = false;
+      if (cancelUpstream && realtimeSocket && realtimeSocket.readyState === WebSocket.OPEN) {
+        realtimeSocket.send(JSON.stringify({ type: 'response.cancel' }));
+      }
+    }
+
+    function enqueueRealtimeAudio(base64Audio, sampleRate = 24000) {
+      if (!base64Audio || !realtimeOutputContext) return;
+      const binary = atob(base64Audio);
+      const bytes = new Uint8Array(binary.length);
+      for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+      const sampleCount = Math.floor(bytes.byteLength / 2);
+      if (!sampleCount) return;
+      const view = new DataView(bytes.buffer, bytes.byteOffset, sampleCount * 2);
+      const buffer = realtimeOutputContext.createBuffer(1, sampleCount, sampleRate);
+      const channel = buffer.getChannelData(0);
+      for (let index = 0; index < sampleCount; index += 1) channel[index] = view.getInt16(index * 2, true) / 32768;
+      const source = realtimeOutputContext.createBufferSource();
+      source.buffer = buffer;
+      source.connect(realtimeOutputContext.destination);
+      const startsAt = Math.max(realtimeOutputContext.currentTime + .025, realtimeOutputCursor || 0);
+      realtimeOutputCursor = startsAt + buffer.duration;
+      realtimeOutputSources.add(source);
+      source.onended = () => {
+        realtimeOutputSources.delete(source);
+        if (!realtimeOutputSources.size && realtimeResponseDone && isRealtimeActive() && !realtimeMuted) setRealtimeState('listening');
+      };
+      source.start(startsAt);
+      if (!realtimeMuted) setRealtimeState('speaking');
+    }
+
+    function sendRealtimeSessionUpdate() {
+      if (!realtimeSocket || realtimeSocket.readyState !== WebSocket.OPEN || realtimeSessionConfigured) return;
+      realtimeSessionConfigured = true;
+      realtimeSocket.send(JSON.stringify({
+        event_id: `session-${Date.now()}`,
+        type: 'session.update',
+        session: {
+          modalities: ['text', 'audio'],
+          voice: $('conversation-voice').value,
+          instructions: '你是声笺中的实时语音助手。默认使用自然、简洁的中文口语回答；先直接回应用户，再在必要时补充细节。不要朗读格式符号，不要声称看到了不存在的内容。',
+          input_audio_format: 'pcm',
+          output_audio_format: 'pcm',
+          max_history_turns: 20,
+          turn_detection: { type: 'server_vad', threshold: .5, silence_duration_ms: 700 },
+        },
+      }));
+    }
+
+    function sendRealtimeTextPrompt(text) {
+      const normalized = String(text || '').trim();
+      if (!normalized) return;
+      if (!realtimeSocket || realtimeSocket.readyState !== WebSocket.OPEN || !realtimeSessionConfigured || realtimeState === 'connecting') {
+        pendingRealtimePrompt = normalized;
+        if (!isRealtimeActive()) startRealtimeConversation();
+        return;
+      }
+      realtimeMessages.push({ role: 'user', text: normalized, final: true, source: 'input_text' });
+      ensureActiveConversation();
+      scheduleConversationSave();
+      renderRealtimeMessages();
+      realtimeSocket.send(JSON.stringify({
+        type: 'conversation.item.create',
+        item: { type: 'message', role: 'user', content: [{ type: 'input_text', text: normalized }] },
+      }));
+      realtimeSocket.send(JSON.stringify({ type: 'response.create', response: { modalities: ['audio', 'text'] } }));
+      setRealtimeState('thinking');
+    }
+
+    function handleRealtimeUpstreamEvent(event) {
+      const type = String(event && event.type || '');
+      if (type === 'session.updated') {
+        realtimeSendingAudio = true;
+        if (!realtimeMuted) setRealtimeState('listening');
+        if (pendingRealtimePrompt) {
+          const prompt = pendingRealtimePrompt;
+          pendingRealtimePrompt = '';
+          sendRealtimeTextPrompt(prompt);
+        }
+      } else if (type === 'input_audio_buffer.speech_started') {
+        stopRealtimePlayback(false);
+        ensureUserRealtimeDraft();
+        if (!realtimeMuted) setRealtimeState('listening', '正在听你说');
+      } else if (type === 'input_audio_buffer.speech_stopped' || type === 'input_audio_buffer.committed') {
+        ensureUserRealtimeDraft();
+        if (!realtimeMuted) setRealtimeState('thinking');
+      } else if (type === 'response.created') {
+        realtimeResponseDone = false;
+        ensureAssistantRealtimeDraft();
+        if (!realtimeMuted) setRealtimeState('thinking');
+      } else if (type === 'response.done') {
+        realtimeResponseDone = true;
+        scheduleConversationSave(0);
+        if (!realtimeOutputSources.size && !realtimeMuted) setRealtimeState('listening');
+      } else if (type === 'response.cancelled') {
+        stopRealtimePlayback(false);
+        if (!realtimeMuted) setRealtimeState('listening');
+      } else if (type === 'error') {
+        const message = event.error && event.error.message ? event.error.message : '实时模型返回错误';
+        setRealtimeState('error', message.slice(0, 30));
+      }
+    }
+
+    function handleRealtimeMessage(event) {
+      let payload;
+      try { payload = JSON.parse(event.data); } catch (_) { return; }
+      if (payload.demo_event === 'proxy.connected') sendRealtimeSessionUpdate();
+      else if (payload.demo_event === 'transcript.delta') handleRealtimeTranscript(payload);
+      else if (payload.demo_event === 'audio.delta') enqueueRealtimeAudio(payload.audio, Number(payload.sample_rate || 24000));
+      else if (payload.demo_event === 'upstream.event') handleRealtimeUpstreamEvent(payload.event || {});
+      else if (payload.demo_event === 'proxy.error') setRealtimeState('error', payload.message || '实时服务连接失败');
+    }
+
+    async function startRealtimeMicrophone() {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      realtimeMicStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      realtimeInputContext = new AudioContextClass();
+      realtimeInputSource = realtimeInputContext.createMediaStreamSource(realtimeMicStream);
+      realtimeInputProcessor = realtimeInputContext.createScriptProcessor(4096, 1, 1);
+      realtimeInputProcessor.onaudioprocess = (event) => {
+        const input = event.inputBuffer.getChannelData(0);
+        let energy = 0;
+        for (const sample of input) energy += sample * sample;
+        const level = realtimeMuted ? 0 : Math.min(1, Math.sqrt(energy / Math.max(1, input.length)) * 5);
+        $('realtime-chat').style.setProperty('--voice-level', level.toFixed(3));
+        if (!realtimeSendingAudio || realtimeMuted || !realtimeSocket || realtimeSocket.readyState !== WebSocket.OPEN) return;
+        const pcm = floatTo16BitPCM(downsample(input, realtimeInputContext.sampleRate, 16000));
+        realtimeSocket.send(JSON.stringify({ type: 'input_audio_buffer.append', audio: bytesToBase64(new Uint8Array(pcm.buffer)) }));
+      };
+      realtimeInputSource.connect(realtimeInputProcessor);
+      realtimeInputProcessor.connect(realtimeInputContext.destination);
+    }
+
+    function stopRealtimeInput() {
+      realtimeSendingAudio = false;
+      if (realtimeInputProcessor) { realtimeInputProcessor.disconnect(); realtimeInputProcessor = null; }
+      if (realtimeInputSource) { realtimeInputSource.disconnect(); realtimeInputSource = null; }
+      if (realtimeMicStream) { realtimeMicStream.getTracks().forEach((track) => track.stop()); realtimeMicStream = null; }
+      if (realtimeInputContext) { realtimeInputContext.close(); realtimeInputContext = null; }
+      $('realtime-chat').style.setProperty('--voice-level', '0');
+    }
+
+    async function startRealtimeConversation() {
+      if (isRealtimeActive()) return;
+      if (['connecting', 'recording', 'paused', 'finishing'].includes(recorderState)) { showToast('请先结束当前会议录音'); return; }
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { setRealtimeState('error', '当前浏览器不支持麦克风'); return; }
+      if ((realtimeState === 'ended' || realtimeState === 'error') && realtimeMessages.length) await createNewConversation({ announce: false });
+      ensureActiveConversation();
+      scheduleConversationSave(0);
+      realtimeClosing = false;
+      realtimeMuted = false;
+      realtimeSessionConfigured = false;
+      realtimeResponseDone = false;
+      setRealtimeState('connecting');
+      try {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        realtimeOutputContext = new AudioContextClass({ sampleRate: 24000 });
+        await realtimeOutputContext.resume();
+        await startRealtimeMicrophone();
+        const realtimeModel = $('conversation-model').value || 'qwen-audio-3.0-realtime-plus';
+        realtimeSocket = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/realtime?model=${encodeURIComponent(realtimeModel)}`);
+        realtimeSocket.onmessage = handleRealtimeMessage;
+        realtimeSocket.onerror = () => setRealtimeState('error', '无法连接实时对话服务');
+        realtimeSocket.onclose = () => {
+          const manual = realtimeClosing;
+          realtimeSocket = null;
+          realtimeSessionConfigured = false;
+          stopRealtimeInput();
+          if (!manual && realtimeState !== 'ended') setRealtimeState('error', '实时对话连接已断开');
+        };
+      } catch (error) {
+        stopRealtimeInput();
+        if (realtimeOutputContext) { realtimeOutputContext.close(); realtimeOutputContext = null; }
+        setRealtimeState('error', error && error.name === 'NotAllowedError' ? '请允许使用麦克风' : '无法启动实时对话');
+      }
+    }
+
+    function toggleRealtimeMute() {
+      if (!isRealtimeActive() || realtimeState === 'connecting') return;
+      realtimeMuted = !realtimeMuted;
+      if (realtimeMuted) {
+        if (realtimeSocket && realtimeSocket.readyState === WebSocket.OPEN) realtimeSocket.send(JSON.stringify({ type: 'input_audio_buffer.clear' }));
+        setRealtimeState('muted');
+      } else {
+        setRealtimeState('listening');
+      }
+    }
+
+    function endRealtimeConversation() {
+      if (!isRealtimeActive()) return;
+      realtimeClosing = true;
+      realtimeMuted = false;
+      stopRealtimePlayback(false);
+      stopRealtimeInput();
+      if (realtimeSocket) {
+        realtimeSocket.onclose = null;
+        if (realtimeSocket.readyState === WebSocket.OPEN || realtimeSocket.readyState === WebSocket.CONNECTING) realtimeSocket.close();
+        realtimeSocket = null;
+      }
+      if (realtimeOutputContext) { realtimeOutputContext.close(); realtimeOutputContext = null; }
+      realtimeSessionConfigured = false;
+      setRealtimeState('ended');
+      scheduleConversationSave(0);
+    }
+
+    function humanBytes(value) {
+      const bytes = Number(value || 0);
+      if (!bytes) return '—';
+      return bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.round(bytes / 1024)} KB`;
+    }
+
+    async function synthesizeVoice() {
+      const text = $('tts-text').value.trim();
+      const voice = selectedVoiceId();
+      if (!text) { showToast('请先输入要生成的文字'); return; }
+      if (!voice || ttsGenerating) return;
+      ttsGenerating = true;
+      $('synthesize-voice').disabled = true;
+      $('synthesize-voice').textContent = '正在生成…';
+      $('result-empty').textContent = '正在把文字转换成声音…';
+      try {
+        const response = await fetch('/api/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, voice, format: selectedTtsFormat }),
+        });
+        if (!response.ok) throw new Error(await responseError(response, '声音生成服务暂不可用'));
+        const audio = await response.blob();
+        if (ttsAudioUrl) URL.revokeObjectURL(ttsAudioUrl);
+        ttsAudioUrl = URL.createObjectURL(audio);
+        $('tts-audio').src = ttsAudioUrl;
+        $('result-player').hidden = false;
+        $('result-empty').textContent = '已生成，可以试听';
+        $('result-voice').textContent = response.headers.get('X-Qwen-Voice') || voice;
+        const elapsed = response.headers.get('X-Elapsed-Ms');
+        $('result-elapsed').textContent = elapsed ? `${(Number(elapsed) / 1000).toFixed(1)} s` : '—';
+        $('result-size').textContent = humanBytes(response.headers.get('X-Audio-Bytes') || audio.size);
+        $('studio-result').classList.add('ready');
+        showToast('声音已经生成');
+      } catch (error) {
+        $('result-empty').textContent = `生成失败：${error.message || String(error)}`;
+        $('studio-result').classList.remove('ready');
+      } finally {
+        ttsGenerating = false;
+        $('synthesize-voice').disabled = false;
+        $('synthesize-voice').innerHTML = '生成声音&nbsp; →';
+      }
+    }
+
+    function collectVoiceIds(value, output = new Set()) {
+      if (Array.isArray(value)) value.forEach((item) => collectVoiceIds(item, output));
+      else if (value && typeof value === 'object') {
+        Object.entries(value).forEach(([key, item]) => {
+          if (['voice_id', 'voice'].includes(key) && typeof item === 'string') output.add(item);
+          else collectVoiceIds(item, output);
+        });
+      }
+      return [...output];
+    }
+
+    async function loadClonedVoices() {
+      if (!voiceCloningConfigured) return;
+      $('refresh-voices').disabled = true;
+      $('refresh-voices').textContent = '读取中…';
+      try {
+        const response = await fetch('/api/voice-cloning/list');
+        if (!response.ok) throw new Error(await responseError(response, '读取复刻音色失败'));
+        const ids = collectVoiceIds(await response.json());
+        $('cloned-voice-list').innerHTML = ids.map((id) => `<option value="${escapeHtml(id)}"></option>`).join('');
+        $('refresh-voices').textContent = ids.length ? `已读取 ${ids.length} 个` : '暂无复刻音色';
+        if (!ids.length) showToast('当前账号还没有复刻音色');
+      } catch (error) {
+        $('refresh-voices').textContent = '读取失败';
+        showToast(error.message || String(error));
+      } finally {
+        $('refresh-voices').disabled = !voiceCloningConfigured;
+      }
+    }
+
+    function configureVoiceCloning(configured) {
+      voiceCloningConfigured = Boolean(configured);
+      $('clone-capability').classList.toggle('ready', voiceCloningConfigured);
+      $('clone-capability').textContent = voiceCloningConfigured ? '声音复刻服务已就绪' : '待配置复刻密钥';
+      $('create-cloned-voice').disabled = !voiceCloningConfigured;
+      $('refresh-voices').disabled = !voiceCloningConfigured;
+      $('clone-help').textContent = voiceCloningConfigured
+        ? '参考音频仅用于创建音色；请确保已获得声音本人明确授权。音色创建后将自动填入上方合成器。'
+        : 'TTS 已可正常使用；声音复刻还需要在服务器配置 DASHSCOPE_VOICE_API_KEY。配置前不会上传参考音频。';
+    }
+
+    async function createClonedVoice() {
+      if (!voiceCloningConfigured) { showToast('服务器尚未配置声音复刻密钥'); return; }
+      const audioUrl = $('clone-audio-url').value.trim();
+      const prefix = $('clone-prefix').value.trim();
+      if (!/^https?:\/\//i.test(audioUrl)) { showToast('请填写供应商可访问的 HTTP(S) 音频地址'); return; }
+      if (!/^[a-z0-9]{2,9}$/.test(prefix)) { showToast('音色前缀须为 2–9 位小写字母或数字'); return; }
+      const button = $('create-cloned-voice');
+      button.disabled = true;
+      button.textContent = '创建中…';
+      try {
+        const response = await fetch('/api/voice-cloning/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            audio_url: audioUrl,
+            prefix,
+            target_model: 'qwen-audio-3.0-tts-plus',
+            language_hints: [$('clone-language').value],
+            max_prompt_audio_length: 30,
+          }),
+        });
+        if (!response.ok) throw new Error(await responseError(response, '创建复刻音色失败'));
+        const payload = await response.json();
+        const voiceId = payload.voice_id || payload.voice;
+        if (!voiceId) throw new Error('服务没有返回 voice id');
+        $('custom-voice-id').value = voiceId;
+        document.querySelectorAll('.voice-card').forEach((card) => card.classList.remove('active'));
+        await loadClonedVoices();
+        showToast('复刻音色已创建，并填入合成器');
+      } catch (error) {
+        showToast(error.message || String(error));
+      } finally {
+        button.disabled = !voiceCloningConfigured;
+        button.textContent = '创建复刻音色';
+      }
+    }
+
+    function meetingHeaders(write = false) {
+      const headers = { 'Content-Type': 'application/json' };
+      if (write && csrfToken) headers['X-CSRF-Token'] = csrfToken;
+      return headers;
+    }
+
+    function openGuestDb() {
+      if (guestDbPromise) return guestDbPromise;
+      guestDbPromise = new Promise((resolve, reject) => {
+        const request = indexedDB.open(GUEST_DB_NAME, GUEST_DB_VERSION);
+        request.onupgradeneeded = () => {
+          const db = request.result;
+          if (!db.objectStoreNames.contains(GUEST_STORE)) {
+            const store = db.createObjectStore(GUEST_STORE, { keyPath: 'id' });
+            store.createIndex('updated_at', 'updated_at');
+          }
+          if (!db.objectStoreNames.contains(GUEST_CONVERSATION_STORE)) {
+            const store = db.createObjectStore(GUEST_CONVERSATION_STORE, { keyPath: 'id' });
+            store.createIndex('updated_at', 'updated_at');
+          }
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error || new Error('浏览器存储不可用'));
+      });
+      return guestDbPromise;
+    }
+
+    async function guestDbRequest(mode, operation, storeName = GUEST_STORE) {
+      const db = await openGuestDb();
+      return new Promise((resolve, reject) => {
+        const transaction = db.transaction(storeName, mode);
+        const request = operation(transaction.objectStore(storeName));
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error || new Error('浏览器存储操作失败'));
+      });
+    }
+
+    function openAudioDb() {
+      if (audioDbPromise) return audioDbPromise;
+      audioDbPromise = new Promise((resolve, reject) => {
+        const request = indexedDB.open(AUDIO_DB_NAME, AUDIO_DB_VERSION);
+        request.onupgradeneeded = () => {
+          const db = request.result;
+          if (!db.objectStoreNames.contains(AUDIO_CHUNK_STORE)) {
+            const store = db.createObjectStore(AUDIO_CHUNK_STORE, { keyPath: ['session_id', 'index'] });
+            store.createIndex('session_id', 'session_id');
+          }
+        };
+        request.onsuccess = () => {
+          request.result.onversionchange = () => request.result.close();
+          resolve(request.result);
+        };
+        request.onerror = () => reject(request.error || new Error('录音分片存储不可用'));
+        request.onblocked = () => reject(new Error('录音分片存储被其他页面占用'));
+      });
+      return audioDbPromise;
+    }
+
+    async function audioDbTransaction(mode, operation) {
+      const db = await openAudioDb();
+      return new Promise((resolve, reject) => {
+        const transaction = db.transaction(AUDIO_CHUNK_STORE, mode);
+        let request;
+        try { request = operation(transaction.objectStore(AUDIO_CHUNK_STORE)); }
+        catch (error) { reject(error); return; }
+        transaction.oncomplete = () => resolve(request && request.result);
+        transaction.onerror = () => reject(transaction.error || (request && request.error) || new Error('录音分片写入失败'));
+        transaction.onabort = () => reject(transaction.error || new Error('录音分片写入已中止'));
+      });
+    }
+
+    function audioSessionRange(sessionId) {
+      return IDBKeyRange.bound([sessionId, 0], [sessionId, Number.MAX_SAFE_INTEGER]);
+    }
+
+    async function putAudioArchiveChunk(sessionId, index, blob) {
+      return audioDbTransaction('readwrite', (store) => store.put({ session_id: sessionId, index, blob }));
+    }
+
+    async function readAudioArchiveChunks(sessionId) {
+      if (!sessionId) return [];
+      const rows = await audioDbTransaction('readonly', (store) => store.getAll(audioSessionRange(sessionId)));
+      return (rows || []).sort((a, b) => a.index - b.index);
+    }
+
+    async function deleteAudioArchiveSession(sessionId) {
+      if (!sessionId) return;
+      try { await audioDbTransaction('readwrite', (store) => store.delete(audioSessionRange(sessionId))); }
+      catch (_) {}
+    }
+
+    async function listStoredMeetings() {
+      if (storageMode === 'guest') {
+        const rows = await guestDbRequest('readonly', (store) => store.getAll());
+        return rows.sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at))).map(meetingMetaFromRecord);
+      }
+      const response = await fetch('/api/meetings');
+      if (response.status === 401) throw new Error('登录已过期');
+      if (!response.ok) throw new Error('会议列表不可用');
+      return (await response.json()).meetings || [];
+    }
+
+    async function getStoredMeeting(meetingId) {
+      if (storageMode === 'guest') return guestDbRequest('readonly', (store) => store.get(meetingId));
+      const response = await fetch(`/api/meetings/${encodeURIComponent(meetingId)}`);
+      if (response.status === 401) throw new Error('登录已过期');
+      if (!response.ok) throw new Error('会议读取失败');
+      return response.json();
+    }
+
+    async function putStoredMeeting(meetingId, payload, targetMode = storageMode, targetCsrfToken = csrfToken) {
+      if (targetMode === 'guest') {
+        const localRecord = { id: meetingId, ...payload, preview: payload.transcript_segments.map((segment) => segment.text).join(' ').slice(0, 120) };
+        await guestDbRequest('readwrite', (store) => store.put(localRecord));
+        return localRecord;
+      }
+      const response = await fetch(`/api/meetings/${encodeURIComponent(meetingId)}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': targetCsrfToken }, body: JSON.stringify(payload),
+      });
+      if (response.status === 401) throw new Error('登录已过期');
+      if (!response.ok) throw new Error('会议保存失败');
+      return response.json();
+    }
+
+    async function removeStoredMeeting(meetingId) {
+      if (storageMode === 'guest') return guestDbRequest('readwrite', (store) => store.delete(meetingId));
+      const response = await fetch(`/api/meetings/${encodeURIComponent(meetingId)}`, { method: 'DELETE', headers: meetingHeaders(true) });
+      if (!response.ok) throw new Error('删除失败');
+      return response.json();
+    }
+
+    async function listStoredConversations() {
+      if (storageMode === 'guest') {
+        const rows = await guestDbRequest('readonly', (store) => store.getAll(), GUEST_CONVERSATION_STORE);
+        return rows.sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at))).map(conversationMetaFromRecord);
+      }
+      const response = await fetch('/api/conversations');
+      if (response.status === 401) throw new Error('登录已过期');
+      if (!response.ok) throw new Error('对话列表不可用');
+      return (await response.json()).conversations || [];
+    }
+
+    async function getStoredConversation(conversationId) {
+      if (storageMode === 'guest') return guestDbRequest('readonly', (store) => store.get(conversationId), GUEST_CONVERSATION_STORE);
+      const response = await fetch(`/api/conversations/${encodeURIComponent(conversationId)}`);
+      if (response.status === 401) throw new Error('登录已过期');
+      if (!response.ok) throw new Error('对话读取失败');
+      return response.json();
+    }
+
+    async function putStoredConversation(conversationId, payload, targetMode = storageMode, targetCsrfToken = csrfToken) {
+      if (targetMode === 'guest') {
+        const preview = [...payload.messages].reverse().find((message) => message.text.trim())?.text.slice(0, 120) || '';
+        const localRecord = { id: conversationId, ...payload, preview };
+        await guestDbRequest('readwrite', (store) => store.put(localRecord), GUEST_CONVERSATION_STORE);
+        return localRecord;
+      }
+      const response = await fetch(`/api/conversations/${encodeURIComponent(conversationId)}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': targetCsrfToken }, body: JSON.stringify(payload),
+      });
+      if (response.status === 401) throw new Error('登录已过期');
+      if (!response.ok) throw new Error('对话保存失败');
+      return response.json();
+    }
+
+    async function removeStoredConversation(conversationId) {
+      if (storageMode === 'guest') return guestDbRequest('readwrite', (store) => store.delete(conversationId), GUEST_CONVERSATION_STORE);
+      const response = await fetch(`/api/conversations/${encodeURIComponent(conversationId)}`, { method: 'DELETE', headers: meetingHeaders(true) });
+      if (!response.ok) throw new Error('删除失败');
+      return response.json();
+    }
+
+    function cancelSummaryWork() {
+      contentEpoch += 1;
+      if (summaryAbortController) summaryAbortController.abort();
+      summaryAbortController = null;
+      summaryRunning = false;
+      $('generate-summary').disabled = false;
+      if (summaryRevisionAbortController) summaryRevisionAbortController.abort();
+      if (summaryRevisionRunning && summaryRevisionOriginal) syncSummaryContent(summaryRevisionOriginal);
+      summaryRevisionAbortController = null;
+      summaryRevisionRunning = false;
+      summaryRevisionOriginal = '';
+      $('summary-canvas').classList.remove('streaming');
+      $('summary-canvas').readOnly = false;
+      $('summary-chat-send').disabled = false;
+      $('summary-chat-status').textContent = '等待指令';
+    }
+
+    function summaryContent() {
+      return hasGeneratedSummary ? $('summary-canvas').value.trim() : '';
+    }
+
+    function updateSummaryCanvasMeta(label = '') {
+      const content = $('summary-canvas').value;
+      $('summary-canvas-count').textContent = `${content.replace(/\s/g, '').length} 字`;
+      if (label) $('summary-canvas-state').textContent = label;
+      $('undo-summary-revision').disabled = summaryRevisionRunning || !summaryUndoStack.length;
+    }
+
+    function syncSummaryContent(content, { canvasState = '' } = {}) {
+      const normalized = String(content || '');
+      $('summary-output').textContent = normalized;
+      if ($('summary-canvas').value !== normalized) $('summary-canvas').value = normalized;
+      updateSummaryCanvasMeta(canvasState);
+    }
+
+    function renderSummaryChat() {
+      const container = $('summary-chat-messages');
+      if (!summaryChatMessages.length) {
+        container.innerHTML = '<div class="summary-chat-empty"><strong>这份纪要可以继续打磨</strong><span>描述你想给谁看、希望突出什么，或者直接使用下面的快捷要求。模型会修改左侧画布，并在这里说明变化。</span></div>';
+        return;
+      }
+      container.innerHTML = summaryChatMessages.map((message, index) => `
+        <div class="summary-chat-message ${message.role}${message.streaming ? ' streaming' : ''}" data-summary-message="${index}">${escapeHtml(message.text || (message.streaming ? '正在修改纪要…' : ''))}</div>
+      `).join('');
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function resetSummaryCollaboration() {
+      summaryCustomized = false;
+      summaryChatMessages = [];
+      summaryUndoStack = [];
+      summaryRevisionOriginal = '';
+      renderSummaryChat();
+      updateSummaryCanvasMeta('等待生成摘要');
+    }
+
+    function clearSummaryContent() {
+      summaryIsDemo = false;
+      hasGeneratedSummary = false;
+      resetSummaryCollaboration();
+      lastSummaryAt = 0;
+      $('summary-state').textContent = '等待实时内容';
+      $('summary-title').textContent = '录音开始后，摘要会根据最终转写片段持续更新。';
+      $('summary-description').textContent = '完成转写后，将在这里生成摘要、行动项和未决问题。';
+      $('summary-output').className = 'summary-output';
+      syncSummaryContent('当前还没有可用于摘要的最终转写内容。', { canvasState: '等待生成摘要' });
+    }
+
+    function conversationMetaFromRecord(record) {
+      return {
+        id: record.id,
+        title: record.title || '新对话',
+        model: record.model || $('conversation-model').value || 'qwen-audio-3.0-realtime-plus',
+        voice: record.voice || $('conversation-voice').value || 'longanlingxin',
+        created_at: record.created_at,
+        updated_at: record.updated_at,
+        preview: record.preview || '',
+      };
+    }
+
+    function conversationTitle() {
+      const firstUserMessage = realtimeMessages.find((message) => message.role === 'user' && message.text.trim());
+      if (!firstUserMessage) return '新对话';
+      const normalized = firstUserMessage.text.replace(/\s+/g, ' ').replace(/[。！？!?]+$/g, '').trim();
+      return normalized.length > 22 ? `${normalized.slice(0, 22)}…` : normalized || '新对话';
+    }
+
+    function exportCurrentConversation() {
+      const messages = realtimeMessages.filter((message) => message.final && message.text.trim());
+      if (!messages.length) { showToast('当前没有可导出的对话文字'); return; }
+      const title = conversationTitle();
+      const modelOption = $('conversation-model').options[$('conversation-model').selectedIndex];
+      const voiceOption = $('conversation-voice').options[$('conversation-voice').selectedIndex];
+      const lines = [
+        `# ${title}`,
+        '',
+        `- 日期：${new Intl.DateTimeFormat('zh-CN', { dateStyle: 'long', timeStyle: 'short' }).format(new Date(activeConversationCreatedAt || Date.now()))}`,
+        `- 模型：${modelOption?.textContent || $('conversation-model').value}`,
+        `- 音色：${voiceOption?.textContent || $('conversation-voice').value}`,
+        '',
+        ...messages.flatMap((message) => [`## ${message.role === 'assistant' ? '声笺' : '我'}`, '', message.text.trim(), '']),
+      ];
+      const blob = new Blob([lines.join('\n')], { type: 'text/markdown;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${title.replace(/[\\/:*?"<>|]/g, '-').slice(0, 40) || '实时对话'}.md`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      showToast('对话已导出为 Markdown');
+    }
+
+    function renderConversationIndex() {
+      if (activeProductView !== 'conversation') return;
+      const query = $('meeting-search').value.trim().toLowerCase();
+      const filtered = conversationIndex.filter((conversation) => `${conversation.title} ${conversation.preview}`.toLowerCase().includes(query));
+      if (!filtered.length) {
+        $('meeting-groups').innerHTML = `<p class="meeting-empty">${query ? '没有匹配的对话' : '暂时没有对话<br />开始实时对话后会自动保存在这里'}</p>`;
+        return;
+      }
+      const todayKey = new Date().toDateString();
+      const groups = [
+        ['今天', filtered.filter((conversation) => new Date(conversation.created_at).toDateString() === todayKey)],
+        ['更早', filtered.filter((conversation) => new Date(conversation.created_at).toDateString() !== todayKey)],
+      ];
+      $('meeting-groups').innerHTML = groups.filter(([, conversations]) => conversations.length).map(([label, conversations]) => `
+        <section>
+          <h2 class="meeting-group-title">${label}</h2>
+          ${conversations.map((conversation) => `
+            <div class="meeting-item${conversation.id === activeConversationId ? ' active' : ''}" data-conversation-id="${escapeHtml(conversation.id)}">
+              <button class="meeting-open" type="button" data-conversation-id="${escapeHtml(conversation.id)}">
+                <strong>${escapeHtml(conversation.title || '新对话')}</strong>
+                <small>${escapeHtml(conversation.preview || '尚无对话内容')}</small>
+              </button>
+              <button class="meeting-delete" type="button" data-delete-conversation="${escapeHtml(conversation.id)}" aria-label="删除 ${escapeHtml(conversation.title || '对话')}">×</button>
+            </div>
+          `).join('')}
+        </section>
+      `).join('');
+    }
+
+    function renderSidebarIndex() {
+      if (activeProductView === 'conversation') renderConversationIndex();
+      else renderMeetingIndex();
+    }
+
+    function updateSidebarContext() {
+      const conversationView = activeProductView === 'conversation';
+      $('new-session-label').textContent = conversationView ? '新对话' : '新会议';
+      $('meeting-search').placeholder = conversationView ? '搜索对话' : '搜索会议记录';
+      $('sidebar-search-label').textContent = conversationView ? '搜索对话' : '搜索会议记录';
+      $('sidebar-section-label').textContent = conversationView ? '实时对话' : '会议记录';
+      $('meeting-groups').setAttribute('aria-label', conversationView ? '历史对话' : '历史会议');
+      $('meeting-sidebar').setAttribute('aria-label', conversationView ? '实时对话管理' : '会议记录管理');
+      const loggedIn = storageMode === 'account' && authUser;
+      $('storage-note').textContent = conversationView
+        ? loggedIn
+          ? '对话文字、模型和音色已绑定账号同步；原始语音不保存。'
+          : '对话文字仅保存在当前浏览器；原始语音只在实时请求中临时经过服务器。'
+        : loggedIn
+          ? '文字和摘要已绑定账号保存在服务器；原始录音默认仍不上传保存。'
+          : '访客记录仅保存在当前浏览器；音频与文字只在处理请求中临时经过服务器。';
+      renderSidebarIndex();
+    }
+
+    async function fetchConversationIndex() {
+      if (!storageMode) return;
+      try {
+        conversationIndex = await listStoredConversations();
+        renderConversationIndex();
+      } catch (error) {
+        if (activeProductView === 'conversation') $('meeting-groups').innerHTML = `<p class="meeting-empty">${escapeHtml(error.message || '对话记录暂时无法加载')}</p>`;
+      }
+    }
+
+    function ensureActiveConversation() {
+      if (!storageMode || activeConversationId) return;
+      activeConversationId = createRecordId();
+      activeConversationCreatedAt = new Date().toISOString();
+    }
+
+    async function saveActiveConversation() {
+      if (!storageMode || !activeConversationId) return;
+      clearTimeout(conversationSaveTimer);
+      conversationSaveTimer = null;
+      const recordId = activeConversationId;
+      const targetMode = storageMode;
+      const targetCsrfToken = csrfToken;
+      const payload = {
+        title: conversationTitle(),
+        model: $('conversation-model').value || 'qwen-audio-3.0-realtime-plus',
+        voice: $('conversation-voice').value || 'longanlingxin',
+        created_at: activeConversationCreatedAt || new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        messages: realtimeMessages.filter((message) => message.final && message.text.trim()).map((message) => ({ role: message.role, text: message.text.trim() })),
+      };
+      conversationSaveChain = conversationSaveChain.catch(() => {}).then(async () => {
+        try {
+          const saved = await putStoredConversation(recordId, payload, targetMode, targetCsrfToken);
+          if (recordId === activeConversationId && targetMode === storageMode) {
+            const meta = conversationMetaFromRecord(saved);
+            conversationIndex = [meta, ...conversationIndex.filter((conversation) => conversation.id !== meta.id)];
+            renderConversationIndex();
+          }
+        } catch (error) {
+          if (targetMode === storageMode) showToast(error.message || '对话记录暂未保存，请稍后重试');
+        }
+      });
+      return conversationSaveChain;
+    }
+
+    function scheduleConversationSave(delay = 500) {
+      if (!activeConversationId) return;
+      clearTimeout(conversationSaveTimer);
+      conversationSaveTimer = setTimeout(saveActiveConversation, delay);
+    }
+
+    async function openConversation(conversationId) {
+      if (isRealtimeActive()) { showToast('请先结束当前实时对话'); return; }
+      try {
+        if (activeConversationId) await saveActiveConversation();
+        const conversation = await getStoredConversation(conversationId);
+        if (!conversation) throw new Error('对话记录不存在');
+        activeConversationId = conversation.id;
+        activeConversationCreatedAt = conversation.created_at;
+        realtimeMessages = (conversation.messages || []).map((message) => ({ role: message.role, text: message.text, final: true, source: 'history' }));
+        realtimeDrafts = { user: null, assistant: null };
+        if ([...$('conversation-model').options].some((option) => option.value === conversation.model)) $('conversation-model').value = conversation.model;
+        if ([...$('conversation-voice').options].some((option) => option.value === conversation.voice)) $('conversation-voice').value = conversation.voice;
+        renderRealtimeMessages();
+        setRealtimeState(realtimeMessages.length ? 'ended' : 'idle', realtimeMessages.length ? '历史对话' : '等待开始');
+        renderConversationIndex();
+        closeSidebarOnSmallScreen();
+      } catch (error) {
+        showToast(error.message || '无法打开这条对话');
+      }
+    }
+
+    async function createNewConversation({ announce = true } = {}) {
+      if (isRealtimeActive()) { showToast('请先结束当前实时对话'); return; }
+      if (!storageMode) return showEntryDialog();
+      if (activeConversationId) await saveActiveConversation();
+      activeConversationId = createRecordId();
+      activeConversationCreatedAt = new Date().toISOString();
+      clearRealtimeMessages();
+      setRealtimeState('idle', announce ? '新对话已建立' : '等待开始');
+      await saveActiveConversation();
+      closeSidebarOnSmallScreen();
+    }
+
+    async function deleteConversationRecord(conversationId) {
+      const conversation = conversationIndex.find((item) => item.id === conversationId);
+      if (!confirm(`删除“${conversation?.title || '这条对话'}”？此操作不可恢复。`)) return;
+      try {
+        if (activeConversationId === conversationId) {
+          clearTimeout(conversationSaveTimer);
+          conversationSaveTimer = null;
+          await conversationSaveChain.catch(() => {});
+        }
+        await removeStoredConversation(conversationId);
+        conversationIndex = conversationIndex.filter((item) => item.id !== conversationId);
+        if (activeConversationId === conversationId) {
+          activeConversationId = null;
+          activeConversationCreatedAt = null;
+          await createNewConversation({ announce: false });
+        }
+        renderConversationIndex();
+      } catch (error) {
+        showToast(error.message || '对话记录删除失败');
+      }
+    }
+
+    function meetingMetaFromRecord(record) {
+      return {
+        id: record.id,
+        title: record.title || '新录音',
+        created_at: record.created_at,
+        updated_at: record.updated_at,
+        duration_seconds: Number(record.duration_seconds || 0),
+        preview: record.preview || '',
+      };
+    }
+
+    function renderMeetingIndex() {
+      if (activeProductView === 'conversation') return;
+      const query = $('meeting-search').value.trim().toLowerCase();
+      const filtered = meetingIndex.filter((meeting) => `${meeting.title} ${meeting.preview}`.toLowerCase().includes(query));
+      if (!filtered.length) {
+        $('meeting-groups').innerHTML = `<p class="meeting-empty">${query ? '没有匹配的会议记录' : '暂时没有会议记录<br />开始录音后会自动保存在这里'}</p>`;
+        return;
+      }
+      const todayKey = new Date().toDateString();
+      const groups = [
+        ['今天', filtered.filter((meeting) => new Date(meeting.created_at).toDateString() === todayKey)],
+        ['更早', filtered.filter((meeting) => new Date(meeting.created_at).toDateString() !== todayKey)],
+      ];
+      $('meeting-groups').innerHTML = groups.filter(([, meetings]) => meetings.length).map(([label, meetings]) => `
+        <section>
+          <h2 class="meeting-group-title">${label}</h2>
+          ${meetings.map((meeting) => `
+            <div class="meeting-item${meeting.id === activeMeetingId ? ' active' : ''}" data-meeting-id="${escapeHtml(meeting.id)}">
+              <button class="meeting-open" type="button" data-meeting-id="${escapeHtml(meeting.id)}">
+                <strong>${escapeHtml(meeting.title || '新录音')}</strong>
+                <small>${escapeHtml(meeting.preview || `${formatTime(meeting.duration_seconds)} · 暂无文字`)}</small>
+              </button>
+              <button class="meeting-delete" type="button" data-delete-meeting="${escapeHtml(meeting.id)}" aria-label="删除 ${escapeHtml(meeting.title || '会议')}">×</button>
+            </div>
+          `).join('')}
+        </section>
+      `).join('');
+    }
+
+    async function fetchMeetingIndex() {
+      if (!storageMode) return;
+      try {
+        meetingIndex = await listStoredMeetings();
+        renderMeetingIndex();
+      } catch (error) {
+        if (activeProductView !== 'conversation') $('meeting-groups').innerHTML = `<p class="meeting-empty">${escapeHtml(error.message || '会议记录暂时无法加载')}</p>`;
+      }
+    }
+
+    function ensureActiveMeeting() {
+      if (activeMeetingId) return;
+      activeMeetingId = createRecordId();
+      activeMeetingCreatedAt = new Date().toISOString();
+    }
+
+    async function saveActiveMeeting() {
+      if (!storageMode || !activeMeetingId || showingDemo) return;
+      clearTimeout(meetingSaveTimer);
+      meetingSaveTimer = null;
+      const recordId = activeMeetingId;
+      const targetMode = storageMode;
+      const targetCsrfToken = csrfToken;
+      const payload = {
+        title: $('meeting-title').value.trim() || '新录音',
+        created_at: activeMeetingCreatedAt || new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        duration_seconds: elapsedSeconds,
+        transcript_segments: visibleTranscriptSegments().filter((segment) => !segment.demo).map((segment) => ({ speaker: segment.speaker, time: segment.time, text: segment.text })),
+        summary_title: hasGeneratedSummary ? $('summary-title').textContent : '',
+        summary_content: summaryContent(),
+        summary_customized: summaryCustomized,
+        summary_chat_messages: summaryChatMessages.filter((message) => !message.streaming && message.text.trim()).map(({ role, text }) => ({ role, text })),
+      };
+      meetingSaveChain = meetingSaveChain.catch(() => {}).then(async () => {
+        try {
+          const saved = await putStoredMeeting(recordId, payload, targetMode, targetCsrfToken);
+          if (recordId === activeMeetingId && targetMode === storageMode) {
+            const meta = meetingMetaFromRecord(saved);
+            meetingIndex = [meta, ...meetingIndex.filter((meeting) => meeting.id !== meta.id)];
+            renderMeetingIndex();
+          }
+        } catch (error) {
+          if (targetMode === storageMode) showToast(error.message || '会议记录暂未保存，请稍后重试');
+        }
+      });
+      return meetingSaveChain;
+    }
+
+    function scheduleMeetingSave(delay = 700) {
+      if (!activeMeetingId || showingDemo) return;
+      clearTimeout(meetingSaveTimer);
+      meetingSaveTimer = setTimeout(saveActiveMeeting, delay);
+    }
+
+    function closeSidebarOnSmallScreen() {
+      document.body.classList.remove('sidebar-open');
+    }
+
+    async function openMeeting(meetingId) {
+      if (['recording', 'paused', 'connecting', 'finishing'].includes(recorderState)) {
+        showToast('请先结束当前录音');
+        return;
+      }
+      cancelSummaryWork();
+      try {
+        const meeting = await getStoredMeeting(meetingId);
+        if (!meeting) throw new Error('会议记录不存在');
+        activeMeetingId = meeting.id;
+        activeMeetingCreatedAt = meeting.created_at;
+        showingDemo = false;
+        transcriptSegments = (meeting.transcript_segments || []).map((segment) => ({ ...segment, demo: false, revisable: false }));
+        rewriteSegments = [];
+        liveTranscriptText = '';
+        sessionConfirmedCount = 0;
+        elapsedSeconds = Number(meeting.duration_seconds || 0);
+        $('elapsed').textContent = formatTime(elapsedSeconds);
+        $('meeting-title').value = meeting.title || '新录音';
+        resetMeetingTitleGeneration('manual');
+        $('created-at').textContent = new Intl.DateTimeFormat('zh-CN', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(meeting.created_at));
+        summaryIsDemo = false;
+        hasGeneratedSummary = Boolean(meeting.summary_content);
+        summaryCustomized = Boolean(meeting.summary_customized);
+        summaryChatMessages = Array.isArray(meeting.summary_chat_messages) ? meeting.summary_chat_messages.map(({ role, text }) => ({ role, text })) : [];
+        summaryUndoStack = [];
+        renderSummaryChat();
+        lastSummaryAt = hasGeneratedSummary ? Date.now() : 0;
+        if (hasGeneratedSummary) {
+          $('summary-state').textContent = '已保存摘要';
+          $('summary-title').textContent = meeting.summary_title || '会议摘要';
+          $('summary-output').className = 'summary-output';
+          syncSummaryContent(meeting.summary_content, { canvasState: summaryCustomized ? '已保存 · 用户定制版本' : '已保存 · 自动摘要' });
+          $('summary-description').textContent = summaryCustomized ? '这份纪要已通过手工或对话修改，继续录音不会自动覆盖。' : '摘要与行动项已根据这条会议记录生成。';
+        } else {
+          clearSummaryContent();
+        }
+        discardCurrentArchive();
+        $('download-recording').disabled = true;
+        $('download-recording').classList.remove('visible');
+        updateRecorderUi('ended', '已打开会议记录');
+        renderTranscript();
+        renderMeetingIndex();
+        setActiveTab('transcript');
+        closeSidebarOnSmallScreen();
+      } catch (error) {
+        showToast(error.message || '无法打开这条会议记录');
+      }
+    }
+
+    async function createNewMeeting({ announce = true } = {}) {
+      if (['recording', 'paused', 'connecting', 'finishing'].includes(recorderState)) {
+        showToast('请先结束当前录音');
+        return;
+      }
+      if (!storageMode) return showEntryDialog();
+      if (activeMeetingId && !showingDemo) await saveActiveMeeting();
+      activeMeetingId = createRecordId();
+      activeMeetingCreatedAt = new Date().toISOString();
+      $('meeting-title').value = '新录音';
+      resetMeetingTitleGeneration();
+      $('created-at').textContent = new Intl.DateTimeFormat('zh-CN', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(activeMeetingCreatedAt));
+      resetSession({ announce: false, persist: false });
+      await saveActiveMeeting();
+      updateRecorderUi('idle', announce ? '新会议已建立，可以开始录音' : '点击下方按钮开始录音');
+      closeSidebarOnSmallScreen();
+    }
+
+    async function deleteMeetingRecord(meetingId) {
+      const meeting = meetingIndex.find((item) => item.id === meetingId);
+      if (!confirm(`删除“${meeting?.title || '这条会议记录'}”？此操作不可恢复。`)) return;
+      try {
+        if (activeMeetingId === meetingId) {
+          clearTimeout(meetingSaveTimer);
+          meetingSaveTimer = null;
+          await meetingSaveChain.catch(() => {});
+        }
+        await removeStoredMeeting(meetingId);
+        meetingIndex = meetingIndex.filter((item) => item.id !== meetingId);
+        if (activeMeetingId === meetingId) {
+          activeMeetingId = null;
+          activeMeetingCreatedAt = null;
+          await createNewMeeting({ announce: false });
+        }
+        renderMeetingIndex();
+      } catch (error) {
+        showToast(error.message || '会议记录删除失败');
+      }
+    }
+
+    function updateAccountUi() {
+      const loggedIn = storageMode === 'account' && authUser;
+      $('account-avatar').textContent = loggedIn ? String(authUser.display_name || authUser.account || '账').slice(0, 1).toUpperCase() : '访';
+      $('account-name').textContent = loggedIn ? (authUser.display_name || authUser.account) : storageMode === 'guest' ? '访客模式' : '选择使用方式';
+      $('account-storage').textContent = loggedIn ? '服务器同步' : storageMode === 'guest' ? '仅此浏览器' : '尚未进入';
+      $('account-action').textContent = loggedIn ? '退出' : storageMode === 'guest' ? '登录' : '选择';
+      if (!['recording', 'paused', 'connecting', 'finishing'].includes(recorderState)) asrPassLimitSeconds = loggedIn ? 2 * 60 * 60 : 10 * 60;
+      updateSidebarContext();
+      updateRecordingLimitUi();
+    }
+
+    function showEntryDialog(view = 'mode') {
+      $('mode-view').hidden = view === 'auth';
+      $('auth-view').hidden = view !== 'auth';
+      $('auth-message').textContent = '';
+      if (!$('entry-dialog').open) $('entry-dialog').showModal();
+      if (view === 'auth') setTimeout(() => $('auth-account').focus(), 0);
+    }
+
+    async function activateStorageMode(mode, user = null, nextCsrfToken = '') {
+      clearTimeout(meetingSaveTimer);
+      meetingSaveTimer = null;
+      clearTimeout(conversationSaveTimer);
+      conversationSaveTimer = null;
+      if (storageMode && activeMeetingId && !showingDemo) await saveActiveMeeting();
+      if (storageMode && activeConversationId) await saveActiveConversation();
+      await Promise.all([meetingSaveChain.catch(() => {}), conversationSaveChain.catch(() => {})]);
+      storageMode = mode;
+      authUser = user;
+      csrfToken = nextCsrfToken;
+      activeMeetingId = null;
+      activeMeetingCreatedAt = null;
+      meetingIndex = [];
+      activeConversationId = null;
+      activeConversationCreatedAt = null;
+      conversationIndex = [];
+      clearRealtimeMessages();
+      setRealtimeState('idle');
+      cancelSummaryWork();
+      $('entry-dialog').close();
+      updateAccountUi();
+      resetSession({ announce: false, persist: false });
+      $('meeting-title').value = '新录音';
+      await Promise.all([fetchMeetingIndex(), fetchConversationIndex()]);
+      if (meetingIndex.length) await openMeeting(meetingIndex[0].id);
+      else await createNewMeeting({ announce: false });
+      showToast(mode === 'guest' ? '已进入访客模式，记录只保存在本浏览器' : '登录成功，会议记录将同步到服务器');
+    }
+
+    async function submitAuth(event) {
+      event.preventDefault();
+      const account = $('auth-account').value.trim();
+      const password = $('auth-password').value;
+      $('auth-submit').disabled = true;
+      $('auth-message').textContent = '';
+      try {
+        const response = await fetch('/api/auth/login', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ account, password }),
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(typeof payload.detail === 'string' ? payload.detail : '登录失败，请检查输入');
+        $('auth-form').reset();
+        await activateStorageMode('account', payload.user, payload.csrf_token || '');
+      } catch (error) {
+        $('auth-message').textContent = error.message || '登录服务暂不可用';
+      } finally {
+        $('auth-submit').disabled = false;
+      }
+    }
+
+    async function bootstrapAccess() {
+      updateAccountUi();
+      try {
+        const response = await fetch('/api/auth/session');
+        const payload = await response.json();
+        if (payload.authenticated) {
+          await activateStorageMode('account', payload.user, payload.csrf_token || '');
+          return;
+        }
+      } catch (_) {}
+      showEntryDialog();
+    }
+
+    async function handleAccountAction() {
+      if (storageMode !== 'account') {
+        showEntryDialog('auth');
+        return;
+      }
+      if (!confirm('退出账号并切换到访客模式？服务器中的会议记录不会被删除。')) return;
+      try {
+        await saveActiveMeeting();
+        await saveActiveConversation();
+        const response = await fetch('/api/auth/logout', { method: 'POST', headers: meetingHeaders(true) });
+        if (!response.ok) throw new Error('退出失败');
+      } catch (error) {
+        showToast(error.message || '暂时无法退出账号');
+        return;
+      }
+      await activateStorageMode('guest');
+    }
+
+    function transcriptSegmentMarkup(segment, forceRevisable = false) {
+      const revisable = forceRevisable || segment.revisable;
+      return `
+        <article class="transcript-block${segment.demo ? ' demo' : ''}${revisable ? ' revisable' : ''}">
+          <span class="speaker-dot"></span>
+          <div>
+            <header><strong>${escapeHtml(segment.speaker)}</strong><span>·</span><time>${escapeHtml(segment.time)}</time>${revisable ? '<em>回写中</em>' : ''}</header>
+            <p>${escapeHtml(segment.text)}</p>
+          </div>
+        </article>
+      `;
+    }
+
+    function visibleTranscriptSegments({ includeLive = true } = {}) {
+      const segments = [...transcriptSegments, ...rewriteSegments];
+      if (includeLive && liveTranscriptText) {
+        segments.push({ speaker: '说话人 1', time: formatTime(elapsedSeconds), text: liveTranscriptText, demo: false });
+      }
+      return segments;
+    }
+
+    function settlePendingTranscript() {
+      const pending = [...rewriteSegments];
+      if (liveTranscriptText) pending.push({ speaker: '说话人 1', time: formatTime(elapsedSeconds), text: liveTranscriptText, demo: false });
+      transcriptSegments.push(...pending.map((segment) => ({ ...segment, demo: false, revisable: false })));
+      rewriteSegments = [];
+      liveTranscriptText = '';
+      sessionConfirmedCount = 0;
+    }
+
+    function beginTranscriptPass() {
+      settlePendingTranscript();
+      sessionConfirmedCount = 0;
+    }
+
+    function renderTranscript() {
+      const historySegments = transcriptSegments;
+      $('transcript-list').innerHTML = historySegments.map((segment) => transcriptSegmentMarkup(segment)).join('');
+      $('rewrite-list').innerHTML = rewriteSegments.map((segment) => transcriptSegmentMarkup(segment, true)).join('');
+      const liveVisible = ['recording', 'connecting', 'paused', 'finishing'].includes(recorderState);
+      $('history-label').classList.toggle('visible', historySegments.length > 0 && !historySegments.every((segment) => segment.demo));
+      $('rewrite-region').classList.toggle('visible', rewriteSegments.length > 0);
+      $('empty-transcript').classList.toggle('visible', !historySegments.length && !rewriteSegments.length && !liveTranscriptText && !liveVisible);
+      $('live-region').classList.toggle('visible', liveVisible);
+      if (liveTranscriptText) $('live-text').textContent = liveTranscriptText;
+      else $('live-text').innerHTML = '<span class="typing-caret"></span>';
+      $('live-badge').textContent = recorderState === 'paused' ? '已暂停' : recorderState === 'finishing' ? '正在提交' : recorderState === 'connecting' ? '正在连接' : '正在识别';
+      $('live-hint').textContent = recorderState === 'paused'
+        ? '录音已暂停，继续后会接着修正当前内容'
+        : recorderState === 'finishing'
+          ? '正在确认最后一段文字，完成后会并入上方记录'
+          : '正在聆听，临时文字会根据上下文继续修正';
+      $('live-time').textContent = formatTime(elapsedSeconds);
+    }
+
+    function transcriptText() {
+      return visibleTranscriptSegments().filter((segment) => !segment.demo).map((segment) => segment.text).join('\n');
+    }
+
+    function clearDemoContent() {
+      if (!showingDemo) return;
+      showingDemo = false;
+      transcriptSegments = [];
+      rewriteSegments = [];
+      liveTranscriptText = '';
+      sessionConfirmedCount = 0;
+      clearSummaryContent();
+      renderTranscript();
+    }
+
+    function appendTranscript(text, meta = {}) {
+      const normalized = String(text || '').trim();
+      if (!normalized) return;
+      clearDemoContent();
+      settlePendingTranscript();
+      const duplicate = transcriptSegments.some((segment) => segment.text === normalized);
+      if (duplicate) return;
+      transcriptSegments.push({
+        speaker: meta.speaker || '说话人 1',
+        time: meta.time || formatTime(elapsedSeconds),
+        text: normalized,
+        demo: false,
+      });
+      renderTranscript();
+      ensureActiveMeeting();
+      scheduleMeetingSave();
+      maybeGenerateMeetingTitle();
+      requestAnimationFrame(() => { $('content-scroll').scrollTop = $('content-scroll').scrollHeight; });
+      maybeRefreshSummary();
+    }
+
+    function splitTranscriptSentences(text) {
+      return window.TranscriptState.splitSentences(text);
+    }
+
+    function applyTranscriptRevision(text, meta = {}) {
+      const plan = window.TranscriptState.planRevision({
+        text,
+        confirmedCount: sessionConfirmedCount,
+        previousRewrite: rewriteSegments.map((segment) => segment.text),
+        previousLive: liveTranscriptText,
+        final: Boolean(meta.final),
+      });
+      if (!plan.sentenceCount && !plan.promote.length) {
+        $('latency-label').textContent = '该片段未检测到语音';
+        return;
+      }
+      clearDemoContent();
+      const final = Boolean(meta.final);
+      const revision = Number(meta.revision || 1);
+      const previousByText = new Map(rewriteSegments.map((segment) => [segment.text, segment]));
+      for (const sentence of plan.promote) {
+        const previous = previousByText.get(sentence);
+        transcriptSegments.push({
+          speaker: '说话人 1',
+          time: previous ? previous.time : formatTime(elapsedSeconds),
+          text: sentence,
+          demo: false,
+          revisable: false,
+          revision,
+        });
+      }
+      sessionConfirmedCount += plan.promote.length;
+      rewriteSegments = plan.rewrite.map((sentence) => {
+        const previous = previousByText.get(sentence);
+        return {
+          speaker: '说话人 1',
+          time: previous ? previous.time : formatTime(elapsedSeconds),
+          text: sentence,
+          demo: false,
+          revisable: true,
+          revision,
+        };
+      });
+      liveTranscriptText = plan.live;
+      renderTranscript();
+      ensureActiveMeeting();
+      scheduleMeetingSave(final ? 0 : 700);
+      maybeGenerateMeetingTitle({ force: final });
+      $('latency-label').textContent = final ? '最终文字已确认' : plan.regressive ? '识别回退，已保留上一版' : `已回写第 ${revision} 版`;
+      requestAnimationFrame(() => { $('content-scroll').scrollTop = $('content-scroll').scrollHeight; });
+      if (final) maybeRefreshSummary();
+    }
+
+    function setActiveTab(tab) {
+      activeTab = tab;
+      document.body.classList.toggle('summary-chat-active', tab === 'summary-chat');
+      document.querySelectorAll('.content-tab').forEach((button) => {
+        const selected = button.dataset.tab === tab;
+        button.classList.toggle('active', selected);
+        button.setAttribute('aria-selected', selected ? 'true' : 'false');
+      });
+      document.querySelectorAll('.tab-panel').forEach((panel) => panel.classList.toggle('active', panel.dataset.panel === tab));
+      if (['summary', 'summary-chat'].includes(tab) && !summaryIsDemo && transcriptText() && !summaryRunning && !lastSummaryAt) generateSummary();
+      if (tab === 'summary-chat') renderSummaryChat();
+    }
+
+    function updateRecorderUi(nextState, message) {
+      if (nextState === 'ended' || nextState === 'error') {
+        settlePendingTranscript();
+      }
+      recorderState = nextState;
+      $('recording-console').className = `recording-console ${nextState}`;
+      $('stream-status').className = `stream-status ${nextState}`;
+      const label = message || {
+        idle: '点击下方按钮开始录音',
+        connecting: '正在连接识别服务…',
+        recording: '音频流正常',
+        paused: '录音与转写已暂停',
+        finishing: '正在完成最后一段识别…',
+        ended: '录音已结束',
+        error: '连接出现问题',
+      }[nextState] || nextState;
+      $('status-message').textContent = label;
+      $('latency-label').textContent = nextState === 'recording' ? '分段实时识别' : nextState === 'connecting' ? '正在建立连接' : nextState === 'error' ? '可重新开始' : '—';
+      $('record-toggle').disabled = nextState === 'connecting' || nextState === 'finishing';
+      $('finish-recording').disabled = !['recording', 'paused'].includes(nextState);
+      $('finish-recording').classList.toggle('hidden', nextState === 'ended' || nextState === 'error');
+      $('reset-recording').classList.toggle('visible', nextState === 'ended' || nextState === 'error');
+      if (nextState === 'recording') {
+        $('record-toggle').innerHTML = '<i></i><i></i>';
+        $('record-toggle').setAttribute('aria-label', '暂停录音');
+        $('local-save-status').textContent = '原始录音本地保存中';
+      } else if (nextState === 'paused') {
+        $('record-toggle').innerHTML = '<span class="play-icon"></span>';
+        $('record-toggle').setAttribute('aria-label', '继续录音');
+        $('local-save-status').textContent = '录音已暂停';
+      } else {
+        $('record-toggle').innerHTML = '<span class="record-icon"></span>';
+        $('record-toggle').setAttribute('aria-label', nextState === 'ended' || nextState === 'error' ? '继续录音' : '开始录音');
+        $('local-save-status').textContent = nextState === 'ended' ? '录音已保存在当前设备' : '录音尚未开始';
+      }
+      updateRecordingLimitUi();
+      renderTranscript();
+    }
+
+    function startTimer() {
+      clearInterval(timerId);
+      timerId = setInterval(() => {
+        if (recorderState !== 'recording') return;
+        elapsedSeconds += 1;
+        recordingPassSeconds += 1;
+        $('elapsed').textContent = formatTime(elapsedSeconds);
+        $('live-time').textContent = formatTime(elapsedSeconds);
+        updateRecordingLimitUi();
+        if (elapsedSeconds % 5 === 0) scheduleMeetingSave(200);
+        if (recordingPassSeconds - lastAsrWindowCommitAt >= 42) requestAsrWindowCommit();
+        if (recordingPassSeconds >= asrPassLimitSeconds) finishRecording('已达到当前录音段上限，最后文字正在提交；可稍后继续录下一段');
+      }, 1000);
+    }
+
+    function stopTimer() { clearInterval(timerId); timerId = null; }
+
+    function chooseRecorderMimeType() {
+      if (!window.MediaRecorder) return '';
+      const types = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm'];
+      return types.find((type) => MediaRecorder.isTypeSupported(type)) || '';
+    }
+
+    function discardCurrentArchive() {
+      const previousSessionId = archiveSessionId;
+      const previousWriteChain = archiveWriteChain;
+      archiveSessionId = null;
+      archiveChunkIndex = 0;
+      archiveChunks = [];
+      archiveWriteChain = Promise.resolve();
+      archiveStorageDegraded = false;
+      if (recordingUrl) URL.revokeObjectURL(recordingUrl);
+      recordingUrl = null;
+      if (previousSessionId) previousWriteChain.catch(() => {}).then(() => deleteAudioArchiveSession(previousSessionId));
+    }
+
+    function queueArchiveChunk(blob) {
+      const sessionId = archiveSessionId;
+      const index = archiveChunkIndex++;
+      if (!sessionId || !blob || !blob.size) return;
+      archiveWriteChain = archiveWriteChain.then(async () => {
+        try {
+          await putAudioArchiveChunk(sessionId, index, blob);
+        } catch (_) {
+          archiveStorageDegraded = true;
+          archiveChunks.push({ index, blob });
+          $('local-save-status').textContent = '浏览器存储空间不足，当前分片暂存在内存';
+        }
+      });
+    }
+
+    async function downloadCurrentArchive() {
+      if (!archiveSessionId || !archiveChunkIndex) return;
+      const button = $('download-recording');
+      button.disabled = true;
+      button.textContent = '准备中…';
+      try {
+        await archiveWriteChain;
+        let stored = [];
+        try { stored = await readAudioArchiveChunks(archiveSessionId); }
+        catch (_) { archiveStorageDegraded = true; }
+        const chunks = [...stored, ...archiveChunks].sort((a, b) => a.index - b.index).map((item) => item.blob);
+        if (!chunks.length) throw new Error('当前录音没有可下载的音频分片');
+        if (recordingUrl) URL.revokeObjectURL(recordingUrl);
+        recordingUrl = URL.createObjectURL(new Blob(chunks, { type: archiveMimeType }));
+        const link = document.createElement('a');
+        link.href = recordingUrl;
+        link.download = `meeting-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.${archiveMimeType.includes('mp4') ? 'm4a' : 'webm'}`;
+        link.click();
+      } catch (error) {
+        showToast(error.message || '录音暂时无法下载');
+      } finally {
+        button.disabled = false;
+        button.textContent = '下载';
+      }
+    }
+
+    function startArchiveRecording(stream) {
+      if (!window.MediaRecorder) return;
+      discardCurrentArchive();
+      archiveSessionId = `audio-${createRecordId()}-${Date.now()}`;
+      const mimeType = chooseRecorderMimeType();
+      mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      archiveMimeType = mediaRecorder.mimeType || mimeType || 'audio/webm';
+      mediaRecorder.ondataavailable = (event) => { if (event.data && event.data.size) queueArchiveChunk(event.data); };
+      mediaRecorder.onstop = async () => {
+        await archiveWriteChain;
+        if (!archiveChunkIndex) return;
+        $('download-recording').disabled = false;
+        $('download-recording').classList.add('visible');
+        $('local-save-status').textContent = archiveStorageDegraded ? '录音已保存（部分分片暂存在内存）' : '录音已分片保存在当前设备';
+      };
+      mediaRecorder.start(1000);
+    }
+
+    function floatTo16BitPCM(input) {
+      const output = new Int16Array(input.length);
+      for (let index = 0; index < input.length; index += 1) {
+        const sample = Math.max(-1, Math.min(1, input[index]));
+        output[index] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+      }
+      return output;
+    }
+
+    function downsample(buffer, inputRate, outputRate = 16000) {
+      if (outputRate === inputRate) return buffer;
+      const ratio = inputRate / outputRate;
+      const result = new Float32Array(Math.round(buffer.length / ratio));
+      let offset = 0;
+      for (let index = 0; index < result.length; index += 1) {
+        const next = Math.round((index + 1) * ratio);
+        let sum = 0;
+        let count = 0;
+        for (; offset < next && offset < buffer.length; offset += 1) { sum += buffer[offset]; count += 1; }
+        result[index] = sum / Math.max(1, count);
+      }
+      return result;
+    }
+
+    function bytesToBase64(bytes) {
+      let binary = '';
+      for (let index = 0; index < bytes.length; index += 0x8000) binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
+      return btoa(binary);
+    }
+
+    function drawWaveform() {
+      if (!audioAnalyser) return;
+      const canvas = $('recording-waveform');
+      const ratio = Math.max(1, window.devicePixelRatio || 1);
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
+      if (canvas.width !== Math.round(width * ratio) || canvas.height !== Math.round(height * ratio)) {
+        canvas.width = Math.round(width * ratio);
+        canvas.height = Math.round(height * ratio);
+      }
+      const context = canvas.getContext('2d');
+      context.setTransform(ratio, 0, 0, ratio, 0, 0);
+      context.clearRect(0, 0, width, height);
+      const samples = new Uint8Array(audioAnalyser.fftSize);
+      audioAnalyser.getByteTimeDomainData(samples);
+      let energy = 0;
+      for (const sample of samples) {
+        const centered = (sample - 128) / 128;
+        energy += centered * centered;
+      }
+      const rms = Math.sqrt(energy / samples.length);
+      const silent = rms < .026;
+      const bars = Math.max(28, Math.floor(width / 7));
+      const gap = 3;
+      const barWidth = Math.max(2, (width - gap * (bars - 1)) / bars);
+      context.fillStyle = '#66686e';
+      for (let index = 0; index < bars; index += 1) {
+        const sourceIndex = Math.floor(index / bars * samples.length);
+        const localLevel = Math.abs(samples[sourceIndex] - 128) / 128;
+        const target = recorderState === 'paused' || silent ? 2 : Math.max(2, Math.min(height * .38, 2 + localLevel * height * .72));
+        const previous = waveformLevels[index] || 2;
+        const amplitude = previous * .76 + target * .24;
+        waveformLevels[index] = amplitude;
+        context.beginPath();
+        context.roundRect(index * (barWidth + gap), (height - amplitude) / 2, barWidth, amplitude, Math.min(2, barWidth / 2));
+        context.fill();
+      }
+      animationFrameId = requestAnimationFrame(drawWaveform);
+    }
+
+    async function startMicrophoneCapture() {
+      microphoneStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      audioContext = new AudioContext();
+      audioSource = audioContext.createMediaStreamSource(microphoneStream);
+      audioAnalyser = audioContext.createAnalyser();
+      audioAnalyser.fftSize = 512;
+      audioAnalyser.smoothingTimeConstant = .72;
+      audioProcessor = audioContext.createScriptProcessor(4096, 1, 1);
+      audioProcessor.onaudioprocess = (event) => {
+        if (!sendingAudio || !asrStreamWs || asrStreamWs.readyState !== WebSocket.OPEN) return;
+        const input = event.inputBuffer.getChannelData(0);
+        const pcm = floatTo16BitPCM(downsample(input, audioContext.sampleRate, 16000));
+        asrStreamWs.send(JSON.stringify({ type: 'asr.stream.append', audio: bytesToBase64(new Uint8Array(pcm.buffer)) }));
+      };
+      audioSource.connect(audioAnalyser);
+      audioSource.connect(audioProcessor);
+      audioProcessor.connect(audioContext.destination);
+      $('waveform-placeholder').classList.add('hidden');
+      waveformLevels = [];
+      startArchiveRecording(microphoneStream);
+      drawWaveform();
+    }
+
+    function stopCaptureGraph() {
+      sendingAudio = false;
+      if (animationFrameId) cancelAnimationFrame(animationFrameId);
+      animationFrameId = null;
+      if (audioProcessor) { audioProcessor.disconnect(); audioProcessor = null; }
+      if (audioSource) { audioSource.disconnect(); audioSource = null; }
+      audioAnalyser = null;
+      waveformLevels = [];
+      if (microphoneStream) { microphoneStream.getTracks().forEach((track) => track.stop()); microphoneStream = null; }
+      if (audioContext) { audioContext.close(); audioContext = null; }
+      $('waveform-placeholder').classList.remove('hidden');
+    }
+
+    function handleAsrEvent(payload) {
+      if (payload.demo_event === 'asr.stream.ready' || payload.demo_event === 'asr.stream.started') {
+        if (Number(payload.max_connection_seconds) > 0) asrPassLimitSeconds = Number(payload.max_connection_seconds);
+        updateRecordingLimitUi();
+      } else if (payload.demo_event === 'asr.stream.result') {
+        const boardEvent = payload.board_event || (payload.result && payload.result.board_event) || {};
+        const text = boardEvent.text || (payload.result && payload.result.corrected_text) || '';
+        const stream = payload.result && payload.result.stream ? payload.result.stream : {};
+        if (['session', 'window'].includes(stream.revision_scope) && stream.replace) {
+          applyTranscriptRevision(text, { revision: stream.revision, final: stream.final });
+        } else if (/[\p{L}\p{N}]/u.test(text)) {
+          appendTranscript(text, { time: formatTime(elapsedSeconds), speaker: '说话人 1' });
+          $('latency-label').textContent = '已收到最终片段';
+        } else {
+          $('latency-label').textContent = '该分片未检测到语音';
+        }
+      } else if (payload.demo_event === 'asr.stream.backpressure') {
+        $('latency-label').textContent = '识别服务正在追赶';
+      } else if (payload.demo_event === 'asr.stream.error') {
+        stopTimer();
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+        stopCaptureGraph();
+        updateRecorderUi('error', payload.message || '实时转写失败，可重新开始');
+      } else if (payload.demo_event === 'asr.stream.done') {
+        if (payload.final === false) {
+          asrWindowCommitPending = false;
+          beginTranscriptPass();
+          renderTranscript();
+          $('latency-label').textContent = '长会议窗口已无感衔接';
+        } else {
+          finishSessionUi(payload.limit_reached ? '当前录音段已到上限并完整保存；可点击继续录音追加下一段' : '');
+        }
+      }
+    }
+
+    function resetSession({ announce = true, persist = true } = {}) {
+      cancelSummaryWork();
+      clearTimeout(finishFallbackTimer);
+      finishFallbackTimer = null;
+      stopTimer();
+      sendingAudio = false;
+      if (asrStreamWs) {
+        asrStreamWs.onclose = null;
+        if (asrStreamWs.readyState === WebSocket.OPEN || asrStreamWs.readyState === WebSocket.CONNECTING) asrStreamWs.close();
+        asrStreamWs = null;
+      }
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.onstop = null;
+        mediaRecorder.stop();
+      }
+      mediaRecorder = null;
+      stopCaptureGraph();
+      discardCurrentArchive();
+      transcriptSegments = [];
+      rewriteSegments = [];
+      liveTranscriptText = '';
+      sessionConfirmedCount = 0;
+      showingDemo = false;
+      if (meetingTitleMode !== 'manual') {
+        $('meeting-title').value = '新录音';
+        resetMeetingTitleGeneration();
+      }
+      elapsedSeconds = 0;
+      recordingPassSeconds = 0;
+      asrWindowCommitPending = false;
+      lastAsrWindowCommitAt = 0;
+      $('elapsed').textContent = '00:00';
+      $('download-recording').disabled = true;
+      $('download-recording').classList.remove('visible');
+      clearSummaryContent();
+      $('live-text').innerHTML = '<span class="typing-caret"></span>';
+      setActiveTab('transcript');
+      updateRecorderUi('idle', announce ? '内容已清空，可以开始新录音' : '正在准备新录音…');
+      if (persist && activeMeetingId) scheduleMeetingSave(0);
+    }
+
+    async function startRecordingSession() {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        updateRecorderUi('error', '当前浏览器不支持麦克风录音');
+        return;
+      }
+      if (!storageMode) { showEntryDialog(); return; }
+      const continuingMeeting = recorderState === 'ended' || recorderState === 'error';
+      clearDemoContent();
+      ensureActiveMeeting();
+      beginTranscriptPass();
+      recordingPassSeconds = 0;
+      asrPassLimitSeconds = storageMode === 'account' ? 2 * 60 * 60 : 10 * 60;
+      asrWindowCommitPending = false;
+      lastAsrWindowCommitAt = 0;
+      $('download-recording').disabled = true;
+      $('download-recording').classList.remove('visible');
+      if (!continuingMeeting) elapsedSeconds = 0;
+      $('elapsed').textContent = formatTime(elapsedSeconds);
+      sessionStartedAt = new Date();
+      activeMeetingCreatedAt = activeMeetingCreatedAt || sessionStartedAt.toISOString();
+      $('created-at').textContent = new Intl.DateTimeFormat('zh-CN', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(activeMeetingCreatedAt));
+      $('live-text').innerHTML = '<span class="typing-caret"></span>';
+      updateRecorderUi('connecting', continuingMeeting ? '正在继续当前会议…' : undefined);
+      asrStreamWs = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/asr/stream`);
+      asrStreamWs.onopen = async () => {
+        try {
+          asrStreamWs.send(JSON.stringify({ type: 'asr.stream.start', channel: $('asr-channel').value || 'funasr-gpu', sample_rate: 16000, chunk_seconds: 3 }));
+          await startMicrophoneCapture();
+          sendingAudio = true;
+          updateRecorderUi('recording');
+          startTimer();
+        } catch (error) {
+          stopCaptureGraph();
+          if (asrStreamWs && asrStreamWs.readyState === WebSocket.OPEN) asrStreamWs.close();
+          updateRecorderUi('error', error && error.name === 'NotAllowedError' ? '未获得麦克风权限，请在浏览器设置中允许' : '无法打开麦克风，请检查输入设备');
+        }
+      };
+      asrStreamWs.onmessage = (event) => { try { handleAsrEvent(JSON.parse(event.data)); } catch (_) {} };
+      asrStreamWs.onerror = () => updateRecorderUi('error', '无法连接实时转写服务');
+      asrStreamWs.onclose = () => { if (recorderState === 'recording' || recorderState === 'connecting') updateRecorderUi('error', '实时转写连接已断开'); };
+    }
+
+    function pauseRecording() {
+      if (recorderState !== 'recording') return;
+      sendingAudio = false;
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        try { mediaRecorder.requestData(); } catch (_) {}
+        mediaRecorder.pause();
+      }
+      updateRecorderUi('paused');
+      scheduleMeetingSave(0);
+    }
+
+    function resumeRecording() {
+      if (recorderState !== 'paused') return;
+      sendingAudio = true;
+      if (mediaRecorder && mediaRecorder.state === 'paused') mediaRecorder.resume();
+      updateRecorderUi('recording');
+    }
+
+    function finishRecording(message = '') {
+      if (!['recording', 'paused'].includes(recorderState)) return;
+      updateRecorderUi('finishing', typeof message === 'string' && message ? message : undefined);
+      stopTimer();
+      sendingAudio = false;
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+      stopCaptureGraph();
+      if (asrStreamWs && asrStreamWs.readyState === WebSocket.OPEN) asrStreamWs.send(JSON.stringify({ type: 'asr.stream.finish' }));
+      else finishSessionUi();
+      clearTimeout(finishFallbackTimer);
+      finishFallbackTimer = setTimeout(() => {
+        if (recorderState !== 'finishing') return;
+        finishSessionUi('最后一段识别等待超时，录音仍已保存在本地');
+      }, 90000);
+    }
+
+    function finishSessionUi(message = '') {
+      clearTimeout(finishFallbackTimer);
+      finishFallbackTimer = null;
+      stopTimer();
+      stopCaptureGraph();
+      if (asrStreamWs && asrStreamWs.readyState === WebSocket.OPEN) asrStreamWs.close();
+      updateRecorderUi('ended', message || '录音与最后一段识别已完成');
+      maybeGenerateMeetingTitle({ force: true });
+      saveActiveMeeting();
+      if (transcriptText() && (!summaryCustomized || !hasGeneratedSummary)) generateSummary();
+    }
+
+    async function generateSummary({ explicit = false } = {}) {
+      const text = transcriptText();
+      if (!text) { showToast('还没有可用于摘要的真实转写内容'); return; }
+      if (summaryRunning) return;
+      if (summaryCustomized && !explicit) return;
+      const requestEpoch = contentEpoch;
+      const controller = new AbortController();
+      const previousSummary = summaryContent();
+      const previouslyGenerated = hasGeneratedSummary;
+      if (summaryAbortController) summaryAbortController.abort();
+      summaryAbortController = controller;
+      summaryRunning = true;
+      summaryIsDemo = false;
+      $('summary-state').textContent = '正在更新摘要…';
+      $('summary-output').className = 'summary-output loading';
+      if (!previouslyGenerated) syncSummaryContent('正在从最终转写片段提炼摘要、行动项和未决问题…', { canvasState: '正在生成自动摘要…' });
+      else updateSummaryCanvasMeta('正在重新生成摘要…');
+      $('generate-summary').disabled = true;
+      try {
+        const response = await fetch('/api/meeting-notes/polish', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({ transcript: text, instruction: '请输出中文实时会议摘要：包括一句话摘要、核心结论、行动项、风险与未决问题。只根据输入文本，不编造。' }),
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.detail && payload.detail.message ? payload.detail.message : '摘要服务暂不可用');
+        if (requestEpoch !== contentEpoch || summaryAbortController !== controller) return;
+        $('summary-output').className = 'summary-output';
+        if (explicit && previousSummary) {
+          summaryUndoStack.push(previousSummary);
+          if (summaryUndoStack.length > 10) summaryUndoStack.shift();
+        }
+        syncSummaryContent(payload.content || '摘要服务未返回内容。', { canvasState: '刚刚生成 · 自动摘要' });
+        $('summary-title').textContent = '摘要已根据当前最终转写片段更新。';
+        $('summary-description').textContent = '摘要与行动项已根据当前会议文字生成。';
+        $('summary-state').textContent = '刚刚更新';
+        hasGeneratedSummary = true;
+        summaryCustomized = false;
+        lastSummaryAt = Date.now();
+        scheduleMeetingSave(0);
+      } catch (error) {
+        if (error.name === 'AbortError' || requestEpoch !== contentEpoch) return;
+        $('summary-output').className = 'summary-output error';
+        if (previouslyGenerated) syncSummaryContent(previousSummary, { canvasState: '生成失败 · 已保留原纪要' });
+        else syncSummaryContent(`摘要生成失败：${error.message || String(error)}`, { canvasState: '生成失败' });
+        $('summary-state').textContent = '更新失败';
+      } finally {
+        if (summaryAbortController === controller) {
+          summaryAbortController = null;
+          summaryRunning = false;
+          $('generate-summary').disabled = false;
+        }
+      }
+    }
+
+    function parseSummaryRevisionOutput(output) {
+      const canvasMarker = '[[[CANVAS]]]';
+      const replyMarker = '[[[REPLY]]]';
+      const canvasStart = output.indexOf(canvasMarker);
+      if (canvasStart < 0) return { canvas: '', reply: '', started: false, complete: false };
+      const body = output.slice(canvasStart + canvasMarker.length).replace(/^\s+/, '');
+      const replyStart = body.indexOf(replyMarker);
+      if (replyStart >= 0) {
+        return {
+          canvas: body.slice(0, replyStart).trim(),
+          reply: body.slice(replyStart + replyMarker.length).trim(),
+          started: true,
+          complete: true,
+        };
+      }
+      let canvas = body;
+      for (let length = replyMarker.length - 1; length > 0; length -= 1) {
+        if (canvas.endsWith(replyMarker.slice(0, length))) {
+          canvas = canvas.slice(0, -length);
+          break;
+        }
+      }
+      return { canvas: canvas.replace(/\s+$/, ''), reply: '', started: true, complete: false };
+    }
+
+    async function reviseSummaryWithChat(instruction) {
+      const normalizedInstruction = String(instruction || '').trim();
+      if (!normalizedInstruction || summaryRevisionRunning) return;
+      const transcript = transcriptText();
+      if (!transcript) { showToast('先录入一些会议文字，再完善纪要'); return; }
+      if (!summaryContent()) {
+        await generateSummary();
+        if (!summaryContent()) { showToast('需要先生成一份可修改的摘要'); return; }
+      }
+
+      const requestEpoch = contentEpoch;
+      const controller = new AbortController();
+      const originalSummary = summaryContent();
+      const historyForRequest = summaryChatMessages.filter((message) => !message.streaming).slice(-12).map(({ role, text }) => ({ role, text }));
+      summaryRevisionAbortController = controller;
+      summaryRevisionRunning = true;
+      summaryRevisionOriginal = originalSummary;
+      summaryChatMessages.push({ role: 'user', text: normalizedInstruction });
+      const assistantIndex = summaryChatMessages.push({ role: 'assistant', text: '正在修改纪要…', streaming: true }) - 1;
+      renderSummaryChat();
+      $('summary-chat-input').value = '';
+      $('summary-chat-send').disabled = true;
+      $('summary-chat-status').textContent = '正在修改画布';
+      $('summary-canvas').classList.add('streaming');
+      $('summary-canvas').readOnly = true;
+      updateSummaryCanvasMeta('AI 正在写入画布…');
+
+      let modelOutput = '';
+      let streamError = '';
+      try {
+        const response = await fetch('/api/meeting-notes/revise/stream', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({
+            transcript,
+            current_summary: originalSummary,
+            instruction: normalizedInstruction,
+            messages: historyForRequest,
+          }),
+        });
+        if (!response.ok || !response.body) throw new Error(await responseError(response, '纪要修改服务暂不可用'));
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let pending = '';
+        let streamDone = false;
+        while (!streamDone) {
+          const chunk = await reader.read();
+          pending += decoder.decode(chunk.value || new Uint8Array(), { stream: !chunk.done });
+          const blocks = pending.split(/\r?\n\r?\n/);
+          pending = blocks.pop() || '';
+          for (const block of blocks) {
+            let eventName = 'message';
+            const dataLines = [];
+            block.split(/\r?\n/).forEach((line) => {
+              if (line.startsWith('event:')) eventName = line.slice(6).trim();
+              if (line.startsWith('data:')) dataLines.push(line.slice(5).trim());
+            });
+            if (!dataLines.length) continue;
+            let eventPayload = {};
+            try { eventPayload = JSON.parse(dataLines.join('\n')); } catch (_) { continue; }
+            if (eventName === 'error') throw new Error(eventPayload.message || '纪要修改失败');
+            if (eventName === 'delta') {
+              modelOutput += eventPayload.text || '';
+              const parsed = parseSummaryRevisionOutput(modelOutput);
+              if (parsed.canvas) syncSummaryContent(parsed.canvas, { canvasState: 'AI 正在写入画布…' });
+              if (parsed.complete) {
+                summaryChatMessages[assistantIndex].text = parsed.reply || '纪要已更新。';
+                renderSummaryChat();
+              }
+            }
+            if (eventName === 'done') streamDone = true;
+          }
+          if (chunk.done) streamDone = true;
+        }
+
+        const finalResult = parseSummaryRevisionOutput(modelOutput);
+        if (!finalResult.complete || !finalResult.canvas) throw new Error('模型没有返回完整的纪要画布');
+        if (requestEpoch !== contentEpoch || summaryRevisionAbortController !== controller) return;
+        summaryUndoStack.push(originalSummary);
+        if (summaryUndoStack.length > 10) summaryUndoStack.shift();
+        syncSummaryContent(finalResult.canvas, { canvasState: '刚刚保存 · 用户定制版本' });
+        summaryCustomized = true;
+        hasGeneratedSummary = true;
+        summaryIsDemo = false;
+        lastSummaryAt = Date.now();
+        $('summary-output').className = 'summary-output';
+        $('summary-state').textContent = '已通过对话更新';
+        $('summary-title').textContent = '纪要已根据你的要求完善。';
+        $('summary-description').textContent = '当前为用户定制版本，继续录音不会自动覆盖；仍可手工编辑或继续对话。';
+        summaryChatMessages[assistantIndex] = { role: 'assistant', text: finalResult.reply || '已经按你的要求更新纪要画布。' };
+        renderSummaryChat();
+        ensureActiveMeeting();
+        scheduleMeetingSave(0);
+      } catch (error) {
+        if (error.name === 'AbortError' || requestEpoch !== contentEpoch) return;
+        streamError = error.message || String(error);
+        syncSummaryContent(originalSummary, { canvasState: '修改失败 · 已保留原纪要' });
+        summaryChatMessages[assistantIndex] = { role: 'assistant', text: `这次没有改动纪要：${streamError}` };
+        renderSummaryChat();
+      } finally {
+        if (summaryRevisionAbortController === controller) {
+          summaryRevisionAbortController = null;
+          summaryRevisionRunning = false;
+          summaryRevisionOriginal = '';
+          $('summary-canvas').classList.remove('streaming');
+          $('summary-canvas').readOnly = false;
+          $('summary-chat-send').disabled = false;
+          $('summary-chat-status').textContent = streamError ? '修改失败，可重试' : '画布已同步';
+          updateSummaryCanvasMeta();
+        }
+      }
+    }
+
+    function maybeRefreshSummary() {
+      if (!['summary', 'summary-chat'].includes(activeTab) || summaryRunning || summaryCustomized) return;
+      if (Date.now() - lastSummaryAt < 15000) return;
+      generateSummary();
+    }
+
+    async function refreshStatus() {
+      try {
+        const response = await fetch('/api/status');
+        const status = await response.json();
+        configureVoiceCloning(status.voice_cloning_configured);
+        const channelsResponse = await fetch('/api/asr/channels');
+        const channelsData = await channelsResponse.json();
+        if (Number(channelsData.stream_policy && channelsData.stream_policy.max_connection_seconds) > 0) {
+          asrPassLimitSeconds = Number(channelsData.stream_policy.max_connection_seconds);
+          updateRecordingLimitUi();
+        }
+        const select = $('asr-channel');
+        select.innerHTML = '';
+        Object.entries(channelsData.channels || {}).forEach(([id, channel]) => {
+          const option = document.createElement('option');
+          option.value = id;
+          option.textContent = channel.label || id;
+          select.appendChild(option);
+        });
+        select.value = channelsData.default || status.asr_default_channel || 'funasr-gpu';
+        const selected = select.options[select.selectedIndex];
+        $('channel-label').textContent = selected ? selected.textContent.replace(/（.*?）/g, '').trim() : '自动选择识别服务';
+        $('service-state').className = 'service-state ready';
+        $('service-state').querySelector('span').textContent = '识别服务已连接';
+      } catch (_) {
+        configureVoiceCloning(false);
+        $('service-state').className = 'service-state error';
+        $('service-state').querySelector('span').textContent = '服务状态不可用';
+      }
+    }
+
+    async function loadRealtimeModels() {
+      const select = $('conversation-model');
+      const previous = select.value;
+      try {
+        const response = await fetch('/api/realtime/models');
+        if (!response.ok) throw new Error('模型列表不可用');
+        const payload = await response.json();
+        const models = Array.isArray(payload.models) ? payload.models : [];
+        if (!models.length) throw new Error('没有可用的实时模型');
+        select.innerHTML = models.map((model) => `<option value="${escapeHtml(model.id)}">${escapeHtml(model.label || model.id)}</option>`).join('');
+        select.value = models.some((model) => model.id === previous) ? previous : payload.default || models[0].id;
+      } catch (_) {
+        if (!select.options.length) select.innerHTML = '<option value="qwen-audio-3.0-realtime-plus">Qwen Audio 3.0 Realtime Plus</option>';
+      }
+    }
+
+    document.querySelectorAll('.content-tab').forEach((button) => button.addEventListener('click', () => setActiveTab(button.dataset.tab)));
+    document.querySelectorAll('.product-tab').forEach((button) => button.addEventListener('click', () => switchProductView(button.dataset.product)));
+    document.querySelectorAll('.voice-card').forEach((button) => button.addEventListener('click', () => selectTtsVoice(button.dataset.voice)));
+    document.querySelectorAll('.format-button').forEach((button) => button.addEventListener('click', () => {
+      selectedTtsFormat = button.dataset.format;
+      document.querySelectorAll('.format-button').forEach((item) => item.classList.toggle('active', item === button));
+    }));
+    $('tts-text').addEventListener('input', updateTtsCount);
+    $('custom-voice-id').addEventListener('input', () => {
+      if ($('custom-voice-id').value.trim()) document.querySelectorAll('.voice-card').forEach((card) => card.classList.remove('active'));
+    });
+    $('synthesize-voice').addEventListener('click', synthesizeVoice);
+    $('refresh-voices').addEventListener('click', loadClonedVoices);
+    $('create-cloned-voice').addEventListener('click', createClonedVoice);
+    $('download-voice').addEventListener('click', () => {
+      if (!ttsAudioUrl) return;
+      const link = document.createElement('a');
+      link.href = ttsAudioUrl;
+      link.download = `voicenote-${selectedVoiceId().replace(/[^A-Za-z0-9_-]/g, '-')}.${selectedTtsFormat}`;
+      link.click();
+    });
+    $('conversation-main').addEventListener('click', () => {
+      if (!isRealtimeActive()) startRealtimeConversation();
+      else if (realtimeState === 'speaking') {
+        stopRealtimePlayback(true);
+        setRealtimeState('listening', '已打断，可以继续说');
+      } else toggleRealtimeMute();
+    });
+    $('conversation-mute').addEventListener('click', toggleRealtimeMute);
+    $('conversation-end').addEventListener('click', endRealtimeConversation);
+    $('conversation-export').addEventListener('click', exportCurrentConversation);
+    $('conversation-model').addEventListener('change', () => scheduleConversationSave());
+    $('conversation-voice').addEventListener('change', () => scheduleConversationSave());
+    document.querySelectorAll('[data-conversation-prompt]').forEach((button) => button.addEventListener('click', () => sendRealtimeTextPrompt(button.dataset.conversationPrompt)));
+    $('new-meeting').addEventListener('click', () => {
+      if (activeProductView === 'conversation') createNewConversation();
+      else if (switchProductView('meeting')) createNewMeeting();
+    });
+    $('meeting-search').addEventListener('input', renderSidebarIndex);
+    $('meeting-groups').addEventListener('click', (event) => {
+      const deleteConversationButton = event.target.closest('[data-delete-conversation]');
+      if (deleteConversationButton) { deleteConversationRecord(deleteConversationButton.dataset.deleteConversation); return; }
+      const openConversationButton = event.target.closest('[data-conversation-id]');
+      if (openConversationButton && activeProductView === 'conversation') { openConversation(openConversationButton.dataset.conversationId); return; }
+      const deleteButton = event.target.closest('[data-delete-meeting]');
+      if (deleteButton) { deleteMeetingRecord(deleteButton.dataset.deleteMeeting); return; }
+      const openButton = event.target.closest('[data-meeting-id]');
+      if (openButton && switchProductView('meeting')) openMeeting(openButton.dataset.meetingId);
+    });
+    $('toggle-sidebar').addEventListener('click', () => {
+      if (matchMedia('(max-width: 900px)').matches) document.body.classList.toggle('sidebar-open');
+      else document.body.classList.toggle('sidebar-collapsed');
+    });
+    $('collapse-sidebar').addEventListener('click', () => {
+      if (matchMedia('(max-width: 900px)').matches) closeSidebarOnSmallScreen();
+      else document.body.classList.add('sidebar-collapsed');
+    });
+    $('sidebar-backdrop').addEventListener('click', closeSidebarOnSmallScreen);
+    $('meeting-title').addEventListener('input', () => { markMeetingTitleManual(); ensureActiveMeeting(); scheduleMeetingSave(); });
+    $('account-action').addEventListener('click', handleAccountAction);
+    $('enter-guest').addEventListener('click', () => activateStorageMode('guest'));
+    $('show-login').addEventListener('click', () => showEntryDialog('auth'));
+    $('auth-back').addEventListener('click', () => showEntryDialog('mode'));
+    $('auth-form').addEventListener('submit', submitAuth);
+    $('entry-dialog').addEventListener('cancel', (event) => event.preventDefault());
+    $('record-toggle').addEventListener('click', () => {
+      if (recorderState === 'recording') pauseRecording();
+      else if (recorderState === 'paused') resumeRecording();
+      else startRecordingSession();
+    });
+    $('finish-recording').addEventListener('click', () => finishRecording());
+    $('reset-recording').addEventListener('click', () => resetSession());
+    $('open-settings').addEventListener('click', () => $('settings-dialog').showModal());
+    $('asr-channel').addEventListener('change', () => {
+      const option = $('asr-channel').options[$('asr-channel').selectedIndex];
+      $('channel-label').textContent = option ? option.textContent.replace(/（.*?）/g, '').trim() : '自动选择识别服务';
+    });
+    $('generate-summary').addEventListener('click', () => generateSummary({ explicit: true }));
+    $('copy-summary').addEventListener('click', async () => {
+      await navigator.clipboard.writeText(summaryContent());
+      showToast('摘要已复制');
+    });
+    $('copy-summary-canvas').addEventListener('click', async () => {
+      await navigator.clipboard.writeText(summaryContent());
+      showToast('纪要画布已复制');
+    });
+    $('summary-canvas').addEventListener('input', () => {
+      if (summaryRevisionRunning) return;
+      const content = $('summary-canvas').value;
+      $('summary-output').textContent = content;
+      hasGeneratedSummary = Boolean(content.trim());
+      summaryCustomized = hasGeneratedSummary;
+      summaryIsDemo = false;
+      lastSummaryAt = Date.now();
+      $('summary-output').className = 'summary-output';
+      $('summary-state').textContent = '手工编辑中';
+      $('summary-title').textContent = '纪要正在手工完善。';
+      $('summary-description').textContent = '当前为用户定制版本，继续录音不会自动覆盖。';
+      updateSummaryCanvasMeta('正在编辑 · 自动保存');
+      ensureActiveMeeting();
+      scheduleMeetingSave();
+    });
+    $('undo-summary-revision').addEventListener('click', () => {
+      if (!summaryUndoStack.length || summaryRevisionRunning) return;
+      const previous = summaryUndoStack.pop();
+      syncSummaryContent(previous, { canvasState: '已撤销 · 自动保存' });
+      hasGeneratedSummary = Boolean(previous.trim());
+      summaryCustomized = true;
+      $('summary-state').textContent = '已撤销上次改写';
+      scheduleMeetingSave(0);
+      showToast('已恢复改写前的纪要');
+    });
+    $('summary-chat-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      reviseSummaryWithChat($('summary-chat-input').value);
+    });
+    $('summary-chat-input').addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        $('summary-chat-form').requestSubmit();
+      }
+    });
+    document.querySelectorAll('[data-summary-prompt]').forEach((button) => button.addEventListener('click', () => {
+      $('summary-chat-input').value = button.dataset.summaryPrompt;
+      reviseSummaryWithChat(button.dataset.summaryPrompt);
+    }));
+    $('copy-transcript').addEventListener('click', async () => {
+      const text = visibleTranscriptSegments().map((segment) => `${segment.time} ${segment.speaker}\n${segment.text}`).join('\n\n');
+      await navigator.clipboard.writeText(text);
+      showToast('文字记录已复制');
+    });
+    $('download-recording').addEventListener('click', downloadCurrentArchive);
+    window.addEventListener('beforeunload', (event) => {
+      if (!['recording', 'paused'].includes(recorderState) && !isRealtimeActive()) return;
+      event.preventDefault();
+      event.returnValue = '';
+    });
+
+    window.__demoInjectAsrScenario = (text = '我想测试这个实时转写页面。') => {
+      clearDemoContent();
+      appendTranscript(text, { time: '00:06', speaker: '说话人 1' });
+      return { text: transcriptText(), segment_count: transcriptSegments.length, summary_ready: Boolean(transcriptText()) };
+    };
+    window.__demoInjectSummary = (text = '一句话摘要：这是会议录音页面的前端合同测试。') => {
+      summaryIsDemo = false;
+      hasGeneratedSummary = true;
+      summaryCustomized = false;
+      syncSummaryContent(text, { canvasState: '测试更新 · 自动摘要' });
+      $('summary-state').textContent = '测试更新';
+      return $('summary-output').textContent;
+    };
+    window.__demoApplyRevision = (text, revision = 1, final = false) => {
+      applyTranscriptRevision(text, { revision, final });
+      return {
+        confirmed: transcriptSegments.map((segment) => segment.text),
+        rewrite: rewriteSegments.map((segment) => segment.text),
+        live: liveTranscriptText,
+      };
+    };
+    window.__demoSetRecorderState = (state) => { updateRecorderUi(state); return window.__demoGetState(); };
+    window.__demoBeginContinuation = () => { beginTranscriptPass(); updateRecorderUi('connecting'); return window.__demoGetState(); };
+    window.__demoGetState = () => ({
+      recorderState,
+      activeTab,
+      elapsedSeconds,
+      transcript: transcriptText(),
+      confirmed: transcriptSegments.map((segment) => segment.text),
+      rewrite: rewriteSegments.map((segment) => segment.text),
+      live: liveTranscriptText,
+      summary: $('summary-output').textContent,
+      summaryCanvas: $('summary-canvas').value,
+      summaryCustomized,
+      summaryChatMessages: summaryChatMessages.map(({ role, text }) => ({ role, text })),
+    });
+    window.__demoStudioState = () => ({ activeProductView, voice: selectedVoiceId(), format: selectedTtsFormat, cloningConfigured: voiceCloningConfigured, audioReady: Boolean(ttsAudioUrl) });
+    window.__demoConversationState = () => ({ activeProductView, realtimeState, model: $('conversation-model').value, voice: $('conversation-voice').value, activeConversationId, messages: realtimeMessages.map(({ role, text, final }) => ({ role, text, final })) });
+
+    updateTtsCount();
+    syncSummaryContent($('summary-output').textContent, { canvasState: '示例纪要 · 修改后自动保存' });
+    renderSummaryChat();
+    setRealtimeState('idle');
+    renderTranscript();
+    refreshStatus();
+    loadRealtimeModels();
+    bootstrapAccess();
+  </script>
+</body>
+</html>

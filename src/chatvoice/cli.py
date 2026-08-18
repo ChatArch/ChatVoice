@@ -3,10 +3,16 @@
 from __future__ import annotations
 
 import inspect
+import json as jsonlib
 
 import click
 
 from chatvoice import __version__
+from chatvoice.asr import get_asr_channels
+from chatvoice.doctor import run_doctor
+from chatvoice.health import get_status
+from chatvoice.paths import ensure_runtime_dirs, state_paths
+from chatvoice.service import render_service_plan, serve_app
 
 
 def _purpose(command: click.Command) -> str:
@@ -77,17 +83,120 @@ def _render_cli_tree(root: click.Group) -> str:
     return "\n".join(lines)
 
 
+def _emit(payload: object, *, as_json: bool = False) -> None:
+    if as_json:
+        click.echo(jsonlib.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
+        return
+    if isinstance(payload, dict):
+        for key, value in payload.items():
+            if isinstance(value, dict):
+                click.echo(f"{key}:")
+                for child_key, child_value in value.items():
+                    click.echo(f"  {child_key}: {child_value}")
+            else:
+                click.echo(f"{key}: {value}")
+    else:
+        click.echo(str(payload))
+
+
 @click.group(invoke_without_command=True, no_args_is_help=True)
 @click.version_option(__version__, prog_name="chatvoice")
 @click.option("--tree", "show_tree", is_flag=True, is_eager=True, help="Print the registered CLI tree.")
 @click.pass_context
 def main(ctx: click.Context, show_tree: bool) -> None:
-    """chatvoice command line interface."""
-    # Add package-specific commands here. Prefer ChatStyle helpers for
-    # interactive input when a command needs recoverable user input.
+    """ChatVoice command line interface."""
     if show_tree:
         click.echo(_render_cli_tree(ctx.command))
         ctx.exit()
+
+
+@main.command("paths")
+@click.option("--json", "as_json", is_flag=True, help="Print JSON output.")
+def paths_command(as_json: bool) -> None:
+    """Show resolved ChatVoice runtime paths."""
+
+    _emit(state_paths().as_dict(), as_json=as_json)
+
+
+@main.command("doctor")
+@click.option("--json", "as_json", is_flag=True, help="Print JSON output.")
+def doctor_command(as_json: bool) -> None:
+    """Check local ChatVoice service readiness without secrets."""
+
+    _emit(run_doctor(), as_json=as_json)
+
+
+@main.group()
+def serve() -> None:
+    """Start packaged ChatVoice services."""
+
+
+@serve.command("app")
+@click.option("--host", default="127.0.0.1", show_default=True, help="Host interface for Uvicorn.")
+@click.option("--port", default=18087, show_default=True, type=int, help="Port for Uvicorn.")
+@click.option("--reload", is_flag=True, help="Enable Uvicorn reload for development.")
+@click.option("--workers", default=1, show_default=True, type=int, help="Number of Uvicorn workers. Keep 1 with SQLite.")
+@click.option("--dry-run", is_flag=True, help="Print the sanitized service plan without starting.")
+@click.option("--json", "as_json", is_flag=True, help="Print JSON output for --dry-run.")
+def serve_app_command(host: str, port: int, reload: bool, workers: int, dry_run: bool, as_json: bool) -> None:
+    """Start the packaged Speakr web application."""
+
+    if dry_run:
+        _emit(render_service_plan(host=host, port=port, workers=workers), as_json=as_json)
+        return
+    if workers != 1:
+        click.echo("Warning: SQLite WAL supports one service node; use workers=1 unless storage has been migrated.", err=True)
+    serve_app(host=host, port=port, reload=reload, workers=workers)
+
+
+@main.group()
+def health() -> None:
+    """Read health from a running ChatVoice service."""
+
+
+@health.command("status")
+@click.option("--url", default="http://127.0.0.1:18087", show_default=True, help="Base service URL.")
+@click.option("--timeout", default=5.0, show_default=True, type=float, help="HTTP timeout in seconds.")
+@click.option("--json", "as_json", is_flag=True, help="Print JSON output.")
+def health_status_command(url: str, timeout: float, as_json: bool) -> None:
+    """Read the /api/status endpoint."""
+
+    result = get_status(url, timeout=timeout)
+    _emit(result, as_json=as_json)
+    if not result.get("ok"):
+        raise click.ClickException(str(result.get("error") or result.get("error_type") or "health check failed"))
+
+
+@main.group()
+def asr() -> None:
+    """Inspect ASR provider configuration."""
+
+
+@asr.command("channels")
+@click.option("--json", "as_json", is_flag=True, help="Print JSON output.")
+def asr_channels_command(as_json: bool) -> None:
+    """List ASR channels and API-provider readiness."""
+
+    _emit(get_asr_channels(), as_json=as_json)
+
+
+@main.group()
+def service() -> None:
+    """Plan and inspect ChatVoice service deployment."""
+
+
+@service.command("plan")
+@click.option("--host", default="127.0.0.1", show_default=True, help="Host interface for the generated plan.")
+@click.option("--port", default=18087, show_default=True, type=int, help="Service port for the generated plan.")
+@click.option("--workers", default=1, show_default=True, type=int, help="Worker count for the generated plan.")
+@click.option("--ensure-dirs", is_flag=True, help="Create runtime directories before printing the plan.")
+@click.option("--json", "as_json", is_flag=True, help="Print JSON output.")
+def service_plan_command(host: str, port: int, workers: int, ensure_dirs: bool, as_json: bool) -> None:
+    """Render a sanitized service deployment plan."""
+
+    if ensure_dirs:
+        ensure_runtime_dirs()
+    _emit(render_service_plan(host=host, port=port, workers=workers), as_json=as_json)
 
 
 if __name__ == "__main__":

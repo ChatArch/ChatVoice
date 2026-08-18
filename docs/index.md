@@ -1,6 +1,6 @@
 # ChatVoice 文档
 
-ChatVoice 是 ChatArch 系列 Python 包。这个文档站提供长期维护的使用说明、CLI 树、能力地图和 Python 接口入口。生成模板后，请把占位说明替换为当前包已经实现、探索过或计划中的真实内容。
+ChatVoice 是 ChatArch 系列 Python 包，用于把 Speakr 录音、转写、会议纪要和语音工作区能力打包成可安装、可启动、可维护的服务。
 
 站点入口：<https://arch.gh.wzhecnu.cn/ChatVoice/>
 
@@ -8,25 +8,24 @@ ChatVoice 是 ChatArch 系列 Python 包。这个文档站提供长期维护的�
 
 | 场景 | 文档 |
 | --- | --- |
-| 第一次安装、运行命令行、确认包可用 | [CLI 树](cli-tree.md) |
+| 通过 PyPI 包安装并启动服务 | [部署与启动](deployment.md) |
+| 回读真实命令树和命令边界 | [CLI 树](cli-tree.md) |
 | 校对当前包有哪些一等能力和边界 | [能力地图](capability-map.md) |
 | 从 Python 代码调用包能力 | [Python 接口树](interface-tree.md) |
-
-## 文档栏目组织
-
-当前模板只保留长期有用的文档入口，不生成计划类占位页：
-
-- **CLI 树**：最直观的命令展示入口，包含真实命令树、状态和更新清单。
-- **能力地图**：当前一等能力、边界和不负责的范围。
-- **接口树**：命令行背后的可 import Python 接口。
 
 ## 核心入口
 
 <div class="grid cards" markdown>
 
+- **部署与启动**
+
+    从 `pip install "ChatVoice[web]==0.0.2"` 到 `chatvoice serve app`，说明运行目录、ASR API provider 和数据库并发边界。
+
+    [查看部署教程](deployment.md)
+
 - **CLI 树**
 
-    从命令行入口开始，记录已实现命令、命令状态和交互约定。
+    从命令行入口开始，记录真实已实现命令、命令状态和交互约定。
 
     [查看 CLI 树](cli-tree.md)
 
@@ -44,17 +43,18 @@ ChatVoice 是 ChatArch 系列 Python 包。这个文档站提供长期维护的�
 
 </div>
 
-## 文档状态约定
+## 第一版部署边界
 
-- **已实现**：代码、测试或 CLI 路径已经存在。
-- **已验证**：已经通过本地 smoke、CI 或真实服务实践验证。
-- **未实现**：只写边界和计划，不写成可执行教程；实现并验证后再升级为操作文档。
+- Web 服务由 `chatvoice serve app` 启动 packaged FastAPI app。
+- ASR 生产推荐通过 `api-server` 调云服务或自建 GPU ASR server。
+- `stub-local` 只用于无凭据/无 GPU 的合同 smoke。
+- v0.0.2 默认 SQLite WAL，适合单服务进程轻并发；高并发数据库迁移需单独版本。
 
-## 本地预览
+## 本地预览文档
 
 ```bash
 python -m pip install -e ".[docs]"
 mkdocs serve
 ```
 
-英文首页见站点语言入口：<https://arch.gh.wzhecnu.cn/ChatVoice/en/>。缺少英文翻译的专题页会按 i18n fallback 回退到中文页面。
+英文首页见站点语言入口：<https://arch.gh.wzhecnu.cn/ChatVoice/en/>。

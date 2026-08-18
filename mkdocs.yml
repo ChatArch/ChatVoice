@@ -35,6 +35,7 @@ plugins:
           site_name: ChatVoice Documentation
           nav_translations:
             首页: Home
+            部署与启动: Deployment and Startup
             命令与接口: Commands and APIs
             CLI 树: CLI Tree
             能力地图: Capability Map
@@ -59,6 +60,7 @@ extra:
       lang: en
 nav:
   - 首页: index.md
+  - 部署与启动: deployment.md
   - 命令与接口:
       - CLI 树: cli-tree.md
       - 能力地图: capability-map.md
