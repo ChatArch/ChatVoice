@@ -46,3 +46,24 @@ def test_public_docs_state_summary_configuration_boundary():
         text = _read(path).lower()
         for fragment in expected_fragments:
             assert fragment in text, path
+
+
+def test_public_docs_explain_runtime_layout_data_schema_and_concurrency_todo():
+    required = [
+        "site-packages",
+        "~/.chatarch/chatvoice",
+        "CHATVOICE_HOME",
+        "CHATARCH_HOME",
+        "meetings.sqlite3",
+        "accounts",
+        "api_tokens",
+        "meeting_records",
+        "conversation_records",
+        "temp/asr",
+        "model-cache",
+        "Postgres/MySQL",
+    ]
+    for path in [ROOT / "README.md", ROOT / "README.en.md", ROOT / "docs" / "deployment.md", ROOT / "docs" / "deployment.en.md"]:
+        text = _read(path)
+        for fragment in required:
+            assert fragment in text, (path, fragment)

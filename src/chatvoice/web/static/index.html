@@ -446,6 +446,12 @@
     .token-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; padding: 9px 10px; border: 1px solid #ececef; border-radius: 11px; background: #fff; }
     .token-row strong { display: block; font-size: 10px; }
     .token-row small { display: block; margin-top: 3px; color: var(--muted); font-size: 8px; }
+    .api-key-config { margin-top: 16px; padding: 12px; border: 1px solid #e8e7f6; border-radius: 13px; background: #fbfbff; }
+    .api-key-config h3 { margin: 0 0 8px; font-size: 11px; }
+    .api-key-status-list { display: grid; gap: 6px; margin-top: 9px; }
+    .api-key-status-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 8px; border-radius: 9px; background: #fff; color: #666871; font-size: 9px; list-style: none; }
+    .api-key-status-list b { color: #a35b00; }
+    .api-key-status-list b.ready { color: #22824f; }
 
     #entry-dialog { width: min(720px, calc(100vw - 32px)); }
     #entry-dialog[open] { animation: fade-in .2s ease; }
@@ -911,6 +917,15 @@
       <label for="asr-channel">实时转写通道</label>
       <select id="asr-channel"><option value="funasr-gpu">读取服务端配置中…</option></select>
       <p>页面始终使用统一转写协议。未来接入阿里、火山、讯飞或 Whisper 服务时，录音页不需要改变。</p>
+      <section class="api-key-config" aria-labelledby="api-key-config-title">
+        <h3 id="api-key-config-title">服务端 API Key</h3>
+        <p>这里显示密钥配置状态，不在浏览器保存或提交密钥明文。请在服务端环境或受保护配置文件中设置 <code>CHATVOICE_ASR_API_KEY</code>、<code>DASHSCOPE_API_KEY</code> 或专用复刻密钥。</p>
+        <ul class="api-key-status-list" id="api-key-status-list">
+          <li><span>ASR API Key</span><b>读取中…</b></li>
+          <li><span>摘要/实时模型 Key</span><b>读取中…</b></li>
+          <li><span>声音复刻 Key</span><b>读取中…</b></li>
+        </ul>
+      </section>
       <section class="token-panel" aria-labelledby="api-token-title">
         <h3 id="api-token-title">API Token</h3>
         <p id="api-token-login-note">登录账号后，可以生成给 CLI 或下游自动化读取会议转写和摘要的 Token。Token 明文只显示一次。</p>
@@ -1628,6 +1643,20 @@
       $('clone-help').textContent = voiceCloningConfigured
         ? '参考音频仅用于创建音色；请确保已获得声音本人明确授权。音色创建后将自动填入上方合成器。'
         : 'TTS 已可正常使用；声音复刻还需要在服务器配置 DASHSCOPE_VOICE_API_KEY。配置前不会上传参考音频。';
+    }
+
+    function renderServerKeyStatus(status) {
+      status = status || {};
+      const keys = status.api_keys || {};
+      const asr = status.asr_api || {};
+      const rows = [
+        ['ASR API Key', keys.asr_api_key_configured || asr.api_key_configured, asr.url_configured ? `已配置 endpoint：${asr.endpoint_host || 'server'}` : '等待 CHATVOICE_ASR_API_URL'],
+        ['摘要/实时模型 Key', keys.model_api_key_configured, 'DASHSCOPE_API_KEY / OPENAI_API_KEY'],
+        ['声音复刻 Key', keys.voice_cloning_key_configured, 'DASHSCOPE_VOICE_API_KEY / DASHSCOPE_API_KEY'],
+      ];
+      $('api-key-status-list').innerHTML = rows.map(([label, ready, note]) => `
+        <li><span>${escapeHtml(label)}<small> · ${escapeHtml(note)}</small></span><b class="${ready ? 'ready' : ''}">${ready ? '已配置' : '未配置'}</b></li>
+      `).join('');
     }
 
     async function createClonedVoice() {
@@ -3258,6 +3287,7 @@
         const response = await fetch('/api/status');
         const status = await response.json();
         configureVoiceCloning(status.voice_cloning_configured);
+        renderServerKeyStatus(status);
         const channelsResponse = await fetch('/api/asr/channels');
         const channelsData = await channelsResponse.json();
         if (Number(channelsData.stream_policy && channelsData.stream_policy.max_connection_seconds) > 0) {
@@ -3279,6 +3309,7 @@
         $('service-state').querySelector('span').textContent = '识别服务已连接';
       } catch (_) {
         configureVoiceCloning(false);
+        renderServerKeyStatus({});
         $('service-state').className = 'service-state error';
         $('service-state').querySelector('span').textContent = '服务状态不可用';
       }

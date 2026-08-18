@@ -36,6 +36,7 @@ plugins:
           nav_translations:
             首页: Home
             部署与启动: Deployment and Startup
+            运行目录与数据结构: Runtime Layout and Data Structure
             API 访问: API Access
             命令与接口: Commands and APIs
             CLI 树: CLI Tree
@@ -62,6 +63,7 @@ extra:
 nav:
   - 首页: index.md
   - 部署与启动: deployment.md
+  - 运行目录与数据结构: runtime-layout.md
   - API 访问: api-access.md
   - 命令与接口:
       - CLI 树: cli-tree.md

@@ -106,7 +106,7 @@ ASR_CHANNELS: dict[str, dict[str, Any]] = {
     },
 }
 
-app = FastAPI(title="ChatVoice Speakr", version="0.1.1")
+app = FastAPI(title="ChatVoice Speakr", version="0.1.2")
 logger = logging.getLogger("chatvoice")
 _FUNASR_MODELS: dict[tuple[str, str], Any] = {}
 _FUNASR_MODEL_LOCKS: dict[tuple[str, str], threading.Lock] = {}
@@ -267,14 +267,25 @@ def _safe_profile_summary() -> dict[str, Any]:
     key = profile.get("OPENAI_API_KEY") or profile.get("DASHSCOPE_API_KEY") or ""
     base = profile.get("OPENAI_API_BASE", "")
     parsed = urlparse(base) if base else None
+    voice_key_configured = bool(profile.get("DASHSCOPE_VOICE_API_KEY") or profile.get("DASHSCOPE_API_KEY"))
     return {
         "profile": "env-or-optional-file",
         "profile_file_exists": bool(PROFILE_PATH and PROFILE_PATH.exists()),
         "base_host": parsed.netloc if parsed else None,
         "base_path": parsed.path if parsed else None,
         "key_present": bool(key),
-        "voice_cloning_configured": bool(profile.get("DASHSCOPE_VOICE_API_KEY") or profile.get("DASHSCOPE_API_KEY")),
+        "voice_cloning_configured": voice_key_configured,
         "voice_cloning_provider": "dashscope-direct",
+        "api_keys": {
+            "asr_api_key_configured": bool(ASR_API_KEY),
+            "model_api_key_configured": bool(key),
+            "voice_cloning_key_configured": voice_key_configured,
+        },
+        "asr_api": {
+            "url_configured": bool(ASR_API_URL),
+            "endpoint_host": urlparse(ASR_API_URL).netloc if ASR_API_URL else None,
+            "api_key_configured": bool(ASR_API_KEY),
+        },
         "tts_model": TTS_MODEL,
         "meeting_title_model": _meeting_title_model(),
         "realtime_model": REALTIME_MODEL,
@@ -1538,7 +1549,7 @@ def _api_server_asr(audio_bytes: bytes, filename: str) -> dict[str, Any]:
     headers = {
         "Accept": "application/json",
         "Content-Type": f"multipart/form-data; boundary={boundary}",
-        "User-Agent": "ChatVoice/0.1.1 ASR API client",
+        "User-Agent": "ChatVoice/0.1.2 ASR API client",
     }
     if ASR_API_KEY:
         headers["Authorization"] = f"Bearer {ASR_API_KEY}"

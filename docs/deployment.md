@@ -1,6 +1,6 @@
 # 部署与启动
 
-这一页说明 v0.1.1 发布后，如何只通过 Python 包搭起一套 ChatVoice / Speakr 服务流程：安装、创建账号、启动服务、生成 API Token、读取会议/摘要数据。
+这一页说明 v0.1.2 发布后，如何只通过 Python 包搭起一套 ChatVoice / Speakr 服务流程：安装、创建账号、启动服务、生成 API Token、读取会议/摘要数据。
 
 ## 最小安装
 
@@ -8,7 +8,7 @@
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "ChatVoice[web]==0.1.1"
+python -m pip install "ChatVoice[web]==0.1.2"
 ```
 
 安装后先回读真实 CLI 树和运行目录：
@@ -19,6 +19,8 @@ chatvoice paths --json
 chatvoice service plan --ensure-dirs --json
 ```
 
+`pip install` 后代码安装在当前 Python 环境的 `site-packages/chatvoice/`，CLI 在对应环境的 `bin/chatvoice`；生产建议使用独立 venv。运行数据不写入源码目录。
+
 默认运行目录在 ChatArch home 下：
 
 ```text
@@ -27,8 +29,11 @@ chatvoice service plan --ensure-dirs --json
 ├── logs/
 ├── run/
 ├── temp/
+│   └── asr/
 └── model-cache/
 ```
+
+运行 root 解析顺序是 `CHATVOICE_RUNTIME_ROOT`、`CHATVOICE_HOME`、`CHATARCH_HOME/chatvoice`、`~/.chatarch/chatvoice`。`temp/asr` 用于 ASR 临时文件；完整目录和数据结构见 [运行目录与数据结构](runtime-layout.md)。
 
 ## 创建受邀账号
 
@@ -60,7 +65,7 @@ http://127.0.0.1:18087/
 
 ## ASR provider：API 优先
 
-v0.1.1 的生产推荐方式是 **ChatVoice 后端通过 API 调用 ASR 服务**。这个 ASR 服务可以是：
+v0.1.2 的生产推荐方式是 **ChatVoice 后端通过 API 调用 ASR 服务**。这个 ASR 服务可以是：
 
 - 云服务 API，凭 API key 调用；
 - 自建 GPU ASR server，对外暴露 HTTP API；
@@ -74,6 +79,8 @@ export CHATVOICE_ASR_API_URL="https://<asr-service>/v1/transcribe"
 # Configure the optional ASR bearer token in server-side config/env storage; do not put it in argv.
 chatvoice serve app --host 127.0.0.1 --port 18087
 ```
+
+Web 的 **识别设置 → 服务端 API Key** 会显示 `CHATVOICE_ASR_API_KEY`、摘要/实时模型 key、声音复刻 key 是否已配置；这里只显示状态，不在浏览器保存密钥明文。模型/摘要 key 放在服务端受保护环境或配置中，例如 `DASHSCOPE_API_KEY` / `OPENAI_API_KEY`。
 
 ChatVoice 会把上传音频以 multipart `file` 字段 POST 到 `CHATVOICE_ASR_API_URL`，并从 ASR JSON 响应里读取 `corrected_text`、`text`、`transcript`、`raw_text`、`data.text` 或 `result.text`。
 
@@ -102,18 +109,20 @@ chatvoice data conversations --url http://127.0.0.1:18087 --token-env CHATVOICE_
 
 ## 数据库与并发边界
 
-v0.1.1 packaged Web app 默认使用 SQLite WAL：
+v0.1.2 packaged Web app 默认使用 SQLite WAL：
 
 ```text
 <chatarch-home>/chatvoice/data/meetings.sqlite3
 ```
+
+核心表包括 `accounts`、`auth_sessions`、`api_tokens`、`meeting_records`、`conversation_records`。转写、summary、实时对话消息保存在 JSON 字符串字段；原始音频不进入后端数据库。访客模式的本地记录和录音分片保存在浏览器 IndexedDB。
 
 这适合单服务进程、轻并发和受控内部使用。当前版本的安全边界是：
 
 - `chatvoice serve app --workers 1`；
 - 不要用多 worker / 多节点同时写同一个 SQLite 文件；
 - 高并发生产部署应把存储层迁移到 Postgres/MySQL 这类外部数据库后再扩多 worker；
-- an external database URL setting 会被 `doctor` / `service plan` 检测并报告，但 v0.1.1 的 packaged legacy storage 仍只真正支持 SQLite。
+- an external database URL setting 会被 `doctor` / `service plan` 检测并报告，但 v0.1.2 的 packaged legacy storage 仍只真正支持 SQLite。
 
 回读：
 

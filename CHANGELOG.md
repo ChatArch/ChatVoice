@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.2 - 2026-08-18
+
+### Added
+
+- Add a server-side API key status panel in web settings. The browser can see whether ASR, summary/realtime model, and voice-cloning keys are configured, but it never stores or submits raw key values.
+- Document the installed code location, default runtime root, `~/.chatarch/chatvoice` directory layout, SQLite tables, browser IndexedDB boundary, `temp/asr`, `model-cache`, and the high-concurrency Postgres/MySQL TODO.
+- Add runtime layout docs to MkDocs navigation.
+
+### Fixed
+
+- Expose sanitized `/api/status` fields for API-key readiness and ASR endpoint host without leaking key values.
+
 ## 0.1.1 - 2026-08-18
 
 ### Fixed

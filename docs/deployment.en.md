@@ -1,6 +1,6 @@
 # Deployment and Startup
 
-This page explains how to run a ChatVoice / Speakr service from the released Python package in v0.1.1: install, create an account, start the service, generate an API token, and read meeting/summary data.
+This page explains how to run a ChatVoice / Speakr service from the released Python package in v0.1.2: install, create an account, start the service, generate an API token, and read meeting/summary data.
 
 ## Minimal install
 
@@ -8,7 +8,7 @@ This page explains how to run a ChatVoice / Speakr service from the released Pyt
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "ChatVoice[web]==0.1.1"
+python -m pip install "ChatVoice[web]==0.1.2"
 ```
 
 Read back the real CLI tree and runtime paths first:
@@ -19,6 +19,8 @@ chatvoice paths --json
 chatvoice service plan --ensure-dirs --json
 ```
 
+After `pip install`, package code lives under the active Python `site-packages/chatvoice/`, and the CLI entry point is the matching `bin/chatvoice`; production should use a dedicated venv. Runtime data is not written to the source checkout.
+
 Default runtime state lives under ChatArch home:
 
 ```text
@@ -27,8 +29,11 @@ Default runtime state lives under ChatArch home:
 ├── logs/
 ├── run/
 ├── temp/
+│   └── asr/
 └── model-cache/
 ```
+
+The runtime root resolves in this order: `CHATVOICE_RUNTIME_ROOT`, `CHATVOICE_HOME`, `CHATARCH_HOME/chatvoice`, then `~/.chatarch/chatvoice`. `temp/asr` holds ASR temporary files; see [Runtime Layout and Data Structure](runtime-layout.md) for the full layout and schema.
 
 ## Create an invited account
 
@@ -60,7 +65,7 @@ For production, put the service behind a controlled reverse proxy. API keys stay
 
 ## ASR provider: API first
 
-The recommended production shape in v0.1.1 is **ChatVoice calls ASR through an API provider**. That provider can be:
+The recommended production shape in v0.1.2 is **ChatVoice calls ASR through an API provider**. That provider can be:
 
 - a managed cloud ASR API with an API key;
 - a self-hosted GPU ASR server exposing HTTP;
@@ -74,6 +79,8 @@ export CHATVOICE_ASR_API_URL="https://<asr-service>/v1/transcribe"
 # Configure the optional ASR bearer token in server-side config/env storage; do not put it in argv.
 chatvoice serve app --host 127.0.0.1 --port 18087
 ```
+
+The browser **Settings → Server-side API Key** panel shows whether `CHATVOICE_ASR_API_KEY`, the summary/realtime model key, and the voice-cloning key are configured. It displays status only and never stores raw key values in the browser. Model/summary keys belong in server-side protected environment or config storage, such as `DASHSCOPE_API_KEY` / `OPENAI_API_KEY`.
 
 ChatVoice sends uploaded audio to `CHATVOICE_ASR_API_URL` as multipart field `file` and reads `corrected_text`, `text`, `transcript`, `raw_text`, `data.text`, or `result.text` from the ASR JSON response.
 
@@ -102,18 +109,20 @@ See [API Access](api-access.md) for details.
 
 ## Database and concurrency boundary
 
-The v0.1.1 packaged web app uses SQLite WAL by default:
+The v0.1.2 packaged web app uses SQLite WAL by default:
 
 ```text
 <chatarch-home>/chatvoice/data/meetings.sqlite3
 ```
+
+Core tables are `accounts`, `auth_sessions`, `api_tokens`, `meeting_records`, and `conversation_records`. Transcripts, summary content, and realtime messages are stored as JSON strings. Raw audio is not stored in the backend database. Guest-mode local records and recording chunks stay in browser IndexedDB.
 
 This is suitable for one service process, light concurrency, and controlled internal use. The current boundary is:
 
 - run `chatvoice serve app --workers 1`;
 - do not run multiple workers/nodes writing the same SQLite file;
 - high-concurrency production needs a storage-layer migration to Postgres/MySQL before scaling workers;
-- an external database URL setting is detected by `doctor` / `service plan`, but the v0.1.1 packaged legacy storage layer still supports SQLite only.
+- an external database URL setting is detected by `doctor` / `service plan`, but the v0.1.2 packaged legacy storage layer still supports SQLite only.
 
 Read back the effective plan:
 
