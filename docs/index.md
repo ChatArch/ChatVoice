@@ -1,6 +1,6 @@
 # ChatVoice 文档
 
-ChatVoice 是 ChatArch 系列 Python 包，用于把 Speakr 录音、转写、会议纪要和语音工作区能力打包成可安装、可启动、可维护的服务。
+ChatVoice 是 ChatArch 系列 Python 包，用于把 Speakr 录音、转写、会议纪要和语音工作区能力打包成可安装、可启动、可维护、可通过 API 读取数据的服务。
 
 站点入口：<https://arch.gh.wzhecnu.cn/ChatVoice/>
 
@@ -9,6 +9,7 @@ ChatVoice 是 ChatArch 系列 Python 包，用于把 Speakr 录音、转写、�
 | 场景 | 文档 |
 | --- | --- |
 | 通过 PyPI 包安装并启动服务 | [部署与启动](deployment.md) |
+| 生成 API Token 并读取会议/摘要数据 | [API 访问](api-access.md) |
 | 回读真实命令树和命令边界 | [CLI 树](cli-tree.md) |
 | 校对当前包有哪些一等能力和边界 | [能力地图](capability-map.md) |
 | 从 Python 代码调用包能力 | [Python 接口树](interface-tree.md) |
@@ -19,9 +20,15 @@ ChatVoice 是 ChatArch 系列 Python 包，用于把 Speakr 录音、转写、�
 
 - **部署与启动**
 
-    从 `pip install "ChatVoice[web]==0.0.2"` 到 `chatvoice serve app`，说明运行目录、ASR API provider 和数据库并发边界。
+    从 `pip install "ChatVoice[web]==0.1.0"` 到 `chatvoice serve app`，说明运行目录、账号创建、ASR API provider、数据库并发边界。
 
     [查看部署教程](deployment.md)
+
+- **API 访问**
+
+    说明网页登录、API Token 生命周期，以及 `chatvoice data ...` 读取会议转写、会议摘要和实时对话记录。
+
+    [查看 API 访问](api-access.md)
 
 - **CLI 树**
 
@@ -43,12 +50,14 @@ ChatVoice 是 ChatArch 系列 Python 包，用于把 Speakr 录音、转写、�
 
 </div>
 
-## 第一版部署边界
+## 0.1.0 部署边界
 
 - Web 服务由 `chatvoice serve app` 启动 packaged FastAPI app。
+- Fresh start 可通过 `chatvoice accounts add` 创建受邀账号，不依赖源码根目录脚本。
+- 登录后可在页面生成 API Token；CLI 可用 token 读取会议、摘要和实时对话数据。
 - ASR 生产推荐通过 `api-server` 调云服务或自建 GPU ASR server。
 - `stub-local` 只用于无凭据/无 GPU 的合同 smoke。
-- v0.0.2 默认 SQLite WAL，适合单服务进程轻并发；高并发数据库迁移需单独版本。
+- v0.1.0 默认 SQLite WAL，适合单服务进程轻并发；高并发数据库迁移需单独版本。
 
 ## 本地预览文档
 

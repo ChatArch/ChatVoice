@@ -433,7 +433,19 @@
     .settings-card .close-dialog { width: 32px; height: 32px; border: 0; border-radius: 10px; background: var(--soft); }
     .settings-card label { display: block; margin: 22px 0 8px; color: var(--ink-soft); font-size: 11px; font-weight: 650; }
     .settings-card select { width: 100%; height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; outline: 0; }
+    .settings-card input { width: 100%; height: 38px; padding: 0 11px; border: 1px solid var(--line); border-radius: 11px; background: #fff; outline: 0; }
     .settings-card p { margin: 12px 0 0; color: var(--muted); font-size: 10px; line-height: 1.65; }
+    .token-panel { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line); }
+    .token-grid { display: grid; grid-template-columns: 1fr 120px; gap: 10px; align-items: end; }
+    .token-actions { display: flex; gap: 8px; margin-top: 12px; }
+    .token-button { height: 36px; padding: 0 12px; border: 0; border-radius: 10px; background: var(--ink); color: #fff; font-size: 9px; font-weight: 680; }
+    .token-button.secondary { background: #f3f3f4; color: var(--ink); }
+    .token-button.danger { background: #fff1f1; color: #b64646; }
+    .token-output { width: 100%; min-height: 54px; margin-top: 10px; padding: 9px 10px; border: 1px solid #dedff5; border-radius: 11px; background: #f8f8ff; color: var(--ink); font: 10px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; resize: vertical; }
+    .token-list { margin-top: 10px; display: grid; gap: 7px; }
+    .token-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; padding: 9px 10px; border: 1px solid #ececef; border-radius: 11px; background: #fff; }
+    .token-row strong { display: block; font-size: 10px; }
+    .token-row small { display: block; margin-top: 3px; color: var(--muted); font-size: 8px; }
 
     #entry-dialog { width: min(720px, calc(100vw - 32px)); }
     #entry-dialog[open] { animation: fade-in .2s ease; }
@@ -899,6 +911,27 @@
       <label for="asr-channel">实时转写通道</label>
       <select id="asr-channel"><option value="funasr-gpu">读取服务端配置中…</option></select>
       <p>页面始终使用统一转写协议。未来接入阿里、火山、讯飞或 Whisper 服务时，录音页不需要改变。</p>
+      <section class="token-panel" aria-labelledby="api-token-title">
+        <h3 id="api-token-title">API Token</h3>
+        <p id="api-token-login-note">登录账号后，可以生成给 CLI 或下游自动化读取会议转写和摘要的 Token。Token 明文只显示一次。</p>
+        <div class="token-grid">
+          <div>
+            <label for="api-token-name">Token 名称</label>
+            <input id="api-token-name" value="automation" maxlength="80" />
+          </div>
+          <div>
+            <label for="api-token-expires">有效期（天）</label>
+            <input id="api-token-expires" type="number" min="1" max="365" placeholder="不填则长期" />
+          </div>
+        </div>
+        <div class="token-actions">
+          <button class="token-button" id="create-api-token" type="button">生成 Token</button>
+          <button class="token-button secondary" id="refresh-api-tokens" type="button">刷新列表</button>
+        </div>
+        <textarea class="token-output" id="api-token-output" readonly hidden></textarea>
+        <div class="token-list" id="api-token-list"><p>尚未读取 Token 列表。</p></div>
+        <p id="api-token-message" role="status"></p>
+      </section>
     </form>
   </dialog>
 
@@ -1638,6 +1671,88 @@
       const headers = { 'Content-Type': 'application/json' };
       if (write && csrfToken) headers['X-CSRF-Token'] = csrfToken;
       return headers;
+    }
+
+    function renderApiTokens(tokens = []) {
+      if (storageMode !== 'account' || !authUser) {
+        $('api-token-list').innerHTML = '<p>请先登录账号后再管理 API Token。</p>';
+        $('create-api-token').disabled = true;
+        $('refresh-api-tokens').disabled = true;
+        return;
+      }
+      $('create-api-token').disabled = false;
+      $('refresh-api-tokens').disabled = false;
+      if (!tokens.length) {
+        $('api-token-list').innerHTML = '<p>暂无 API Token。</p>';
+        return;
+      }
+      $('api-token-list').innerHTML = tokens.map((token) => `
+        <article class="token-row">
+          <span>
+            <strong>${escapeHtml(token.name || 'automation')}</strong>
+            <small>${escapeHtml(token.id)} · prefix ${escapeHtml(token.prefix || '')} · ${token.revoked_at ? '已撤销' : '可用'}${token.expires_at ? ` · 到期 ${escapeHtml(token.expires_at.slice(0, 10))}` : ''}</small>
+          </span>
+          <button class="token-button danger" type="button" data-revoke-token="${escapeHtml(token.id)}" ${token.revoked_at ? 'disabled' : ''}>撤销</button>
+        </article>
+      `).join('');
+    }
+
+    async function loadApiTokens() {
+      if (storageMode !== 'account' || !authUser) {
+        renderApiTokens([]);
+        return;
+      }
+      $('api-token-message').textContent = '正在读取 Token 列表…';
+      try {
+        const response = await fetch('/api/tokens');
+        if (!response.ok) throw new Error(await responseError(response, '读取 Token 失败'));
+        const payload = await response.json();
+        renderApiTokens(payload.tokens || []);
+        $('api-token-message').textContent = '';
+      } catch (error) {
+        $('api-token-message').textContent = error.message || '读取 Token 失败';
+      }
+    }
+
+    async function createApiToken() {
+      if (storageMode !== 'account' || !authUser) {
+        showToast('请先登录账号');
+        return;
+      }
+      const name = $('api-token-name').value.trim() || 'automation';
+      const expiresRaw = $('api-token-expires').value.trim();
+      const body = { name, scopes: ['read:meetings', 'read:conversations'] };
+      if (expiresRaw) body.expires_days = Number(expiresRaw);
+      $('create-api-token').disabled = true;
+      $('api-token-message').textContent = '正在生成 Token…';
+      try {
+        const response = await fetch('/api/tokens', { method: 'POST', headers: meetingHeaders(true), body: JSON.stringify(body) });
+        if (!response.ok) throw new Error(await responseError(response, '生成 Token 失败'));
+        const payload = await response.json();
+        $('api-token-output').hidden = false;
+        $('api-token-output').value = payload.token || '';
+        $('api-token-message').textContent = 'Token 已生成。请立即复制保存，关闭后无法再次查看明文。';
+        await navigator.clipboard.writeText(payload.token || '').catch(() => {});
+        await loadApiTokens();
+      } catch (error) {
+        $('api-token-message').textContent = error.message || '生成 Token 失败';
+      } finally {
+        $('create-api-token').disabled = false;
+      }
+    }
+
+    async function revokeApiToken(tokenId) {
+      if (!tokenId || !confirm('撤销这个 API Token？已接入的 CLI/自动化会立即失效。')) return;
+      try {
+        const response = await fetch(`/api/tokens/${encodeURIComponent(tokenId)}`, { method: 'DELETE', headers: meetingHeaders(true) });
+        if (!response.ok) throw new Error(await responseError(response, '撤销 Token 失败'));
+        $('api-token-output').hidden = true;
+        $('api-token-output').value = '';
+        $('api-token-message').textContent = 'Token 已撤销';
+        await loadApiTokens();
+      } catch (error) {
+        $('api-token-message').textContent = error.message || '撤销 Token 失败';
+      }
     }
 
     function openGuestDb() {
@@ -3249,7 +3364,13 @@
     });
     $('finish-recording').addEventListener('click', () => finishRecording());
     $('reset-recording').addEventListener('click', () => resetSession());
-    $('open-settings').addEventListener('click', () => $('settings-dialog').showModal());
+    $('open-settings').addEventListener('click', () => { $('settings-dialog').showModal(); loadApiTokens(); });
+    $('create-api-token').addEventListener('click', createApiToken);
+    $('refresh-api-tokens').addEventListener('click', loadApiTokens);
+    $('api-token-list').addEventListener('click', (event) => {
+      const button = event.target.closest('[data-revoke-token]');
+      if (button) revokeApiToken(button.dataset.revokeToken);
+    });
     $('asr-channel').addEventListener('change', () => {
       const option = $('asr-channel').options[$('asr-channel').selectedIndex];
       $('channel-label').textContent = option ? option.textContent.replace(/（.*?）/g, '').trim() : '自动选择识别服务';
@@ -3357,6 +3478,7 @@
     updateTtsCount();
     syncSummaryContent($('summary-output').textContent, { canvasState: '示例纪要 · 修改后自动保存' });
     renderSummaryChat();
+    renderApiTokens([]);
     setRealtimeState('idle');
     renderTranscript();
     refreshStatus();

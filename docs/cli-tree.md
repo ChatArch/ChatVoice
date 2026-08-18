@@ -2,7 +2,7 @@
 
 `chatvoice --tree` 是每次 CLI 更新都要同步回读的真实命令契约。CLI 只做参数解析和展示，实际能力放在可 import 的 Python 函数中。
 
-可导入 Python 函数映射见 [接口树](interface-tree.md)。部署教程见 [部署与启动](deployment.md)。
+可导入 Python 函数映射见 [接口树](interface-tree.md)。部署教程见 [部署与启动](deployment.md)。API Token 与数据读取见 [API 访问](api-access.md)。
 
 ## 当前已实现命令
 
@@ -19,35 +19,42 @@ chatvoice  # ChatVoice command line interface
 │   └── status [--url URL] [--timeout TIMEOUT] [--json]  # Read the /api/status endpoint
 ├── asr  # Inspect ASR provider configuration
 │   └── channels [--json]  # List ASR channels and API-provider readiness
+├── accounts  # Manage invited accounts in the local service database
+│   ├── add ACCOUNT [--display-name DISPLAY-NAME] [--password-env PASSWORD-ENV] [--json]  # Create one invited account from the packaged runtime
+│   └── list [--json]  # List invited account metadata without password material
+├── tokens  # Manage service API tokens for automation
+│   ├── create [--url URL] --account ACCOUNT [--password-env PASSWORD-ENV] [--name NAME] [--expires-days EXPIRES-DAYS] [--scope SCOPES] [--timeout TIMEOUT] [--json]  # Create a one-time-visible API token after account login
+│   ├── list [--url URL] --account ACCOUNT [--password-env PASSWORD-ENV] [--timeout TIMEOUT] [--json]  # List API token metadata without revealing token values
+│   └── revoke TOKEN-ID [--url URL] --account ACCOUNT [--password-env PASSWORD-ENV] [--timeout TIMEOUT] [--json]  # Revoke an API token by id
+├── data  # Read meeting and conversation data from a running service
+│   ├── meetings [--url URL] [--token-env TOKEN-ENV] [--timeout TIMEOUT] [--json]  # List meetings including transcripts and summaries
+│   ├── meeting MEETING-ID [--url URL] [--token-env TOKEN-ENV] [--timeout TIMEOUT] [--json]  # Read one meeting with transcript and summary
+│   ├── conversations [--url URL] [--token-env TOKEN-ENV] [--timeout TIMEOUT] [--json]  # List realtime conversations including messages
+│   └── conversation CONVERSATION-ID [--url URL] [--token-env TOKEN-ENV] [--timeout TIMEOUT] [--json]  # Read one realtime conversation with messages
 └── service  # Plan and inspect ChatVoice service deployment
     └── plan [--host HOST] [--port PORT] [--workers WORKERS] [--ensure-dirs] [--json]  # Render a sanitized service deployment plan
 ```
 
-## 基础入口
+## Fresh-start 服务入口
 
 ```bash
-chatvoice --help
-chatvoice --version
-chatvoice --tree
-chatvoice paths --json
-chatvoice doctor --json
-```
-
-## 启动服务
-
-```bash
-python -m pip install "ChatVoice[web]==0.0.2"
+python -m pip install "ChatVoice[web]==0.1.0"
 chatvoice service plan --ensure-dirs --json
 chatvoice serve app --host 127.0.0.1 --port 18087
 ```
 
-如果接自建 GPU ASR server 或云 ASR：
+## 账号、Token 和数据读取
 
 ```bash
-export CHATVOICE_ASR_CHANNEL=api-server
-<ASR_API_URL_SETTING>="https://<asr-service>/v1/transcribe"
-# Configure the optional ASR bearer token in server-side config/env storage; do not put it in argv.
-chatvoice serve app --host 127.0.0.1 --port 18087
+read -r -s CHATVOICE_ACCOUNT_LOGIN
+export CHATVOICE_ACCOUNT_LOGIN
+chatvoice accounts add person@example.com --display-name "Person" --password-env CHATVOICE_ACCOUNT_LOGIN --json
+chatvoice tokens create --url http://127.0.0.1:18087 --account person@example.com --password-env CHATVOICE_ACCOUNT_LOGIN --name automation --json
+
+read -r -s CHATVOICE_DATA_READ
+export CHATVOICE_DATA_READ
+chatvoice data meetings --url http://127.0.0.1:18087 --token-env CHATVOICE_DATA_READ --json
+chatvoice data conversations --url http://127.0.0.1:18087 --token-env CHATVOICE_DATA_READ --json
 ```
 
 ## 状态约定
@@ -63,4 +70,4 @@ chatvoice serve app --host 127.0.0.1 --port 18087
 - 每个实质 CLI 命令都要能映射到 Python 函数、类或 service 层。
 - 新增命令后同步更新 README、CLI 树、接口树、能力地图、测试和部署文档。
 - 涉及远端状态或服务重启的命令必须先有 dry-run / plan / readback 边界。
-- 不在 CLI 或日志中输出 token、cookie、Authorization header、原始录音或完整 transcript。
+- 不在普通诊断、日志或 PR 说明中输出 token、cookie、Authorization header、原始录音或完整 transcript；数据导出命令只在用户显式调用时返回记录内容。

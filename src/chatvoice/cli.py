@@ -4,11 +4,23 @@ from __future__ import annotations
 
 import inspect
 import json as jsonlib
+import os
 
 import click
 
 from chatvoice import __version__
+from chatvoice.accounts import AccountRuntimeError, create_account, list_accounts
 from chatvoice.asr import get_asr_channels
+from chatvoice.client import (
+    ChatVoiceApiError,
+    create_remote_token,
+    get_remote_conversation,
+    get_remote_meeting,
+    list_remote_conversations,
+    list_remote_meetings,
+    list_remote_tokens,
+    revoke_remote_token,
+)
 from chatvoice.doctor import run_doctor
 from chatvoice.health import get_status
 from chatvoice.paths import ensure_runtime_dirs, state_paths
@@ -99,6 +111,21 @@ def _emit(payload: object, *, as_json: bool = False) -> None:
         click.echo(str(payload))
 
 
+def _env_value(env_name: str, *, label: str) -> str:
+    value = os.getenv(env_name, "")
+    if not value:
+        raise click.ClickException(f"Missing {label}; set environment variable {env_name}")
+    return value
+
+
+def _api_call(func, *args, **kwargs):
+    try:
+        return func(*args, **kwargs)
+    except ChatVoiceApiError as exc:
+        prefix = f"HTTP {exc.status_code}: " if exc.status_code else ""
+        raise click.ClickException(prefix + str(exc)) from exc
+
+
 @click.group(invoke_without_command=True, no_args_is_help=True)
 @click.version_option(__version__, prog_name="chatvoice")
 @click.option("--tree", "show_tree", is_flag=True, is_eager=True, help="Print the registered CLI tree.")
@@ -178,6 +205,149 @@ def asr_channels_command(as_json: bool) -> None:
     """List ASR channels and API-provider readiness."""
 
     _emit(get_asr_channels(), as_json=as_json)
+
+
+@main.group("accounts")
+def accounts_group() -> None:
+    """Manage invited accounts in the local service database."""
+
+
+@accounts_group.command("add")
+@click.argument("account")
+@click.option("--display-name", default=None, help="Optional display name shown in the web UI.")
+@click.option("--password-env", default="CHATVOICE_ACCOUNT_LOGIN", show_default=True, help="Environment variable containing the new account password.")
+@click.option("--json", "as_json", is_flag=True, help="Print JSON output.")
+def account_add_command(account: str, display_name: str | None, password_env: str, as_json: bool) -> None:
+    """Create one invited account from the packaged runtime."""
+
+    password = _env_value(password_env, label="new account password")
+    try:
+        payload = create_account(account, password, display_name)
+    except (AccountRuntimeError, ValueError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    _emit(payload, as_json=as_json)
+
+
+@accounts_group.command("list")
+@click.option("--json", "as_json", is_flag=True, help="Print JSON output.")
+def account_list_command(as_json: bool) -> None:
+    """List invited account metadata without password material."""
+
+    try:
+        payload = {"accounts": list_accounts()}
+    except AccountRuntimeError as exc:
+        raise click.ClickException(str(exc)) from exc
+    _emit(payload, as_json=as_json)
+
+
+@main.group("tokens")
+def tokens_group() -> None:
+    """Manage service API tokens for automation."""
+
+
+@tokens_group.command("create")
+@click.option("--url", default="http://127.0.0.1:18087", show_default=True, help="Base service URL.")
+@click.option("--account", required=True, help="Managed account name or email.")
+@click.option("--password-env", default="CHATVOICE_ACCOUNT_LOGIN", show_default=True, help="Environment variable containing the account password.")
+@click.option("--name", default="cli", show_default=True, help="Human-readable token name.")
+@click.option("--expires-days", type=int, default=None, help="Optional token expiry in days.")
+@click.option("--scope", "scopes", multiple=True, help="Token scope. Repeat for multiple scopes.")
+@click.option("--timeout", default=10.0, show_default=True, type=float, help="HTTP timeout in seconds.")
+@click.option("--json", "as_json", is_flag=True, help="Print JSON output.")
+def token_create_command(url: str, account: str, password_env: str, name: str, expires_days: int | None, scopes: tuple[str, ...], timeout: float, as_json: bool) -> None:
+    """Create a one-time-visible API token after account login."""
+
+    password = _env_value(password_env, label="account password")
+    payload = _api_call(create_remote_token, url, account, password, name, expires_days, scopes, timeout=timeout)
+    _emit(payload, as_json=as_json)
+
+
+@tokens_group.command("list")
+@click.option("--url", default="http://127.0.0.1:18087", show_default=True, help="Base service URL.")
+@click.option("--account", required=True, help="Managed account name or email.")
+@click.option("--password-env", default="CHATVOICE_ACCOUNT_LOGIN", show_default=True, help="Environment variable containing the account password.")
+@click.option("--timeout", default=10.0, show_default=True, type=float, help="HTTP timeout in seconds.")
+@click.option("--json", "as_json", is_flag=True, help="Print JSON output.")
+def token_list_command(url: str, account: str, password_env: str, timeout: float, as_json: bool) -> None:
+    """List API token metadata without revealing token values."""
+
+    password = _env_value(password_env, label="account password")
+    payload = _api_call(list_remote_tokens, url, account, password, timeout=timeout)
+    _emit(payload, as_json=as_json)
+
+
+@tokens_group.command("revoke")
+@click.argument("token_id")
+@click.option("--url", default="http://127.0.0.1:18087", show_default=True, help="Base service URL.")
+@click.option("--account", required=True, help="Managed account name or email.")
+@click.option("--password-env", default="CHATVOICE_ACCOUNT_LOGIN", show_default=True, help="Environment variable containing the account password.")
+@click.option("--timeout", default=10.0, show_default=True, type=float, help="HTTP timeout in seconds.")
+@click.option("--json", "as_json", is_flag=True, help="Print JSON output.")
+def token_revoke_command(token_id: str, url: str, account: str, password_env: str, timeout: float, as_json: bool) -> None:
+    """Revoke an API token by id."""
+
+    password = _env_value(password_env, label="account password")
+    payload = _api_call(revoke_remote_token, url, account, password, token_id, timeout=timeout)
+    _emit(payload, as_json=as_json)
+
+
+@main.group("data")
+def data_group() -> None:
+    """Read meeting and conversation data from a running service."""
+
+
+def _resolved_api_token(token_env: str) -> str:
+    return _env_value(token_env, label="API token")
+
+
+@data_group.command("meetings")
+@click.option("--url", default="http://127.0.0.1:18087", show_default=True, help="Base service URL.")
+@click.option("--token-env", default="CHATVOICE_DATA_READ", show_default=True, help="Environment variable containing the API token.")
+@click.option("--timeout", default=10.0, show_default=True, type=float, help="HTTP timeout in seconds.")
+@click.option("--json", "as_json", is_flag=True, help="Print JSON output.")
+def data_meetings_command(url: str, token_env: str, timeout: float, as_json: bool) -> None:
+    """List meetings including transcripts and summaries."""
+
+    payload = _api_call(list_remote_meetings, url, _resolved_api_token(token_env), timeout=timeout)
+    _emit(payload, as_json=as_json)
+
+
+@data_group.command("meeting")
+@click.argument("meeting_id")
+@click.option("--url", default="http://127.0.0.1:18087", show_default=True, help="Base service URL.")
+@click.option("--token-env", default="CHATVOICE_DATA_READ", show_default=True, help="Environment variable containing the API token.")
+@click.option("--timeout", default=10.0, show_default=True, type=float, help="HTTP timeout in seconds.")
+@click.option("--json", "as_json", is_flag=True, help="Print JSON output.")
+def data_meeting_command(meeting_id: str, url: str, token_env: str, timeout: float, as_json: bool) -> None:
+    """Read one meeting with transcript and summary."""
+
+    payload = _api_call(get_remote_meeting, url, _resolved_api_token(token_env), meeting_id, timeout=timeout)
+    _emit(payload, as_json=as_json)
+
+
+@data_group.command("conversations")
+@click.option("--url", default="http://127.0.0.1:18087", show_default=True, help="Base service URL.")
+@click.option("--token-env", default="CHATVOICE_DATA_READ", show_default=True, help="Environment variable containing the API token.")
+@click.option("--timeout", default=10.0, show_default=True, type=float, help="HTTP timeout in seconds.")
+@click.option("--json", "as_json", is_flag=True, help="Print JSON output.")
+def data_conversations_command(url: str, token_env: str, timeout: float, as_json: bool) -> None:
+    """List realtime conversations including messages."""
+
+    payload = _api_call(list_remote_conversations, url, _resolved_api_token(token_env), timeout=timeout)
+    _emit(payload, as_json=as_json)
+
+
+@data_group.command("conversation")
+@click.argument("conversation_id")
+@click.option("--url", default="http://127.0.0.1:18087", show_default=True, help="Base service URL.")
+@click.option("--token-env", default="CHATVOICE_DATA_READ", show_default=True, help="Environment variable containing the API token.")
+@click.option("--timeout", default=10.0, show_default=True, type=float, help="HTTP timeout in seconds.")
+@click.option("--json", "as_json", is_flag=True, help="Print JSON output.")
+def data_conversation_command(conversation_id: str, url: str, token_env: str, timeout: float, as_json: bool) -> None:
+    """Read one realtime conversation with messages."""
+
+    payload = _api_call(get_remote_conversation, url, _resolved_api_token(token_env), conversation_id, timeout=timeout)
+    _emit(payload, as_json=as_json)
 
 
 @main.group()
