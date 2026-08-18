@@ -1673,8 +1673,14 @@
       return headers;
     }
 
+    function clearApiTokenOutput() {
+      $('api-token-output').value = '';
+      $('api-token-output').hidden = true;
+    }
+
     function renderApiTokens(tokens = []) {
       if (storageMode !== 'account' || !authUser) {
+        clearApiTokenOutput();
         $('api-token-list').innerHTML = '<p>请先登录账号后再管理 API Token。</p>';
         $('create-api-token').disabled = true;
         $('refresh-api-tokens').disabled = true;
@@ -2402,6 +2408,7 @@
     }
 
     async function activateStorageMode(mode, user = null, nextCsrfToken = '') {
+      clearApiTokenOutput();
       clearTimeout(meetingSaveTimer);
       meetingSaveTimer = null;
       clearTimeout(conversationSaveTimer);
@@ -2471,6 +2478,7 @@
         return;
       }
       if (!confirm('退出账号并切换到访客模式？服务器中的会议记录不会被删除。')) return;
+      clearApiTokenOutput();
       try {
         await saveActiveMeeting();
         await saveActiveConversation();
@@ -3365,6 +3373,8 @@
     $('finish-recording').addEventListener('click', () => finishRecording());
     $('reset-recording').addEventListener('click', () => resetSession());
     $('open-settings').addEventListener('click', () => { $('settings-dialog').showModal(); loadApiTokens(); });
+    $('settings-dialog').addEventListener('close', () => clearApiTokenOutput());
+    $('settings-dialog').addEventListener('cancel', (event) => { clearApiTokenOutput(); });
     $('create-api-token').addEventListener('click', createApiToken);
     $('refresh-api-tokens').addEventListener('click', loadApiTokens);
     $('api-token-list').addEventListener('click', (event) => {

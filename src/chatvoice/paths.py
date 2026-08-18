@@ -31,11 +31,12 @@ def _expand_path(value: str | Path) -> Path:
 def state_root(*, chatarch_home: str | Path | None = None, chatvoice_home: str | Path | None = None) -> Path:
     """Return the ChatVoice state root.
 
-    Precedence is explicit ``chatvoice_home`` > ``CHATVOICE_HOME`` >
-    explicit/ENV ``CHATARCH_HOME`` + ``chatvoice`` > ``~/.chatarch/chatvoice``.
+    Precedence is explicit ``chatvoice_home`` > ``CHATVOICE_RUNTIME_ROOT`` >
+    ``CHATVOICE_HOME`` > explicit/ENV ``CHATARCH_HOME`` + ``chatvoice`` >
+    ``~/.chatarch/chatvoice``.
     """
 
-    explicit_chatvoice = chatvoice_home or os.getenv("CHATVOICE_HOME", "").strip()
+    explicit_chatvoice = chatvoice_home or os.getenv("CHATVOICE_RUNTIME_ROOT", "").strip() or os.getenv("CHATVOICE_HOME", "").strip()
     if explicit_chatvoice:
         return _expand_path(explicit_chatvoice)
     home = chatarch_home or os.getenv("CHATARCH_HOME", "").strip() or (Path.home() / ".chatarch")
@@ -54,7 +55,11 @@ def state_paths(*, chatarch_home: str | Path | None = None, chatvoice_home: str 
         run_dir=root / "run",
         temp_dir=root / "temp",
         model_cache_dir=root / "model-cache",
-        database_path=Path(os.getenv("MEETING_DB_PATH", "").strip() or data_dir / "meetings.sqlite3").expanduser(),
+        database_path=Path(
+            os.getenv("MEETING_DB_PATH", "").strip()
+            or os.getenv("CHATVOICE_SQLITE_PATH", "").strip()
+            or data_dir / "meetings.sqlite3"
+        ).expanduser(),
     )
 
 
@@ -71,7 +76,7 @@ def ensure_runtime_dirs(paths: RuntimePaths | None = None) -> RuntimePaths:
 def database_settings() -> dict[str, object]:
     """Return a sanitized database configuration summary.
 
-    ChatVoice v0.1.0 ships the Speakr storage layer on SQLite WAL for a single
+    ChatVoice v0.1.1 ships the Speakr storage layer on SQLite WAL for a single
     service node. External SQL URLs are detected and reported as the production
     concurrency direction, but the packaged legacy web app fails closed unless a
     SQLite path is used.
@@ -104,7 +109,7 @@ def database_settings() -> dict[str, object]:
             "SQLite WAL is suitable for one ChatVoice service process and light concurrency. "
             "Use a single service node or migrate the storage layer before high-concurrency multi-worker deployment."
             if supported
-            else "External DB URL detected; provider/API architecture supports this deployment direction, but v0.1.0 web storage still needs the SQL repository migration before use."
+            else "External DB URL detected; provider/API architecture supports this deployment direction, but v0.1.1 web storage still needs the SQL repository migration before use."
         ),
     }
 

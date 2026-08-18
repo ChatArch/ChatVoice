@@ -27,7 +27,7 @@ Documentation entry: <https://arch.gh.wzhecnu.cn/ChatVoice/en/>
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "ChatVoice[web]==0.1.0"
+python -m pip install "ChatVoice[web]==0.1.1"
 
 chatvoice --tree
 chatvoice service plan --ensure-dirs --json
@@ -73,7 +73,7 @@ Production ASR should run as an API provider. The provider can be a managed API 
 
 ```bash
 export CHATVOICE_ASR_CHANNEL=api-server
-<ASR_API_URL_SETTING>="https://<asr-service>/v1/transcribe"
+export CHATVOICE_ASR_API_URL="https://<asr-service>/v1/transcribe"
 # Configure the optional ASR bearer token in server-side config/env storage; do not put it in argv.
 chatvoice serve app --host 127.0.0.1 --port 18087
 ```
@@ -87,15 +87,17 @@ chatvoice serve app --host 127.0.0.1 --port 18087
 
 `funasr-gpu` and `funasr-cpu` remain compatibility channels, but the recommended production boundary is to keep GPU runtime behind an ASR API server and let ChatVoice call it over HTTP.
 
+Meeting summary generation is also a server-side model boundary: configure the notes model/provider in server-side environment or config storage, and let the browser/API read only the saved summary text.
+
 ## Database and concurrency
 
-v0.1.0 defaults to SQLite WAL under:
+v0.1.1 defaults to SQLite WAL under:
 
 ```text
 <chatarch-home>/chatvoice/data/meetings.sqlite3
 ```
 
-Use one service process with SQLite (`--workers 1`). High-concurrency production should migrate the storage layer to Postgres/MySQL before scaling workers or nodes. An external database URL setting is detected in `chatvoice doctor` / `chatvoice service plan`, but the v0.1.0 packaged legacy storage layer still supports SQLite only.
+Use one service process with SQLite (`--workers 1`). High-concurrency production should migrate the storage layer to Postgres/MySQL before scaling workers or nodes. An external database URL setting is detected in `chatvoice doctor` / `chatvoice service plan`, but the v0.1.1 packaged legacy storage layer still supports SQLite only.
 
 ## CLI contract
 

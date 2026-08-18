@@ -306,7 +306,7 @@ def _resolved_api_token(token_env: str) -> str:
 @click.option("--timeout", default=10.0, show_default=True, type=float, help="HTTP timeout in seconds.")
 @click.option("--json", "as_json", is_flag=True, help="Print JSON output.")
 def data_meetings_command(url: str, token_env: str, timeout: float, as_json: bool) -> None:
-    """List meetings including transcripts and summaries."""
+    """List meeting metadata; use data meeting for transcript and summary."""
 
     payload = _api_call(list_remote_meetings, url, _resolved_api_token(token_env), timeout=timeout)
     _emit(payload, as_json=as_json)
@@ -331,7 +331,7 @@ def data_meeting_command(meeting_id: str, url: str, token_env: str, timeout: flo
 @click.option("--timeout", default=10.0, show_default=True, type=float, help="HTTP timeout in seconds.")
 @click.option("--json", "as_json", is_flag=True, help="Print JSON output.")
 def data_conversations_command(url: str, token_env: str, timeout: float, as_json: bool) -> None:
-    """List realtime conversations including messages."""
+    """List realtime conversation metadata; use data conversation for messages."""
 
     payload = _api_call(list_remote_conversations, url, _resolved_api_token(token_env), timeout=timeout)
     _emit(payload, as_json=as_json)

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.1 - 2026-08-18
+
+### Fixed
+
+- Reject explicit empty API-token scope lists instead of silently granting the default read scopes; omitted `scopes` still receives the default `read:meetings` and `read:conversations` scopes.
+- Keep list data endpoints metadata-only; meeting/conversation detail endpoints return transcripts, summaries, and messages.
+- Clear one-time token values from the web settings DOM on unauthenticated render, mode switch, dialog close/cancel, and logout.
+- Align `chatvoice.paths`, `chatvoice accounts`, and the packaged web app on `CHATVOICE_RUNTIME_ROOT`, `CHATVOICE_HOME`, `CHATARCH_HOME`, `MEETING_DB_PATH`, and `CHATVOICE_SQLITE_PATH` resolution.
+- Update public install/docs examples to `ChatVoice[web]==0.1.1` and replace ASR URL placeholders with executable `CHATVOICE_ASR_API_URL` setup.
+
 ## 0.1.0 - 2026-08-18
 
 ### Added

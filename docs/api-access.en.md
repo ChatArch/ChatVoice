@@ -20,7 +20,7 @@ Install and start the service:
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "ChatVoice[web]==0.1.0"
+python -m pip install "ChatVoice[web]==0.1.1"
 chatvoice service plan --ensure-dirs --json
 export CHATVOICE_ASR_CHANNEL=stub-local
 chatvoice serve app --host 127.0.0.1 --port 18087
@@ -79,6 +79,8 @@ GET /api/data/conversations
 GET /api/data/conversations/{conversation_id}
 ```
 
+List endpoints return metadata / preview only. Detail endpoints return meeting transcripts, summaries, or realtime conversation messages so routine polling does not dump full text into logs.
+
 Requests need:
 
 ```text
@@ -96,7 +98,8 @@ read:conversations
 
 Boundaries:
 
-- API tokens read data only; they cannot write meetings, edit summaries, or manage accounts.
-- Revoked or expired tokens fail immediately.
-- Data-read endpoints return transcript and summary text; do not paste output into public logs or PRs.
+- API tokens are read-only; they cannot write meetings, edit summaries, or manage accounts.
+- Omitting `scopes` during token creation uses the two default read scopes; explicitly passing an empty scope list is rejected.
+- Revoked or expired tokens stop working immediately.
+- Detail data-read endpoints return transcript text and summary content; do not paste outputs into public logs or PRs.
 - Raw recording files still do not enter the backend database and are not returned by these data APIs.

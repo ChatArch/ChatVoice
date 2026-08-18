@@ -20,7 +20,7 @@ Documentation entry: <https://arch.gh.wzhecnu.cn/ChatVoice/en/>
 
 - **Deployment and Startup**
 
-    From `pip install "ChatVoice[web]==0.1.0"` to `chatvoice serve app`, including runtime paths, account provisioning, ASR API provider wiring, and database concurrency boundaries.
+    From `python -m pip install "ChatVoice[web]==0.1.1"` to `chatvoice serve app`, including runtime paths, account provisioning, ASR API provider wiring, and database concurrency boundaries.
 
     [Read deployment guide](deployment.md)
 
@@ -50,14 +50,14 @@ Documentation entry: <https://arch.gh.wzhecnu.cn/ChatVoice/en/>
 
 </div>
 
-## v0.1.0 deployment boundary
+## v0.1.1 deployment boundary
 
 - The packaged FastAPI app starts with `chatvoice serve app`.
 - Fresh start can create invited accounts with `chatvoice accounts add`; no source-tree script is required.
 - Signed-in users can create API tokens in the web UI; the CLI can use tokens to read meetings, summaries, and realtime conversations.
 - Production ASR should use `api-server` against a managed API or self-hosted GPU ASR server.
 - `stub-local` is only for credential-free / GPU-free contract smoke.
-- v0.1.0 defaults to SQLite WAL for one service process and light concurrency; high-concurrency storage migration needs a separate release.
+- v0.1.1 defaults to SQLite WAL for one service process and light concurrency; high-concurrency storage migration needs a separate release.
 
 ## Preview docs locally
 
