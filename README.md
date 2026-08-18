@@ -43,7 +43,7 @@ The former `qwen-audio-demo.public.wzhecnu.cn` entry is retired and returns HTTP
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "ChatVoice[web]==0.1.1"
+python -m pip install "ChatVoice[web]==0.1.2"
 
 chatvoice --tree
 chatvoice service plan --ensure-dirs --json
@@ -111,13 +111,29 @@ chatvoice data conversations --url http://127.0.0.1:18087 --token-env CHATVOICE_
 
 ## Database and concurrency
 
-The packaged v0.1.1 web app defaults to SQLite WAL at:
+The packaged v0.1.2 web app defaults to SQLite WAL at:
 
 ```text
 <chatarch-home>/chatvoice/data/meetings.sqlite3
 ```
 
-Use one service process (`--workers 1`) with SQLite. For high-concurrency production, migrate the storage layer to Postgres/MySQL before scaling workers or nodes. An external database URL setting is detected by `chatvoice doctor` / `chatvoice service plan`, but the v0.1.1 packaged legacy storage layer still supports SQLite only.
+Use one service process (`--workers 1`) with SQLite. For high-concurrency production, migrate the storage layer to Postgres/MySQL before scaling workers or nodes. An external database URL setting is detected by `chatvoice doctor` / `chatvoice service plan`, but the v0.1.2 packaged legacy storage layer still supports SQLite only.
+
+
+## 运行目录与数据结构
+
+`pip install` 后代码安装在当前 Python 环境的 `site-packages/chatvoice/`，CLI 在对应环境的 `bin/chatvoice`；生产建议使用独立 venv。运行数据不写入源码目录，默认 root 解析顺序是 `CHATVOICE_RUNTIME_ROOT`、`CHATVOICE_HOME`、`CHATARCH_HOME/chatvoice`、`~/.chatarch/chatvoice`。默认结构：
+
+```text
+~/.chatarch/chatvoice/
+├── data/meetings.sqlite3
+├── logs/
+├── run/
+├── temp/asr/
+└── model-cache/
+```
+
+后端 SQLite `meetings.sqlite3` 目前包含 `accounts`、`auth_sessions`、`api_tokens`、`meeting_records`、`conversation_records`。转写、summary、实时对话消息以 JSON 字符串保存；原始音频不进后端数据库。访客模式仍使用浏览器 IndexedDB 保存本地会议和录音分片。高并发 Postgres/MySQL 迁移列入 TODO，当前 `0.1.2` 仍只支持 SQLite WAL + 单服务进程。详见 [运行目录与数据结构](docs/runtime-layout.md)。
 
 ## API surface
 

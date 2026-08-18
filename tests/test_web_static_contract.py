@@ -50,3 +50,25 @@ def test_one_time_api_token_value_is_cleared_when_settings_panel_closes_or_logou
 
     logout_body = _function_body(source, "handleAccountAction")
     assert "clearApiTokenOutput()" in logout_body
+
+
+def test_settings_panel_surfaces_server_side_api_key_status_without_browser_secret_inputs():
+    source = _script_source()
+    settings_markup = source[source.index('<dialog id="settings-dialog">'):source.index('<dialog id="entry-dialog"')]
+
+    assert "api-key-config-title" in settings_markup
+    assert "服务端 API Key" in settings_markup
+    assert "CHATVOICE_ASR_API_KEY" in settings_markup
+    assert "DASHSCOPE_API_KEY" in settings_markup
+    assert "api-key-status-list" in settings_markup
+    assert "type=\"password\"" not in settings_markup
+
+    assert "function renderServerKeyStatus" in source
+    status_body = _function_body(source, "renderServerKeyStatus")
+    assert "api_keys" in status_body
+    assert "asr_api_key_configured" in status_body
+    assert "model_api_key_configured" in status_body
+    assert "voice_cloning_key_configured" in status_body
+
+    refresh_body = _function_body(source, "refreshStatus")
+    assert "renderServerKeyStatus" in refresh_body
