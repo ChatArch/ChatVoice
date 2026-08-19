@@ -10,6 +10,7 @@ def test_packaged_web_app_factory_exposes_core_routes(monkeypatch, tmp_path):
     assert app.title == "ChatVoice Speakr"
     assert "/" in paths
     assert "/api/status" in paths
+    assert "/api/heartbeat" in paths
     assert "/api/asr/channels" in paths
     assert "/api/asr" in paths
     assert "/api/tokens" in paths
@@ -49,5 +50,76 @@ def test_status_exposes_sanitized_server_side_api_key_configuration(monkeypatch,
         assert payload["asr_api"]["api_key_configured"] is True
         assert "secret-asr-key" not in response.text
         assert "secret-model-key" not in response.text
+    finally:
+        sys.modules.pop(module_name, None)
+
+
+def test_heartbeat_exposes_asr_health_without_secret_values(monkeypatch, tmp_path):
+    import importlib
+    import sys
+
+    module_name = "chatvoice.web.legacy_app"
+    sys.modules.pop(module_name, None)
+    monkeypatch.setenv("CHATVOICE_HOME", str(tmp_path / "chatvoice-home"))
+    monkeypatch.setenv("CHATVOICE_ASR_CHANNEL", "stub-local")
+    monkeypatch.setenv("DASHSCOPE_API_KEY", "secret-model-key")
+    (tmp_path / "chatvoice-home" / "data").mkdir(parents=True)
+    try:
+        legacy_app = importlib.import_module(module_name)
+        from fastapi.testclient import TestClient
+
+        client = TestClient(legacy_app.app)
+        response = client.get("/api/heartbeat")
+        payload = response.json()
+
+        assert response.status_code == 200
+        assert payload["ok"] is True
+        assert payload["service"] == "chatvoice"
+        assert payload["version"] == "0.1.3"
+        assert payload["database"]["ok"] is True
+        assert payload["asr"]["default_channel"] == "stub-local"
+        assert payload["asr"]["status"] == "ready"
+        assert "secret-model-key" not in response.text
+    finally:
+        sys.modules.pop(module_name, None)
+
+
+def test_asr_upload_updates_heartbeat_recent_success(monkeypatch, tmp_path):
+    import importlib
+    import io
+    import sys
+    import wave
+
+    module_name = "chatvoice.web.legacy_app"
+    sys.modules.pop(module_name, None)
+    monkeypatch.setenv("CHATVOICE_HOME", str(tmp_path / "chatvoice-home"))
+    monkeypatch.setenv("CHATVOICE_ASR_CHANNEL", "stub-local")
+    (tmp_path / "chatvoice-home" / "data").mkdir(parents=True)
+    try:
+        legacy_app = importlib.import_module(module_name)
+        from fastapi.testclient import TestClient
+
+        client = TestClient(legacy_app.app)
+        audio = io.BytesIO()
+        with wave.open(audio, "wb") as wav:
+            wav.setnchannels(1)
+            wav.setsampwidth(2)
+            wav.setframerate(16000)
+            wav.writeframes(b"\x00\x00" * 800)
+
+        response = client.post(
+            "/api/asr",
+            data={"channel": "stub-local", "correct": "true"},
+            files={"file": ("smoke.wav", audio.getvalue(), "audio/wav")},
+        )
+        assert response.status_code == 200
+
+        heartbeat = client.get("/api/heartbeat").json()
+        recent = heartbeat["asr"]["recent"]
+        assert heartbeat["asr"]["status"] == "ready"
+        assert recent["last_channel"] == "stub-local"
+        assert recent["last_success_at"]
+        assert recent["last_text_chars"] > 0
+        assert recent["last_error_type"] is None
     finally:
         sys.modules.pop(module_name, None)

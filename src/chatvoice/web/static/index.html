@@ -452,6 +452,7 @@
     .api-key-status-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 8px; border-radius: 9px; background: #fff; color: #666871; font-size: 9px; list-style: none; }
     .api-key-status-list b { color: #a35b00; }
     .api-key-status-list b.ready { color: #22824f; }
+    .asr-health-message { margin: 6px 0 0; color: var(--muted); font-size: 9px; line-height: 1.55; }
 
     #entry-dialog { width: min(720px, calc(100vw - 32px)); }
     #entry-dialog[open] { animation: fade-in .2s ease; }
@@ -924,6 +925,15 @@
           <li><span>ASR API Key</span><b>读取中…</b></li>
           <li><span>摘要/实时模型 Key</span><b>读取中…</b></li>
           <li><span>声音复刻 Key</span><b>读取中…</b></li>
+        </ul>
+      </section>
+      <section class="api-key-config" aria-labelledby="asr-health-title">
+        <h3 id="asr-health-title">识别服务心跳</h3>
+        <p class="asr-health-message" id="asr-health-message">正在读取后端 heartbeat…</p>
+        <ul class="api-key-status-list" id="asr-health-status-list">
+          <li><span>Web 服务</span><b>读取中…</b></li>
+          <li><span>ASR 通道</span><b>读取中…</b></li>
+          <li><span>最近识别</span><b>读取中…</b></li>
         </ul>
       </section>
       <section class="token-panel" aria-labelledby="api-token-title">
@@ -1657,6 +1667,42 @@
       $('api-key-status-list').innerHTML = rows.map(([label, ready, note]) => `
         <li><span>${escapeHtml(label)}<small> · ${escapeHtml(note)}</small></span><b class="${ready ? 'ready' : ''}">${ready ? '已配置' : '未配置'}</b></li>
       `).join('');
+    }
+
+    function renderAsrHealthStatus(heartbeat) {
+      heartbeat = heartbeat || {};
+      const asr = heartbeat.asr || heartbeat.asr_health || {};
+      const recent = asr.recent || {};
+      const serviceOk = heartbeat.ok !== false;
+      const processing = asr.status === 'processing' || Number(recent.inflight || 0) > 0;
+      const degraded = asr.status === 'degraded';
+      const rows = [
+        ['Web 服务', serviceOk, serviceOk ? `已运行 ${Math.max(0, Math.round(Number(heartbeat.uptime_seconds || 0)))} 秒` : 'heartbeat 异常'],
+        ['ASR 通道', !degraded, `${asr.default_channel || 'unknown'} · ${asr.funasr_model_warm ? '模型已热' : '模型待加载/冷启动'}`],
+        ['最近识别', !degraded, processing ? '正在处理音频' : recent.last_success_at ? `${recent.last_elapsed_ms || 0}ms · ${recent.last_text_chars || 0} 字` : '暂无识别记录'],
+      ];
+      $('asr-health-status-list').innerHTML = rows.map(([label, ready, note]) => `
+        <li><span>${escapeHtml(label)}<small> · ${escapeHtml(String(note || ''))}</small></span><b class="${ready ? 'ready' : ''}">${ready ? '正常' : '异常'}</b></li>
+      `).join('');
+      $('asr-health-message').textContent = degraded
+        ? `最近识别异常：${recent.last_error_type || 'Error'}。${recent.last_error_message || '请重试或切换通道。'}`
+        : processing
+        ? '识别服务正在处理音频；如果是首次使用 GPU 模型，加载可能需要约 1 分钟。'
+        : asr.user_message || '识别服务 heartbeat 正常。';
+    }
+
+    async function refreshHeartbeat({ quiet = true } = {}) {
+      try {
+        const response = await fetch('/api/heartbeat', { cache: 'no-store' });
+        const heartbeat = await response.json();
+        renderAsrHealthStatus(heartbeat);
+        if (!heartbeat.ok && !quiet) showToast('识别服务 heartbeat 异常，请稍后重试');
+        return heartbeat;
+      } catch (error) {
+        renderAsrHealthStatus({ ok: false, asr: { status: 'degraded', recent: { last_error_type: 'HeartbeatError', last_error_message: '无法读取 /api/heartbeat' } } });
+        if (!quiet) showToast('无法读取识别服务 heartbeat');
+        return null;
+      }
     }
 
     async function createClonedVoice() {
@@ -2933,12 +2979,23 @@
         } else {
           $('latency-label').textContent = '该分片未检测到语音';
         }
+        refreshHeartbeat();
+      } else if (payload.demo_event === 'asr.stream.processing' || payload.demo_event === 'asr.stream.heartbeat') {
+        const elapsed = Math.round(Number(payload.elapsed_ms || 0) / 1000);
+        const warmHint = payload.model_warm === false ? '首次加载模型中' : '识别处理中';
+        const chunk = payload.chunk_index ? `第 ${payload.chunk_index} 段` : '当前片段';
+        $('latency-label').textContent = payload.demo_event === 'asr.stream.heartbeat' && elapsed > 0
+          ? `${chunk} ${warmHint} · ${elapsed}s`
+          : `${chunk} ${warmHint}`;
+        $('status-message').textContent = payload.message || '识别服务正在处理音频…';
+        if (payload.asr_health) renderAsrHealthStatus({ ok: true, asr: payload.asr_health });
       } else if (payload.demo_event === 'asr.stream.backpressure') {
         $('latency-label').textContent = '识别服务正在追赶';
       } else if (payload.demo_event === 'asr.stream.error') {
         stopTimer();
         if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
         stopCaptureGraph();
+        if (payload.asr_health) renderAsrHealthStatus({ ok: false, asr: payload.asr_health });
         updateRecorderUi('error', payload.message || '实时转写失败，可重新开始');
       } else if (payload.demo_event === 'asr.stream.done') {
         if (payload.final === false) {
@@ -3288,6 +3345,8 @@
         const status = await response.json();
         configureVoiceCloning(status.voice_cloning_configured);
         renderServerKeyStatus(status);
+        renderAsrHealthStatus({ ok: true, asr: status.asr_health || {} });
+        refreshHeartbeat();
         const channelsResponse = await fetch('/api/asr/channels');
         const channelsData = await channelsResponse.json();
         if (Number(channelsData.stream_policy && channelsData.stream_policy.max_connection_seconds) > 0) {
@@ -3310,6 +3369,7 @@
       } catch (_) {
         configureVoiceCloning(false);
         renderServerKeyStatus({});
+        renderAsrHealthStatus({ ok: false, asr: { status: 'degraded', recent: { last_error_type: 'StatusError', last_error_message: '服务状态不可用' } } });
         $('service-state').className = 'service-state error';
         $('service-state').querySelector('span').textContent = '服务状态不可用';
       }
@@ -3523,6 +3583,7 @@
     setRealtimeState('idle');
     renderTranscript();
     refreshStatus();
+    setInterval(() => refreshHeartbeat(), 15000);
     loadRealtimeModels();
     bootstrapAccess();
   </script>

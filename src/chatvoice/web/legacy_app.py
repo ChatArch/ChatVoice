@@ -21,7 +21,7 @@ import time
 import urllib.error
 import urllib.request
 import wave
-from contextlib import closing
+from contextlib import closing, suppress
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -33,6 +33,7 @@ from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, Web
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
 
+from chatvoice import __version__
 from chatvoice.paths import state_paths
 from pydantic import BaseModel, Field
 
@@ -73,6 +74,8 @@ GUEST_ASR_STREAM_SECONDS = 10 * 60
 ACCOUNT_ASR_STREAM_SECONDS = 2 * 60 * 60
 MAX_ASR_STREAM_CHUNKS_PER_RECEIVE = 2
 MAX_ASR_STREAM_CHUNKS_PER_CONNECTION = 20_000
+SERVICE_STARTED_AT = time.time()
+SERVICE_STARTED_MONOTONIC = time.monotonic()
 ASR_CHANNELS: dict[str, dict[str, Any]] = {
     "api-server": {
         "label": "ASR API Server / managed API",
@@ -106,11 +109,23 @@ ASR_CHANNELS: dict[str, dict[str, Any]] = {
     },
 }
 
-app = FastAPI(title="ChatVoice Speakr", version="0.1.2")
+app = FastAPI(title="ChatVoice Speakr", version="0.1.3")
 logger = logging.getLogger("chatvoice")
 _FUNASR_MODELS: dict[tuple[str, str], Any] = {}
 _FUNASR_MODEL_LOCKS: dict[tuple[str, str], threading.Lock] = {}
 _FUNASR_CACHE_LOCK = threading.Lock()
+_ASR_HEALTH_LOCK = threading.Lock()
+_ASR_HEALTH: dict[str, Any] = {
+    "inflight": 0,
+    "last_started_at": None,
+    "last_success_at": None,
+    "last_error_at": None,
+    "last_channel": None,
+    "last_elapsed_ms": None,
+    "last_text_chars": None,
+    "last_error_type": None,
+    "last_error_message": None,
+}
 MEETING_DB_PATH = _RUNTIME_PATHS.database_path
 _MEETING_DB_LOCK = threading.Lock()
 AUTH_COOKIE_NAME = "meeting_session"
@@ -262,6 +277,84 @@ def _meeting_title_model(req_model: str | None = None) -> str:
     return req_model or os.getenv("QWEN_MEETING_TITLE_MODEL") or MEETING_TITLE_MODEL
 
 
+def _utc_timestamp(epoch: float | None = None) -> str:
+    return datetime.fromtimestamp(epoch or time.time(), tz=timezone.utc).isoformat()
+
+
+def _record_asr_started(channel: str) -> None:
+    with _ASR_HEALTH_LOCK:
+        _ASR_HEALTH["inflight"] = int(_ASR_HEALTH.get("inflight") or 0) + 1
+        _ASR_HEALTH["last_started_at"] = _utc_timestamp()
+        _ASR_HEALTH["last_channel"] = channel
+
+
+def _record_asr_success(channel: str, elapsed_ms: int, text_chars: int) -> None:
+    with _ASR_HEALTH_LOCK:
+        _ASR_HEALTH["inflight"] = max(0, int(_ASR_HEALTH.get("inflight") or 0) - 1)
+        _ASR_HEALTH["last_success_at"] = _utc_timestamp()
+        _ASR_HEALTH["last_channel"] = channel
+        _ASR_HEALTH["last_elapsed_ms"] = elapsed_ms
+        _ASR_HEALTH["last_text_chars"] = text_chars
+        _ASR_HEALTH["last_error_type"] = None
+        _ASR_HEALTH["last_error_message"] = None
+
+
+def _record_asr_error(channel: str, exc: Exception) -> None:
+    with _ASR_HEALTH_LOCK:
+        _ASR_HEALTH["inflight"] = max(0, int(_ASR_HEALTH.get("inflight") or 0) - 1)
+        _ASR_HEALTH["last_error_at"] = _utc_timestamp()
+        _ASR_HEALTH["last_channel"] = channel
+        _ASR_HEALTH["last_error_type"] = type(exc).__name__
+        _ASR_HEALTH["last_error_message"] = str(exc)[:220]
+
+
+def _asr_health_summary() -> dict[str, Any]:
+    with _FUNASR_CACHE_LOCK:
+        warm_models = [f"{model}@{device}" for model, device in _FUNASR_MODELS]
+    with _ASR_HEALTH_LOCK:
+        recent = dict(_ASR_HEALTH)
+    last_error_at = recent.get("last_error_at")
+    last_success_at = recent.get("last_success_at")
+    if recent.get("inflight"):
+        status = "processing"
+    elif last_error_at and (not last_success_at or str(last_error_at) > str(last_success_at)):
+        status = "degraded"
+    else:
+        status = "ready"
+    return {
+        "status": status,
+        "default_channel": DEFAULT_ASR_CHANNEL,
+        "model": FUNASR_MODEL,
+        "device": FUNASR_GPU_DEVICE,
+        "funasr_model_warm": any(item.endswith("@" + FUNASR_GPU_DEVICE) for item in warm_models),
+        "warm_models": warm_models,
+        "recent": recent,
+        "channels": ASR_CHANNELS,
+        "user_message": (
+            "ASR is currently processing audio. First GPU model warm-up can take about a minute."
+            if status == "processing"
+            else "ASR recently failed; check last_error_type/message."
+            if status == "degraded"
+            else "ASR is ready."
+        ),
+    }
+
+
+def _database_health_summary() -> dict[str, Any]:
+    if not MEETING_DB_PATH.exists():
+        parent_ready = MEETING_DB_PATH.parent.exists() and os.access(MEETING_DB_PATH.parent, os.W_OK)
+        return {"ok": parent_ready, "status": "not-yet-created", "path": str(MEETING_DB_PATH)}
+    try:
+        connection = sqlite3.connect(f"file:{MEETING_DB_PATH}?mode=ro", uri=True, timeout=2)
+        try:
+            connection.execute("SELECT 1").fetchone()
+        finally:
+            connection.close()
+    except Exception as exc:
+        return {"ok": False, "status": "error", "error_type": type(exc).__name__, "message": str(exc)[:180]}
+    return {"ok": True, "status": "ready", "path": str(MEETING_DB_PATH)}
+
+
 def _safe_profile_summary() -> dict[str, Any]:
     profile = _read_profile()
     key = profile.get("OPENAI_API_KEY") or profile.get("DASHSCOPE_API_KEY") or ""
@@ -291,6 +384,7 @@ def _safe_profile_summary() -> dict[str, Any]:
         "realtime_model": REALTIME_MODEL,
         "asr_channels": ASR_CHANNELS,
         "asr_default_channel": DEFAULT_ASR_CHANNEL,
+        "asr_health": _asr_health_summary(),
         "asr_contract": "multi-channel raw_text + corrected_text + public-board event",
         "tts_websocket_url_shape": TOKEN_PLAN_TTS_WS.replace("token-plan.cn-beijing.maas.aliyuncs.com", "[HOST]"),
         "realtime_websocket_url_shape": (TOKEN_PLAN_REALTIME_WS + "?model=" + REALTIME_MODEL).replace(
@@ -373,6 +467,24 @@ def status() -> JSONResponse:
         result["models_ok"] = False
         result["models_error"] = type(exc).__name__ + ": " + str(exc)[:300]
     return JSONResponse(result)
+
+
+@app.get("/api/heartbeat")
+def heartbeat() -> JSONResponse:
+    database = _database_health_summary()
+    asr = _asr_health_summary()
+    ok = bool(database.get("ok")) and asr.get("status") in {"ready", "processing"}
+    return JSONResponse(
+        {
+            "ok": ok,
+            "service": "chatvoice",
+            "version": __version__,
+            "timestamp": _utc_timestamp(),
+            "uptime_seconds": round(time.monotonic() - SERVICE_STARTED_MONOTONIC, 3),
+            "database": database,
+            "asr": asr,
+        }
+    )
 
 
 @app.get("/api/realtime/models")
@@ -1549,7 +1661,7 @@ def _api_server_asr(audio_bytes: bytes, filename: str) -> dict[str, Any]:
     headers = {
         "Accept": "application/json",
         "Content-Type": f"multipart/form-data; boundary={boundary}",
-        "User-Agent": "ChatVoice/0.1.2 ASR API client",
+        "User-Agent": "ChatVoice/0.1.3 ASR API client",
     }
     if ASR_API_KEY:
         headers["Authorization"] = f"Bearer {ASR_API_KEY}"
@@ -1746,8 +1858,32 @@ class AsrStreamSession:
         self.window_index += 1
 
 
+async def _send_asr_processing_heartbeat(
+    client: WebSocket,
+    session: AsrStreamSession,
+    index: int,
+    started: float,
+    final: bool,
+) -> None:
+    while True:
+        await asyncio.sleep(8)
+        await client.send_json(
+            {
+                "demo_event": "asr.stream.heartbeat",
+                "channel": session.channel,
+                "chunk_index": index,
+                "final": final,
+                "elapsed_ms": round((time.monotonic() - started) * 1000),
+                "asr_health": _asr_health_summary(),
+                "message": "识别仍在处理；首次 GPU 模型加载可能需要约 1 分钟。",
+            }
+        )
+
+
 async def _send_asr_stream_result(client: WebSocket, session: AsrStreamSession, index: int, wav_bytes: bytes, final: bool = False) -> None:
     started = time.monotonic()
+    heartbeat_task: asyncio.Task[None] | None = None
+    _record_asr_started(session.channel)
     logger.info(
         "ASR stream chunk started channel=%s index=%d audio_bytes=%d final=%s",
         session.channel,
@@ -1755,7 +1891,38 @@ async def _send_asr_stream_result(client: WebSocket, session: AsrStreamSession, 
         len(wav_bytes),
         final,
     )
-    result = await asyncio.to_thread(transcribe_audio_bytes, session.channel, wav_bytes, f"stream-chunk-{index}.wav", True)
+    try:
+        asr_health = _asr_health_summary()
+        await client.send_json(
+            {
+                "demo_event": "asr.stream.processing",
+                "channel": session.channel,
+                "chunk_index": index,
+                "final": final,
+                "audio_bytes": len(wav_bytes),
+                "model_warm": asr_health.get("funasr_model_warm"),
+                "message": "首次加载识别模型中，可能需要约 1 分钟。" if not asr_health.get("funasr_model_warm") else "正在识别音频片段…",
+            }
+        )
+        heartbeat_task = asyncio.create_task(_send_asr_processing_heartbeat(client, session, index, started, final))
+        result = await asyncio.to_thread(transcribe_audio_bytes, session.channel, wav_bytes, f"stream-chunk-{index}.wav", True)
+    except Exception as exc:
+        _record_asr_error(session.channel, exc)
+        with suppress(Exception):
+            await client.send_json(
+                {
+                    "demo_event": "asr.stream.error",
+                    "error_type": type(exc).__name__,
+                    "message": f"识别服务异常：{type(exc).__name__}。请稍后重试或切换 ASR 通道。",
+                    "asr_health": _asr_health_summary(),
+                }
+            )
+        raise
+    finally:
+        if heartbeat_task is not None:
+            heartbeat_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await heartbeat_task
     result["stream"] = {
         "chunk_index": index,
         "revision": index,
@@ -1768,13 +1935,15 @@ async def _send_asr_stream_result(client: WebSocket, session: AsrStreamSession, 
     result["board_event"]["phase"] = "final" if final else "partial"
     result["board_event"]["source_type"] = f"asr.stream.{session.channel}"
     result["board_event"]["item_id"] = f"asr-stream-{index}"
+    elapsed_ms = round((time.monotonic() - started) * 1000)
+    _record_asr_success(session.channel, elapsed_ms, len(str(result.get("corrected_text") or "")))
     await client.send_json({"demo_event": "asr.stream.result", "result": result, "board_event": result["board_event"]})
     logger.info(
         "ASR stream chunk completed channel=%s index=%d text_chars=%d elapsed_ms=%d final=%s",
         session.channel,
         index,
         len(str(result.get("corrected_text") or "")),
-        round((time.monotonic() - started) * 1000),
+        elapsed_ms,
         final,
     )
 
@@ -1947,13 +2116,18 @@ async def asr_upload(
     channel: str = Form(DEFAULT_ASR_CHANNEL),
     correct: bool = Form(True),
 ) -> JSONResponse:
+    started = time.monotonic()
+    _record_asr_started(channel)
     try:
         audio_bytes = await file.read()
         result = await asyncio.to_thread(transcribe_audio_bytes, channel, audio_bytes, file.filename or "audio.wav", correct)
     except ValueError as exc:
+        _record_asr_error(channel, exc)
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
+        _record_asr_error(channel, exc)
         raise HTTPException(status_code=502, detail={"error_type": type(exc).__name__, "message": str(exc)[:700]}) from exc
+    _record_asr_success(channel, round((time.monotonic() - started) * 1000), len(str(result.get("corrected_text") or "")))
     return JSONResponse(result)
 
 

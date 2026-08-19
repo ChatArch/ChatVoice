@@ -43,7 +43,7 @@ The former `qwen-audio-demo.public.wzhecnu.cn` entry is retired and returns HTTP
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "ChatVoice[web]==0.1.2"
+python -m pip install "ChatVoice[web]==0.1.3"
 
 chatvoice --tree
 chatvoice service plan --ensure-dirs --json
@@ -111,13 +111,13 @@ chatvoice data conversations --url http://127.0.0.1:18087 --token-env CHATVOICE_
 
 ## Database and concurrency
 
-The packaged v0.1.2 web app defaults to SQLite WAL at:
+The packaged v0.1.3 web app defaults to SQLite WAL at:
 
 ```text
 <chatarch-home>/chatvoice/data/meetings.sqlite3
 ```
 
-Use one service process (`--workers 1`) with SQLite. For high-concurrency production, migrate the storage layer to Postgres/MySQL before scaling workers or nodes. An external database URL setting is detected by `chatvoice doctor` / `chatvoice service plan`, but the v0.1.2 packaged legacy storage layer still supports SQLite only.
+Use one service process (`--workers 1`) with SQLite. For high-concurrency production, migrate the storage layer to Postgres/MySQL before scaling workers or nodes. An external database URL setting is detected by `chatvoice doctor` / `chatvoice service plan`, but the v0.1.3 packaged legacy storage layer still supports SQLite only.
 
 
 ## 运行目录与数据结构
@@ -133,11 +133,14 @@ Use one service process (`--workers 1`) with SQLite. For high-concurrency produc
 └── model-cache/
 ```
 
-后端 SQLite `meetings.sqlite3` 目前包含 `accounts`、`auth_sessions`、`api_tokens`、`meeting_records`、`conversation_records`。转写、summary、实时对话消息以 JSON 字符串保存；原始音频不进后端数据库。访客模式仍使用浏览器 IndexedDB 保存本地会议和录音分片。高并发 Postgres/MySQL 迁移列入 TODO，当前 `0.1.2` 仍只支持 SQLite WAL + 单服务进程。详见 [运行目录与数据结构](docs/runtime-layout.md)。
+后端 SQLite `meetings.sqlite3` 目前包含 `accounts`、`auth_sessions`、`api_tokens`、`meeting_records`、`conversation_records`。转写、summary、实时对话消息以 JSON 字符串保存；原始音频不进后端数据库。访客模式仍使用浏览器 IndexedDB 保存本地会议和录音分片。高并发 Postgres/MySQL 迁移列入 TODO，当前 `0.1.3` 仍只支持 SQLite WAL + 单服务进程。详见 [运行目录与数据结构](docs/runtime-layout.md)。
 
 ## API surface
 
+`GET /api/heartbeat` 是轻量服务心跳，用来判断 Web 服务、SQLite 只读探测和 ASR 状态是否正常；`asr.status` 会返回 `ready`、`processing` 或 `degraded`，并包含 FunASR 模型是否已热、最近一次识别成功/失败、耗时和输出长度。录音 WebSocket 也会发 `asr.stream.processing` / `asr.stream.heartbeat`，前端会显示“模型加载中/识别处理中/失败原因”，不再静默录音无文字。
+
 - `GET /api/status`: redacted backend status, models, ASR channels, and route shapes.
+- `GET /api/heartbeat`: lightweight service/database/ASR heartbeat with model warm-up, processing, and recent error/success state.
 - `POST /api/tts`: JSON `{text, voice, format}` -> `audio/mpeg` or `audio/wav`.
 - `POST /api/voice-cloning/create`: JSON `{audio_url, prefix, target_model, language_hints}` -> server-created `voice_id`.
 - `GET /api/voice-cloning/list`: list server-side voice enrollment ids by prefix.

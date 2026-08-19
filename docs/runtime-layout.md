@@ -1,6 +1,6 @@
 # 运行目录与数据结构
 
-这一页说明 `pip install "ChatVoice[web]==0.1.2"` 之后，代码安装在哪里、运行数据默认写到哪里，以及 SQLite / 浏览器侧分别保存什么。
+这一页说明 `pip install "ChatVoice[web]==0.1.3"` 之后，代码安装在哪里、运行数据默认写到哪里，以及 SQLite / 浏览器侧分别保存什么。
 
 ## 代码安装位置
 
@@ -111,7 +111,7 @@ export CHATVOICE_ASR_API_URL="https://<asr-service>/v1/transcribe"
 
 ## 高并发 TODO
 
-`0.1.2` 的 packaged legacy storage 仍只支持 SQLite WAL，适合单服务进程、轻并发和内部受控使用：
+`0.1.3` 的 packaged legacy storage 仍只支持 SQLite WAL，适合单服务进程、轻并发和内部受控使用：
 
 ```bash
 chatvoice serve app --workers 1

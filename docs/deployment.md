@@ -1,6 +1,6 @@
 # 部署与启动
 
-这一页说明 v0.1.2 发布后，如何只通过 Python 包搭起一套 ChatVoice / Speakr 服务流程：安装、创建账号、启动服务、生成 API Token、读取会议/摘要数据。
+这一页说明 v0.1.3 发布后，如何只通过 Python 包搭起一套 ChatVoice / Speakr 服务流程：安装、创建账号、启动服务、生成 API Token、读取会议/摘要数据。
 
 ## 最小安装
 
@@ -8,7 +8,7 @@
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "ChatVoice[web]==0.1.2"
+python -m pip install "ChatVoice[web]==0.1.3"
 ```
 
 安装后先回读真实 CLI 树和运行目录：
@@ -65,7 +65,7 @@ http://127.0.0.1:18087/
 
 ## ASR provider：API 优先
 
-v0.1.2 的生产推荐方式是 **ChatVoice 后端通过 API 调用 ASR 服务**。这个 ASR 服务可以是：
+v0.1.3 的生产推荐方式是 **ChatVoice 后端通过 API 调用 ASR 服务**。这个 ASR 服务可以是：
 
 - 云服务 API，凭 API key 调用；
 - 自建 GPU ASR server，对外暴露 HTTP API；
@@ -109,7 +109,7 @@ chatvoice data conversations --url http://127.0.0.1:18087 --token-env CHATVOICE_
 
 ## 数据库与并发边界
 
-v0.1.2 packaged Web app 默认使用 SQLite WAL：
+v0.1.3 packaged Web app 默认使用 SQLite WAL：
 
 ```text
 <chatarch-home>/chatvoice/data/meetings.sqlite3
@@ -122,7 +122,7 @@ v0.1.2 packaged Web app 默认使用 SQLite WAL：
 - `chatvoice serve app --workers 1`；
 - 不要用多 worker / 多节点同时写同一个 SQLite 文件；
 - 高并发生产部署应把存储层迁移到 Postgres/MySQL 这类外部数据库后再扩多 worker；
-- an external database URL setting 会被 `doctor` / `service plan` 检测并报告，但 v0.1.2 的 packaged legacy storage 仍只真正支持 SQLite。
+- an external database URL setting 会被 `doctor` / `service plan` 检测并报告，但 v0.1.3 的 packaged legacy storage 仍只真正支持 SQLite。
 
 回读：
 
@@ -135,12 +135,24 @@ chatvoice service plan --json
 
 ```bash
 chatvoice health status --url http://127.0.0.1:18087 --json
+curl -s http://127.0.0.1:18087/api/heartbeat | python -m json.tool
 ```
+
+`0.1.3` 起新增轻量 heartbeat，用于区分“Web 服务挂了”“ASR 正在冷启动/处理中”“ASR 最近失败”：
+
+- `ok`：Web 服务、数据库只读检查和 ASR 状态是否可用。
+- `asr.status`：`ready`、`processing` 或 `degraded`。
+- `asr.funasr_model_warm`：FunASR GPU 模型是否已经在进程内加载；首次冷启动可能需要约 1 分钟。
+- `asr.recent.last_success_at` / `last_error_at`：最近一次识别成功或失败时间。
+- `asr.recent.last_elapsed_ms` / `last_text_chars`：最近一次识别耗时和输出长度。
+
+录音 WebSocket 会在识别开始和长时间处理中发送 `asr.stream.processing` / `asr.stream.heartbeat` 事件；前端会显示“模型加载中/识别处理中/失败原因”，避免录音继续但没有文字也没有提示。
 
 核心服务端接口：
 
 ```text
 GET /api/status
+GET /api/heartbeat
 GET /api/asr/channels
 POST /api/asr
 WS  /ws/asr/stream
