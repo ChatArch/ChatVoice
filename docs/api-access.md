@@ -1,6 +1,6 @@
 # API 访问
 
-ChatVoice 0.1.2 提供从 packaged service 读取会议和对话数据的闭环：先用受邀账号登录，再生成 API Token，最后用 bearer token 调 `/api/data/...` 或 `chatvoice data ...`。
+ChatVoice 0.1.3 提供从 packaged service 读取会议和对话数据的闭环：先用受邀账号登录，再生成 API Token，最后用 bearer token 调 `/api/data/...` 或 `chatvoice data ...`。
 
 ## 访问模型
 
@@ -20,7 +20,7 @@ Token 明文只在创建时返回一次。后端 SQLite 只保存 hash、prefix�
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "ChatVoice[web]==0.1.2"
+python -m pip install "ChatVoice[web]==0.1.3"
 chatvoice service plan --ensure-dirs --json
 export CHATVOICE_ASR_CHANNEL=stub-local
 chatvoice serve app --host 127.0.0.1 --port 18087

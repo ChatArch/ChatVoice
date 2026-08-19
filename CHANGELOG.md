@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.3 - 2026-08-19
+
+### Added
+
+- Add `GET /api/heartbeat` with lightweight service/database/ASR health, model warm-up, and recent ASR success/failure metadata.
+- Add Web Settings ASR heartbeat display so operators can see whether recognition is ready, processing, or degraded.
+- Emit `asr.stream.processing` and periodic `asr.stream.heartbeat` WebSocket events while realtime recognition is running.
+
+### Fixed
+
+- Avoid silent recorder behavior during FunASR GPU cold start or long ASR chunks by surfacing model-loading, processing, and failure messages in the browser.
+
 ## 0.1.2 - 2026-08-18
 
 ### Added

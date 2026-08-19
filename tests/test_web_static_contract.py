@@ -72,3 +72,25 @@ def test_settings_panel_surfaces_server_side_api_key_status_without_browser_secr
 
     refresh_body = _function_body(source, "refreshStatus")
     assert "renderServerKeyStatus" in refresh_body
+
+
+def test_settings_panel_and_recorder_surface_asr_heartbeat_state():
+    source = _script_source()
+    settings_markup = source[source.index('<dialog id="settings-dialog">'):source.index('<dialog id="entry-dialog"')]
+
+    assert "识别服务心跳" in settings_markup
+    assert "asr-health-status-list" in settings_markup
+    assert "asr-health-message" in settings_markup
+    assert "function renderAsrHealthStatus" in source
+    assert "function refreshHeartbeat" in source
+    assert "'/api/heartbeat'" in source
+
+    refresh_body = _function_body(source, "refreshStatus")
+    assert "refreshHeartbeat" in refresh_body
+    assert "renderAsrHealthStatus" in refresh_body
+
+    handler_body = _function_body(source, "handleAsrEvent")
+    assert "asr.stream.processing" in handler_body
+    assert "asr.stream.heartbeat" in handler_body
+    assert "首次加载模型中" in handler_body
+    assert "识别处理中" in handler_body

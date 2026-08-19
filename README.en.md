@@ -27,7 +27,7 @@ Documentation entry: <https://arch.gh.wzhecnu.cn/ChatVoice/en/>
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "ChatVoice[web]==0.1.2"
+python -m pip install "ChatVoice[web]==0.1.3"
 
 chatvoice --tree
 chatvoice service plan --ensure-dirs --json
@@ -91,13 +91,13 @@ Meeting summary generation is also a server-side model boundary: configure the n
 
 ## Database and concurrency
 
-v0.1.2 defaults to SQLite WAL under:
+v0.1.3 defaults to SQLite WAL under:
 
 ```text
 <chatarch-home>/chatvoice/data/meetings.sqlite3
 ```
 
-Use one service process with SQLite (`--workers 1`). High-concurrency production should migrate the storage layer to Postgres/MySQL before scaling workers or nodes. An external database URL setting is detected in `chatvoice doctor` / `chatvoice service plan`, but the v0.1.2 packaged legacy storage layer still supports SQLite only.
+Use one service process with SQLite (`--workers 1`). High-concurrency production should migrate the storage layer to Postgres/MySQL before scaling workers or nodes. An external database URL setting is detected in `chatvoice doctor` / `chatvoice service plan`, but the v0.1.3 packaged legacy storage layer still supports SQLite only.
 
 
 ## Runtime layout and data structure
@@ -113,7 +113,7 @@ After `pip install`, package code lives under the active Python `site-packages/c
 └── model-cache/
 ```
 
-The backend SQLite `meetings.sqlite3` currently contains `accounts`, `auth_sessions`, `api_tokens`, `meeting_records`, and `conversation_records`. Transcripts, summary content, and realtime messages are stored as JSON strings; raw audio is not stored in the backend database. Guest mode still uses browser IndexedDB for local meetings and recording chunks. High-concurrency Postgres/MySQL migration is tracked as TODO; `0.1.2` still supports SQLite WAL + one service process only. See [Runtime Layout and Data Structure](docs/runtime-layout.en.md).
+The backend SQLite `meetings.sqlite3` currently contains `accounts`, `auth_sessions`, `api_tokens`, `meeting_records`, and `conversation_records`. Transcripts, summary content, and realtime messages are stored as JSON strings; raw audio is not stored in the backend database. Guest mode still uses browser IndexedDB for local meetings and recording chunks. High-concurrency Postgres/MySQL migration is tracked as TODO; `0.1.3` still supports SQLite WAL + one service process only. See [Runtime Layout and Data Structure](docs/runtime-layout.en.md).
 
 ## CLI contract
 
@@ -124,7 +124,10 @@ chatvoice doctor --json
 chatvoice accounts list --json
 chatvoice asr channels --json
 chatvoice health status --url http://127.0.0.1:18087 --json
+curl -s http://127.0.0.1:18087/api/heartbeat | python -m json.tool
 ```
+
+`GET /api/heartbeat` reports lightweight service/database/ASR health, including `asr.status` (`ready`, `processing`, or `degraded`), FunASR model warm-up state, and the most recent ASR success/failure metadata. The browser uses the same heartbeat plus WebSocket `asr.stream.processing` / `asr.stream.heartbeat` events to show model-loading or recognition failures instead of silently recording with no transcript output.
 
 The CLI is a thin adapter over importable Python APIs. See `docs/interface-tree.md` for the function mapping.
 

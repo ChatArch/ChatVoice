@@ -1,6 +1,6 @@
 # Deployment and Startup
 
-This page explains how to run a ChatVoice / Speakr service from the released Python package in v0.1.2: install, create an account, start the service, generate an API token, and read meeting/summary data.
+This page explains how to run a ChatVoice / Speakr service from the released Python package in v0.1.3: install, create an account, start the service, generate an API token, and read meeting/summary data.
 
 ## Minimal install
 
@@ -8,7 +8,7 @@ This page explains how to run a ChatVoice / Speakr service from the released Pyt
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "ChatVoice[web]==0.1.2"
+python -m pip install "ChatVoice[web]==0.1.3"
 ```
 
 Read back the real CLI tree and runtime paths first:
@@ -65,7 +65,7 @@ For production, put the service behind a controlled reverse proxy. API keys stay
 
 ## ASR provider: API first
 
-The recommended production shape in v0.1.2 is **ChatVoice calls ASR through an API provider**. That provider can be:
+The recommended production shape in v0.1.3 is **ChatVoice calls ASR through an API provider**. That provider can be:
 
 - a managed cloud ASR API with an API key;
 - a self-hosted GPU ASR server exposing HTTP;
@@ -109,7 +109,7 @@ See [API Access](api-access.md) for details.
 
 ## Database and concurrency boundary
 
-The v0.1.2 packaged web app uses SQLite WAL by default:
+The v0.1.3 packaged web app uses SQLite WAL by default:
 
 ```text
 <chatarch-home>/chatvoice/data/meetings.sqlite3
@@ -122,7 +122,7 @@ This is suitable for one service process, light concurrency, and controlled inte
 - run `chatvoice serve app --workers 1`;
 - do not run multiple workers/nodes writing the same SQLite file;
 - high-concurrency production needs a storage-layer migration to Postgres/MySQL before scaling workers;
-- an external database URL setting is detected by `doctor` / `service plan`, but the v0.1.2 packaged legacy storage layer still supports SQLite only.
+- an external database URL setting is detected by `doctor` / `service plan`, but the v0.1.3 packaged legacy storage layer still supports SQLite only.
 
 Read back the effective plan:
 
@@ -135,12 +135,24 @@ chatvoice service plan --json
 
 ```bash
 chatvoice health status --url http://127.0.0.1:18087 --json
+curl -s http://127.0.0.1:18087/api/heartbeat | python -m json.tool
 ```
+
+Starting in `0.1.3`, the lightweight heartbeat separates “web service down”, “ASR is cold-starting/processing”, and “ASR recently failed”:
+
+- `ok`: whether the web service, read-only database probe, and ASR state are usable.
+- `asr.status`: `ready`, `processing`, or `degraded`.
+- `asr.funasr_model_warm`: whether the FunASR GPU model is loaded in-process; the first cold start can take about one minute.
+- `asr.recent.last_success_at` / `last_error_at`: most recent ASR success/failure timestamps.
+- `asr.recent.last_elapsed_ms` / `last_text_chars`: most recent ASR latency and output length.
+
+The recording WebSocket also emits `asr.stream.processing` and `asr.stream.heartbeat` while recognition is running. The browser shows model-loading/processing/failure state instead of silently recording with no transcript output.
 
 Core service endpoints:
 
 ```text
 GET /api/status
+GET /api/heartbeat
 GET /api/asr/channels
 POST /api/asr
 WS  /ws/asr/stream
