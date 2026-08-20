@@ -1,6 +1,6 @@
 # Runtime Layout and Data Structure
 
-This page documents where `pip install "ChatVoice[web]==0.1.3"` installs code, where runtime data is written by default, and which data lives in SQLite versus the browser.
+This page documents where `pip install "ChatVoice[web]==0.1.4"` installs code, where runtime data is written by default, and which data lives in SQLite versus the browser.
 
 ## Code install location
 
@@ -111,7 +111,7 @@ export CHATVOICE_ASR_API_URL="https://<asr-service>/v1/transcribe"
 
 ## High-concurrency TODO
 
-The `0.1.3` packaged legacy storage still supports SQLite WAL only. It is suitable for one service process, light concurrency, and controlled internal use:
+The `0.1.4` packaged legacy storage still supports SQLite WAL only. It is suitable for one service process, light concurrency, and controlled internal use:
 
 ```bash
 chatvoice serve app --workers 1

@@ -26,7 +26,7 @@ def run_doctor() -> dict[str, Any]:
         "warnings": [
             "SQLite WAL is a single-node default; use one service worker or migrate storage before high concurrency."
         ] if database["backend"] == "sqlite" else [
-            "External DB URL is configured, but v0.1.3 packaged web storage still supports SQLite only."
+            "External DB URL is configured, but v0.1.4 packaged web storage still supports SQLite only."
         ],
     }
 

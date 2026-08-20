@@ -46,11 +46,11 @@
 | 本地合同 smoke | 已实现 | `CHATVOICE_ASR_CHANNEL=stub-local` 可无 GPU/云凭据启动全链路。 |
 | 本地 FunASR 兼容通道 | 保留 | `funasr-gpu` / `funasr-cpu` 仍可用，但生产建议改成外部 ASR API server。 |
 | SQLite WAL 存储 | 已实现 | 单服务进程、轻并发默认；`api_tokens` 表只保存 hash/prefix/metadata。 |
-| Postgres/MySQL 存储 | 未实现 | 已在 plan/doctor 中检测外部 URL，但 v0.1.3 packaged legacy storage 仍只支持 SQLite。 |
+| Postgres/MySQL 存储 | 未实现 | 已在 plan/doctor 中检测外部 URL，但 v0.1.4 packaged legacy storage 仍只支持 SQLite。 |
 
 ## 不在当前范围
 
 - 不把 GPU 模型下载、CUDA/PyTorch 安装和 Web 服务打成一个默认进程。
-- 不在 v0.1.3 里宣称 MySQL/Postgres 已经完成；高并发数据库迁移需要单独版本。
+- 不在 v0.1.4 里宣称 MySQL/Postgres 已经完成；高并发数据库迁移需要单独版本。
 - 不输出 token、cookie、Authorization header 或原始录音；完整 transcript 只通过用户显式调用的数据读取接口返回。
 - 不用 `kill` / `kill -9` 管理服务；重启类命令要先有 supervisor/graceful 方案。

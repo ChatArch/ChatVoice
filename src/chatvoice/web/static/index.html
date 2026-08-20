@@ -283,7 +283,12 @@
     .conversation-privacy { position: absolute; left: 50%; bottom: 4px; transform: translateX(-50%); color: #b0b1b6; font-size: 7px; white-space: nowrap; }
 
     .meeting-header { padding: 39px 48px 20px; }
-    .meeting-header input { width: 100%; padding: 0; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: clamp(25px, 3.2vw, 38px); font-weight: 740; line-height: 1.25; letter-spacing: -.045em; }
+    .meeting-title-row { display: flex; align-items: flex-start; gap: 10px; }
+    .meeting-header input { flex: 1; min-width: 0; width: 100%; padding: 0; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: clamp(25px, 3.2vw, 38px); font-weight: 740; line-height: 1.25; letter-spacing: -.045em; }
+    .meeting-title-actions { display: flex; gap: 7px; flex-shrink: 0; padding-top: 5px; }
+    .title-action-button { border: 1px solid #e5e2d8; border-radius: 999px; padding: 7px 10px; background: #fffdf7; color: #6d5732; font-size: 9px; font-weight: 720; white-space: nowrap; cursor: pointer; box-shadow: 0 8px 22px rgba(89, 68, 28, .06); }
+    .title-action-button.primary { border-color: #d9e7cf; background: #f7fff2; color: #3c7336; }
+    .title-action-button:disabled { opacity: .55; cursor: not-allowed; }
     .meeting-meta { display: flex; align-items: center; gap: 8px; margin-top: 13px; color: var(--muted); font-size: 10px; }
     .meeting-meta > i { width: 3px; height: 3px; border-radius: 50%; background: #b7b8bc; }
     .title-state { padding: 3px 7px; border-radius: 7px; background: #f0f0ff; color: var(--violet); font-size: 8px; font-weight: 680; }
@@ -514,7 +519,10 @@
       .icon-button { width: 34px; height: 34px; border: 0; }
       .recorder-shell { width: 100%; height: calc(100dvh - 60px); min-height: 590px; margin: 0; border: 0; border-radius: 0; box-shadow: none; }
       .meeting-header { padding: 29px 22px 17px; }
+      .meeting-title-row { gap: 8px; }
       .meeting-header input { font-size: 28px; }
+      .meeting-title-actions { padding-top: 3px; flex-direction: column; }
+      .title-action-button { padding: 6px 9px; font-size: 8px; }
       .meeting-meta { gap: 6px; font-size: 9px; overflow: hidden; white-space: nowrap; }
       .meeting-meta span:last-child, .meeting-meta i:last-of-type { display: none; }
       .content-tabs { padding: 0 22px; gap: 30px; }
@@ -627,7 +635,13 @@
 
     <section class="recorder-shell product-view" id="recorder-shell" data-product-view="meeting">
       <header class="meeting-header">
-        <input id="meeting-title" aria-label="录音标题" value="新录音" />
+        <div class="meeting-title-row">
+          <input id="meeting-title" aria-label="录音标题" value="新录音" />
+          <div class="meeting-title-actions" aria-label="标题与会议快捷操作">
+            <button class="title-action-button" id="refresh-title" type="button">刷新标题</button>
+            <button class="title-action-button primary" id="quick-new-meeting" type="button">新建</button>
+          </div>
+        </div>
         <div class="meeting-meta">
           <span class="clock-icon"></span>
           <span id="created-at">8 月 17 日 04:08</span>
@@ -1018,6 +1032,7 @@
     let recordingPassSeconds = 0;
     let asrPassLimitSeconds = 10 * 60;
     let asrWindowCommitPending = false;
+    let pauseCommitPending = false;
     let lastAsrWindowCommitAt = 0;
     let sessionStartedAt = null;
     let asrStreamWs = null;
@@ -1122,11 +1137,16 @@
       $('recording-policy').classList.toggle('warning', remaining <= 60 && ['recording', 'paused'].includes(recorderState));
     }
 
-    function requestAsrWindowCommit() {
-      if (asrWindowCommitPending || recorderState !== 'recording' || !asrStreamWs || asrStreamWs.readyState !== WebSocket.OPEN) return;
+    function requestAsrWindowCommit(options) {
+      const { reason = 'window', allowPaused = false } = options || {};
+      const stateAllowsCommit = recorderState === 'recording' || (allowPaused && recorderState === 'paused');
+      if (asrWindowCommitPending || !stateAllowsCommit || !asrStreamWs || asrStreamWs.readyState !== WebSocket.OPEN) return false;
       asrWindowCommitPending = true;
+      pauseCommitPending = reason === 'pause';
       lastAsrWindowCommitAt = recordingPassSeconds;
-      asrStreamWs.send(JSON.stringify({ type: 'asr.stream.commit' }));
+      asrStreamWs.send(JSON.stringify({ type: 'asr.stream.commit', reason }));
+      $('latency-label').textContent = reason === 'pause' ? '暂停中，正在整理上一段文字' : '正在提交上下文回写';
+      return true;
     }
 
     function showToast(message) {
@@ -1189,6 +1209,8 @@
       meetingTitleMode = mode;
       $('title-state').className = `title-state${mode === 'generating' ? ' generating' : mode === 'manual' ? ' manual' : ''}`;
       $('title-state').textContent = label || ({ default: 'AI 可自动命名', generating: '正在生成标题…', auto: 'AI 已命名', manual: '已手动命名' }[mode] || '');
+      $('refresh-title').disabled = mode === 'generating';
+      $('refresh-title').textContent = mode === 'generating' ? '生成中' : '刷新标题';
     }
 
     function resetMeetingTitleGeneration(mode = 'default') {
@@ -1210,16 +1232,21 @@
     }
 
     function maybeGenerateMeetingTitle({ force = false } = {}) {
-      if (meetingTitleMode !== 'default' || (titleGenerationAttempted && !force)) return;
+      if (meetingTitleMode === 'manual') return;
+      const finalTitleRefresh = force && recorderState === 'finishing';
+      if (meetingTitleMode === 'auto' && !finalTitleRefresh) return;
+      if (meetingTitleMode !== 'default' && !finalTitleRefresh) return;
+      if (!force && titleGenerationAttempted) return;
       const transcript = transcriptText().replace(/\s+/g, ' ').trim();
       const meaningfulLength = transcript.replace(/[^\p{L}\p{N}]/gu, '').length;
       if (meaningfulLength < (force ? 12 : 36)) return;
       clearTimeout(titleGenerationTimer);
-      titleGenerationTimer = setTimeout(() => generateMeetingTitle(transcript), force ? 0 : 900);
+      titleGenerationTimer = setTimeout(() => generateMeetingTitle(transcript, { force }), force ? 0 : 900);
     }
 
-    async function generateMeetingTitle(transcript) {
-      if (meetingTitleMode !== 'default') return;
+    async function generateMeetingTitle(transcript, { force = false, explicit = false } = {}) {
+      if (meetingTitleMode === 'manual' && !explicit) return;
+      if (meetingTitleMode !== 'default' && !force && !explicit) return;
       titleGenerationAttempted = true;
       const recordId = activeMeetingId;
       const controller = new AbortController();
@@ -1247,6 +1274,19 @@
       } finally {
         if (titleAbortController === controller) titleAbortController = null;
       }
+    }
+
+    function refreshMeetingTitle() {
+      const transcript = transcriptText().replace(/\s+/g, ' ').trim();
+      const summary = summaryContent().replace(/\s+/g, ' ').trim();
+      const context = [transcript, summary ? `摘要：${summary}` : ''].filter(Boolean).join('\n\n');
+      const meaningfulLength = context.replace(/[^\p{L}\p{N}]/gu, '').length;
+      if (meaningfulLength < 12) {
+        showToast('还没有足够内容生成标题');
+        return;
+      }
+      ensureActiveMeeting();
+      generateMeetingTitle(context, { force: true, explicit: true });
     }
 
     function isRealtimeActive() {
@@ -2999,11 +3039,15 @@
         updateRecorderUi('error', payload.message || '实时转写失败，可重新开始');
       } else if (payload.demo_event === 'asr.stream.done') {
         if (payload.final === false) {
+          const pauseFlush = pauseCommitPending;
           asrWindowCommitPending = false;
+          pauseCommitPending = false;
           beginTranscriptPass();
           renderTranscript();
-          $('latency-label').textContent = '长会议窗口已无感衔接';
+          $('latency-label').textContent = pauseFlush ? '暂停前文字已确认' : '长会议窗口已无感衔接';
+          if (pauseFlush && recorderState === 'paused') $('status-message').textContent = '暂停整理完成，可以继续录音';
         } else {
+          pauseCommitPending = false;
           finishSessionUi(payload.limit_reached ? '当前录音段已到上限并完整保存；可点击继续录音追加下一段' : '');
         }
       }
@@ -3039,6 +3083,7 @@
       elapsedSeconds = 0;
       recordingPassSeconds = 0;
       asrWindowCommitPending = false;
+      pauseCommitPending = false;
       lastAsrWindowCommitAt = 0;
       $('elapsed').textContent = '00:00';
       $('download-recording').disabled = true;
@@ -3048,6 +3093,26 @@
       setActiveTab('transcript');
       updateRecorderUi('idle', announce ? '内容已清空，可以开始新录音' : '正在准备新录音…');
       if (persist && activeMeetingId) scheduleMeetingSave(0);
+    }
+
+    function hasResettableMeetingContent() {
+      return Boolean(
+        transcriptText().trim()
+        || rewriteSegments.length
+        || liveTranscriptText.trim()
+        || elapsedSeconds > 0
+        || recordingUrl
+        || archiveSessionId
+        || (!showingDemo && activeMeetingId)
+      );
+    }
+
+    function requestResetSession() {
+      if (hasResettableMeetingContent()) {
+        const ok = confirm('确定清空这一次录音/会议内容吗？已显示的文字、摘要和本地录音引用会从当前页面移除。');
+        if (!ok) return;
+      }
+      resetSession();
     }
 
     async function startRecordingSession() {
@@ -3063,6 +3128,7 @@
       recordingPassSeconds = 0;
       asrPassLimitSeconds = storageMode === 'account' ? 2 * 60 * 60 : 10 * 60;
       asrWindowCommitPending = false;
+      pauseCommitPending = false;
       lastAsrWindowCommitAt = 0;
       $('download-recording').disabled = true;
       $('download-recording').classList.remove('visible');
@@ -3099,7 +3165,9 @@
         try { mediaRecorder.requestData(); } catch (_) {}
         mediaRecorder.pause();
       }
-      updateRecorderUi('paused');
+      updateRecorderUi('paused', '录音已暂停，正在整理刚才的转写…');
+      const committed = requestAsrWindowCommit({ reason: 'pause', allowPaused: true });
+      if (!committed) $('latency-label').textContent = '录音已暂停';
       scheduleMeetingSave(0);
     }
 
@@ -3107,7 +3175,8 @@
       if (recorderState !== 'paused') return;
       sendingAudio = true;
       if (mediaRecorder && mediaRecorder.state === 'paused') mediaRecorder.resume();
-      updateRecorderUi('recording');
+      updateRecorderUi('recording', pauseCommitPending ? '继续录音中，上一段仍在整理…' : undefined);
+      if (pauseCommitPending) $('latency-label').textContent = '上一段仍在后台整理';
     }
 
     function finishRecording(message = '') {
@@ -3462,7 +3531,9 @@
       else startRecordingSession();
     });
     $('finish-recording').addEventListener('click', () => finishRecording());
-    $('reset-recording').addEventListener('click', () => resetSession());
+    $('reset-recording').addEventListener('click', requestResetSession);
+    $('refresh-title').addEventListener('click', refreshMeetingTitle);
+    $('quick-new-meeting').addEventListener('click', () => createNewMeeting());
     $('open-settings').addEventListener('click', () => { $('settings-dialog').showModal(); loadApiTokens(); });
     $('settings-dialog').addEventListener('close', () => clearApiTokenOutput());
     $('settings-dialog').addEventListener('cancel', (event) => { clearApiTokenOutput(); });
