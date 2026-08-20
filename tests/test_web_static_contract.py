@@ -94,3 +94,46 @@ def test_settings_panel_and_recorder_surface_asr_heartbeat_state():
     assert "asr.stream.heartbeat" in handler_body
     assert "首次加载模型中" in handler_body
     assert "识别处理中" in handler_body
+
+
+def test_pause_commits_current_asr_window_before_resume():
+    source = _script_source()
+
+    request_body = _function_body(source, "requestAsrWindowCommit")
+    assert "allowPaused" in request_body
+    assert "reason === 'pause'" in request_body
+    assert "asr.stream.commit" in request_body
+
+    pause_body = _function_body(source, "pauseRecording")
+    assert "requestAsrWindowCommit({ reason: 'pause', allowPaused: true })" in pause_body
+    assert "正在整理刚才的转写" in pause_body
+
+    handler_body = _function_body(source, "handleAsrEvent")
+    assert "pauseCommitPending" in handler_body
+    assert "暂停前文字已确认" in handler_body
+    assert "beginTranscriptPass()" in handler_body
+
+
+def test_title_refresh_quick_new_and_reset_confirmation_are_exposed():
+    source = _script_source()
+    header_markup = source[source.index('<header class="meeting-header">'):source.index('<nav class="content-tabs"')]
+
+    assert "id=\"refresh-title\"" in header_markup
+    assert "刷新标题" in header_markup
+    assert "id=\"quick-new-meeting\"" in header_markup
+    assert "新建" in header_markup
+
+    assert "function refreshMeetingTitle" in source
+    refresh_title_body = _function_body(source, "refreshMeetingTitle")
+    assert "summaryContent" in refresh_title_body
+    assert "generateMeetingTitle(context, { force: true, explicit: true })" in refresh_title_body
+
+    assert "function requestResetSession" in source
+    reset_body = _function_body(source, "requestResetSession")
+    assert "confirm(" in reset_body
+    assert "确定清空这一次录音/会议内容吗" in reset_body
+    assert "resetSession()" in reset_body
+
+    assert "refresh-title').addEventListener('click', refreshMeetingTitle" in source
+    assert "quick-new-meeting').addEventListener('click', () => createNewMeeting()" in source
+    assert "reset-recording').addEventListener('click', requestResetSession" in source

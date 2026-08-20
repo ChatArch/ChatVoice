@@ -76,7 +76,7 @@ def ensure_runtime_dirs(paths: RuntimePaths | None = None) -> RuntimePaths:
 def database_settings() -> dict[str, object]:
     """Return a sanitized database configuration summary.
 
-    ChatVoice v0.1.3 ships the Speakr storage layer on SQLite WAL for a single
+    ChatVoice v0.1.4 ships the Speakr storage layer on SQLite WAL for a single
     service node. External SQL URLs are detected and reported as the production
     concurrency direction, but the packaged legacy web app fails closed unless a
     SQLite path is used.
@@ -109,7 +109,7 @@ def database_settings() -> dict[str, object]:
             "SQLite WAL is suitable for one ChatVoice service process and light concurrency. "
             "Use a single service node or migrate the storage layer before high-concurrency multi-worker deployment."
             if supported
-            else "External DB URL detected; provider/API architecture supports this deployment direction, but v0.1.3 web storage still needs the SQL repository migration before use."
+            else "External DB URL detected; provider/API architecture supports this deployment direction, but v0.1.4 web storage still needs the SQL repository migration before use."
         ),
     }
 

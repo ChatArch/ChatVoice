@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.4 - 2026-08-19
+
+### Added
+
+- Add a direct **新建** button in the recorder header for faster mobile topic creation.
+- Add a **刷新标题** button that regenerates the meeting title from the current full transcript and summary context.
+- Add a confirmation guard before clearing/resetting a meeting with existing content.
+
+### Changed
+
+- Pausing a recording now commits the current ASR window so pending rewrite/live text can be finalized while paused.
+- Automatic title refresh can update AI-generated titles from later full-session content, while manual titles remain protected unless the user explicitly clicks refresh.
+
 ## 0.1.3 - 2026-08-19
 
 ### Added
