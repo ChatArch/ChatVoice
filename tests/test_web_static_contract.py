@@ -143,7 +143,7 @@ def test_homepage_toolbar_uses_left_history_menu_and_right_settings_menu_only():
     source = _script_source()
     site_bar = source[source.index('<header class="site-bar">'):source.index('<section class="recorder-shell')]
     transcript_panel = source[source.index('<section class="tab-panel active" id="transcript-panel"'):source.index('<section class="tab-panel" id="summary-panel"')]
-    toolbar_css = source[source.index(".toolbar-menu-list {"):source.index(".settings-icon {")]
+    toolbar_css = source[source.index(".toolbar-menu {"):source.index(".settings-icon {")]
 
     assert "brand-cluster" in site_bar
     assert "id=\"toggle-sidebar\"" in site_bar
@@ -169,6 +169,8 @@ def test_homepage_toolbar_uses_left_history_menu_and_right_settings_menu_only():
     assert "function openSettingsDialog" in source
     assert ".site-bar {" in source and "z-index: 80" in source
     assert ".toolbar-menu" in source and "z-index: 120" in source
+    assert "width: 156px" in toolbar_css
+    assert "width: 228px" not in toolbar_css
     assert ".toolbar-menu-list { display: grid; grid-template-columns: 1fr" in toolbar_css
     assert "grid-template-columns: repeat(3" not in toolbar_css
     assert "toggle-settings-menu').addEventListener('pointerdown'" in source
@@ -213,7 +215,13 @@ def test_api_token_management_uses_one_time_key_modal_pattern():
     assert "生成后会自动复制" in token_panel
     assert "关闭后不能再复制" in token_panel
     assert "id=\"api-token-expires\"" in token_panel
-    assert "有效期（天，可选）" in token_panel
+    assert "<select id=\"api-token-expires\">" in token_panel
+    assert "7 天" in token_panel
+    assert "15 天" in token_panel
+    assert "30 天" in token_panel
+    assert "90 天" in token_panel
+    assert "永久" in token_panel
+    assert "365" not in token_panel
     assert "id=\"api-token-result\"" in token_panel
     assert "<code id=\"api-token-output\"></code>" in token_panel
     assert "textarea" not in token_panel

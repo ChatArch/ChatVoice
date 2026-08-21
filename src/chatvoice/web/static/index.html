@@ -105,15 +105,15 @@
     .sidebar-toggle { flex: 0 0 auto; }
     .toolbar-menu-wrap { position: relative; }
     .toolbar-menu-toggle { width: 40px; height: 36px; font-size: 18px; letter-spacing: .08em; }
-    .toolbar-menu { position: absolute; z-index: 120; right: 0; top: 44px; width: 228px; padding: 8px; border: 1px solid #e4e4e7; border-radius: 16px; background: rgba(255,255,255,.98); box-shadow: 0 20px 56px rgba(25, 28, 40, .15); backdrop-filter: blur(18px); }
+    .toolbar-menu { position: absolute; z-index: 120; right: 0; top: 44px; width: 156px; padding: 7px; border: 1px solid #e4e4e7; border-radius: 15px; background: rgba(255,255,255,.98); box-shadow: 0 20px 56px rgba(25, 28, 40, .15); backdrop-filter: blur(18px); }
     .toolbar-menu[hidden] { display: none; }
     .toolbar-menu-list { display: grid; grid-template-columns: 1fr; gap: 6px; }
-    .toolbar-menu-action { min-height: 46px; display: grid; grid-template-columns: 30px 1fr; align-items: center; gap: 10px; padding: 8px 10px; border: 0; border-radius: 13px; background: #fff; color: #4c4e55; text-align: left; text-decoration: none; }
+    .toolbar-menu-action { min-height: 40px; display: grid; grid-template-columns: 26px 1fr; align-items: center; gap: 8px; padding: 7px 8px; border: 0; border-radius: 12px; background: #fff; color: #4c4e55; text-align: left; text-decoration: none; }
     .toolbar-menu-action:hover { background: #eeeeff; color: var(--violet); }
     .toolbar-menu b, .toolbar-menu small { display: block; }
     .toolbar-menu b { font-size: 10px; }
     .toolbar-menu small { margin-top: 3px; color: #93959b; font-size: 8px; line-height: 1.45; }
-    .menu-icon { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 10px; background: #f0f0ff; color: var(--violet); font-size: 12px; font-weight: 760; }
+    .menu-icon { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 9px; background: #f0f0ff; color: var(--violet); font-size: 11px; font-weight: 760; }
     .settings-icon { position: relative; width: 15px; height: 15px; border: 2px solid currentColor; border-radius: 50%; }
     .settings-icon::after { content: ""; position: absolute; width: 4px; height: 4px; border-radius: 50%; background: currentColor; left: 3.5px; top: 3.5px; }
 
@@ -1024,8 +1024,14 @@
               <input id="api-token-name" value="automation" maxlength="80" />
             </div>
             <div>
-              <label for="api-token-expires">有效期（天，可选）</label>
-              <input id="api-token-expires" type="number" min="1" max="365" placeholder="留空长期" />
+              <label for="api-token-expires">有效期</label>
+              <select id="api-token-expires">
+                <option value="7">7 天</option>
+                <option value="15">15 天</option>
+                <option value="30" selected>30 天</option>
+                <option value="90">90 天</option>
+                <option value="">永久</option>
+              </select>
             </div>
           </div>
           <div class="token-actions">
