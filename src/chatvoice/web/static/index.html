@@ -303,10 +303,13 @@
     .meeting-header input { flex: 1; min-width: 0; width: 100%; padding: 0; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: clamp(25px, 3.2vw, 38px); font-weight: 740; line-height: 1.25; letter-spacing: -.045em; }
     .meeting-title-actions { display: flex; gap: 8px; flex-shrink: 0; padding-top: 5px; }
     .title-action-button { min-height: 34px; border: 1px solid #e0d8c9; border-radius: 999px; padding: 0 12px; display: inline-flex; align-items: center; gap: 6px; background: #fff9ed; color: #6d5732; font-size: 10px; font-weight: 760; white-space: nowrap; cursor: pointer; box-shadow: 0 10px 24px rgba(89, 68, 28, .09); }
-    .title-action-button.icon-only { width: 34px; min-width: 34px; max-width: 34px; padding: 0; justify-content: center; overflow: hidden; }
+    .title-action-button.icon-only { position: relative; width: 34px; min-width: 34px; max-width: 34px; padding: 0; justify-content: center; }
     .title-action-button span { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: rgba(120, 86, 34, .1); font-size: 12px; }
     .title-action-button.icon-only span { background: transparent; }
     .title-action-button.icon-only strong { display: none; }
+    .title-action-button.icon-only::after { content: attr(aria-label); position: absolute; z-index: 160; right: 50%; top: calc(100% + 8px); transform: translateX(50%) translateY(-4px); padding: 6px 9px; border: 1px solid rgba(35, 35, 38, .08); border-radius: 999px; background: rgba(35, 35, 38, .94); color: #fff; font-size: 11px; font-weight: 680; line-height: 1; white-space: nowrap; box-shadow: 0 12px 28px rgba(24, 24, 26, .18); opacity: 0; pointer-events: none; transition: opacity .14s ease, transform .14s ease; }
+    .title-action-button.icon-only:hover::after, .title-action-button.icon-only:focus-visible::after { opacity: 1; transform: translateX(50%) translateY(0); }
+    @media (hover: none) { .title-action-button.icon-only::after { display: none; } }
     .title-action-button.primary { border-color: #bdd8b2; background: #effbe9; color: #2f7031; box-shadow: 0 10px 24px rgba(49, 123, 51, .09); }
     .title-action-button.primary span { background: rgba(59, 135, 59, .13); }
     .title-action-button:disabled { opacity: .55; cursor: not-allowed; }

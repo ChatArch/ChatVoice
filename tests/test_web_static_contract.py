@@ -224,8 +224,13 @@ def test_title_action_buttons_are_icon_only_to_keep_title_row_compact():
 
     css_block = source[source.index(".title-action-button.icon-only") : source.index(".title-action-button.primary")]
     assert "max-width: 34px" in css_block
-    assert "overflow: hidden" in css_block
+    assert "position: relative" in css_block
     assert ".title-action-button.icon-only strong { display: none; }" in css_block
+    assert ".title-action-button.icon-only::after" in css_block
+    assert "content: attr(aria-label)" in css_block
+    assert ".title-action-button.icon-only:hover::after" in css_block
+    assert ".title-action-button.icon-only:focus-visible::after" in css_block
+    assert "@media (hover: none)" in css_block
 
 
 def test_raw_audio_archive_is_not_offered_in_meeting_recorder():
