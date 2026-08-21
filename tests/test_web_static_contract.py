@@ -148,6 +148,10 @@ def test_homepage_toolbar_uses_left_history_menu_and_right_settings_menu_only():
     assert "brand-cluster" in site_bar
     assert "id=\"toggle-sidebar\"" in site_bar
     assert site_bar.index('id="toggle-sidebar"') < site_bar.index('class="brand"')
+    assert "product-tabs" not in site_bar
+    assert "product-tab" not in site_bar
+    assert "workspace-label" in site_bar
+    assert "id=\"workspace-title\"" in site_bar
     assert "language-button" not in site_bar
     assert "id=\"toggle-settings-menu\"" in site_bar
     assert ">•••</button>" in site_bar
@@ -155,6 +159,10 @@ def test_homepage_toolbar_uses_left_history_menu_and_right_settings_menu_only():
     assert "toolbar-menu-list" in site_bar
     assert "打开设置，包含识别状态、模型和 API Token" in site_bar
     assert "<b>设置</b>" in site_bar
+    assert "product-menu-action active" in site_bar
+    assert "<b>会议记录</b>" in site_bar
+    assert "<b>声音工作室</b>" in site_bar
+    assert "<b>实时对话</b>" in site_bar
     assert "open-model-status" not in site_bar
     assert "open-token-settings" not in site_bar
     assert site_bar.count("data-settings-focus=") == 1
@@ -169,10 +177,20 @@ def test_homepage_toolbar_uses_left_history_menu_and_right_settings_menu_only():
     assert "function openSettingsDialog" in source
     assert ".site-bar {" in source and "z-index: 80" in source
     assert ".toolbar-menu" in source and "z-index: 120" in source
-    assert "width: 156px" in toolbar_css
+    assert "width: max-content" in toolbar_css
+    assert "min-width: 128px" in toolbar_css
+    assert "width: 156px" not in toolbar_css
     assert "width: 228px" not in toolbar_css
+    assert "width: min(246px" not in source
     assert ".toolbar-menu-list { display: grid; grid-template-columns: 1fr" in toolbar_css
+    assert "grid-template-columns: 26px max-content" in toolbar_css
     assert "grid-template-columns: repeat(3" not in toolbar_css
+    assert "querySelectorAll('.product-menu-action').forEach" in source
+    assert "addEventListener('click', () => switchProductView" in source
+    switch_body = _function_body(source, "switchProductView")
+    assert "workspace-title').textContent = viewLabel" in switch_body
+    assert "product-menu-action" in switch_body
+    assert "aria-checked" in switch_body
     assert "toggle-settings-menu').addEventListener('pointerdown'" in source
     assert "toggle-settings-menu').addEventListener('click'" in source
     assert "settings-menu').addEventListener('click'" in source

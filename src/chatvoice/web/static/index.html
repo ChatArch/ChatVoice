@@ -95,9 +95,9 @@
     .service-state.ready { color: var(--green); }.service-state.ready i { background: var(--green); box-shadow: 0 0 0 4px rgba(32, 166, 110, .1); }
     .service-state.error { color: var(--red); }.service-state.error i { background: var(--red); }
 
-    .product-tabs { justify-self: center; display: inline-flex; align-items: center; gap: 4px; padding: 4px; border: 1px solid #e5e5e8; border-radius: 13px; background: #eeeef0; }
-    .product-tab { min-width: 92px; height: 34px; padding: 0 13px; border: 0; border-radius: 10px; background: transparent; color: #777980; font-size: 10px; font-weight: 680; transition: background .16s ease, color .16s ease, box-shadow .16s ease; }
-    .product-tab.active { background: #fff; color: var(--ink); box-shadow: 0 2px 9px rgba(27, 29, 38, .08); }
+    .workspace-label { justify-self: center; display: inline-grid; gap: 2px; min-width: 116px; padding: 6px 14px; border: 1px solid #e5e5e8; border-radius: 14px; background: #fff; text-align: center; box-shadow: 0 2px 9px rgba(27, 29, 38, .06); }
+    .workspace-label span { color: #97999f; font-size: 8px; font-weight: 720; letter-spacing: .08em; text-transform: uppercase; }
+    .workspace-label strong { color: var(--ink); font-size: 11px; letter-spacing: -.02em; }
 
     .utility-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
     .icon-button { width: 36px; height: 36px; padding: 0; display: grid; place-items: center; border: 1px solid #e7e7e9; border-radius: 12px; background: #fff; font-size: 12px; font-weight: 700; }
@@ -105,11 +105,12 @@
     .sidebar-toggle { flex: 0 0 auto; }
     .toolbar-menu-wrap { position: relative; }
     .toolbar-menu-toggle { width: 40px; height: 36px; font-size: 18px; letter-spacing: .08em; }
-    .toolbar-menu { position: absolute; z-index: 120; right: 0; top: 44px; width: 156px; padding: 7px; border: 1px solid #e4e4e7; border-radius: 15px; background: rgba(255,255,255,.98); box-shadow: 0 20px 56px rgba(25, 28, 40, .15); backdrop-filter: blur(18px); }
+    .toolbar-menu { position: absolute; z-index: 120; right: 0; top: 44px; width: max-content; min-width: 128px; max-width: calc(100vw - 24px); padding: 7px; border: 1px solid #e4e4e7; border-radius: 15px; background: rgba(255,255,255,.98); box-shadow: 0 20px 56px rgba(25, 28, 40, .15); backdrop-filter: blur(18px); }
     .toolbar-menu[hidden] { display: none; }
     .toolbar-menu-list { display: grid; grid-template-columns: 1fr; gap: 6px; }
-    .toolbar-menu-action { min-height: 40px; display: grid; grid-template-columns: 26px 1fr; align-items: center; gap: 8px; padding: 7px 8px; border: 0; border-radius: 12px; background: #fff; color: #4c4e55; text-align: left; text-decoration: none; }
+    .toolbar-menu-action { min-height: 40px; display: grid; grid-template-columns: 26px max-content; align-items: center; gap: 8px; padding: 7px 8px; border: 0; border-radius: 12px; background: #fff; color: #4c4e55; text-align: left; text-decoration: none; }
     .toolbar-menu-action:hover { background: #eeeeff; color: var(--violet); }
+    .toolbar-menu-action.active { background: #f3f3ff; color: var(--violet); }
     .toolbar-menu b, .toolbar-menu small { display: block; }
     .toolbar-menu b { font-size: 10px; }
     .toolbar-menu small { margin-top: 3px; color: #93959b; font-size: 8px; line-height: 1.45; }
@@ -553,11 +554,12 @@
       .brand-cluster { gap: 7px; }
       .brand small, .service-state { display: none; }
       .brand strong { display: none; }
-      .product-tabs { justify-self: center; }
-      .product-tab { min-width: 64px; height: 32px; padding: 0 7px; font-size: 8px; }
+      .workspace-label { min-width: 82px; padding: 5px 9px; }
+      .workspace-label span { display: none; }
+      .workspace-label strong { font-size: 10px; }
       .icon-button { width: 34px; height: 34px; border: 0; }
       .toolbar-menu-toggle { width: 34px; height: 34px; border: 0; }
-      .toolbar-menu { right: -4px; top: 41px; width: min(246px, calc(100vw - 22px)); }
+      .toolbar-menu { right: -4px; top: 41px; width: max-content; min-width: 124px; max-width: calc(100vw - 22px); }
       .recorder-shell { width: 100%; height: calc(100dvh - 60px); min-height: 590px; margin: 0; border: 0; border-radius: 0; box-shadow: none; }
       .meeting-header { padding: 29px 22px 17px; }
       .meeting-title-row { gap: 8px; }
@@ -664,19 +666,21 @@
         </a>
       </div>
 
-      <nav class="product-tabs" aria-label="产品功能" role="tablist">
-        <button class="product-tab active" id="meeting-product-tab" data-product="meeting" type="button" role="tab" aria-selected="true">会议记录</button>
-        <button class="product-tab" id="studio-product-tab" data-product="studio" type="button" role="tab" aria-selected="false">声音工作室</button>
-        <button class="product-tab" id="conversation-product-tab" data-product="conversation" type="button" role="tab" aria-selected="false">实时对话</button>
-      </nav>
+      <div class="workspace-label" aria-live="polite">
+        <span>当前工作区</span>
+        <strong id="workspace-title">会议记录</strong>
+      </div>
 
       <nav class="utility-actions" aria-label="录音工具">
         <span class="service-state" id="service-state"><i></i><span>检查识别服务…</span></span>
-        <div class="toolbar-menu-wrap meeting-only-action">
+        <div class="toolbar-menu-wrap">
           <button class="icon-button toolbar-menu-toggle" id="toggle-settings-menu" type="button" aria-label="打开设置菜单" aria-haspopup="true" aria-expanded="false" title="设置菜单">•••</button>
           <div class="toolbar-menu" id="settings-menu" role="menu" aria-label="设置菜单" hidden>
             <div class="toolbar-menu-list" aria-label="更多入口">
               <button class="toolbar-menu-action" id="open-settings" type="button" role="menuitem" data-settings-focus="asr-channel" aria-label="打开设置，包含识别状态、模型和 API Token"><span class="menu-icon" aria-hidden="true">⚙</span><b>设置</b></button>
+              <button class="toolbar-menu-action product-menu-action active" type="button" role="menuitemradio" aria-checked="true" data-product="meeting"><span class="menu-icon" aria-hidden="true">会</span><b>会议记录</b></button>
+              <button class="toolbar-menu-action product-menu-action" type="button" role="menuitemradio" aria-checked="false" data-product="studio"><span class="menu-icon" aria-hidden="true">声</span><b>声音工作室</b></button>
+              <button class="toolbar-menu-action product-menu-action" type="button" role="menuitemradio" aria-checked="false" data-product="conversation"><span class="menu-icon" aria-hidden="true">对</span><b>实时对话</b></button>
               <a class="toolbar-menu-action" href="https://arch.gh.wzhecnu.cn/ChatVoice/" target="_blank" rel="noreferrer" role="menuitem"><span class="menu-icon" aria-hidden="true">文</span><b>文档</b></a>
               <a class="toolbar-menu-action" href="https://github.com/ChatArch/ChatVoice" target="_blank" rel="noreferrer" role="menuitem"><span class="menu-icon" aria-hidden="true">GH</span><b>GitHub</b></a>
             </div>
@@ -1250,12 +1254,14 @@
       }
       activeProductView = view;
       document.querySelectorAll('[data-product-view]').forEach((panel) => { panel.hidden = panel.dataset.productView !== view; });
-      document.querySelectorAll('.product-tab').forEach((button) => {
+      const viewLabel = view === 'meeting' ? '会议记录' : view === 'studio' ? '声音工作室' : '实时对话';
+      $('workspace-title').textContent = viewLabel;
+      document.querySelectorAll('.product-menu-action').forEach((button) => {
         const active = button.dataset.product === view;
         button.classList.toggle('active', active);
-        button.setAttribute('aria-selected', active ? 'true' : 'false');
+        button.setAttribute('aria-checked', active ? 'true' : 'false');
       });
-      document.querySelectorAll('.meeting-only-action').forEach((button) => { button.hidden = view !== 'meeting'; });
+      closeSettingsMenu();
       document.title = view === 'meeting' ? '声笺 · 实时会议记录' : view === 'studio' ? '声笺 · 声音工作室' : '声笺 · 实时对话';
       $('meeting-search').value = '';
       updateSidebarContext();
@@ -3703,7 +3709,7 @@
     }
 
     document.querySelectorAll('.content-tab').forEach((button) => button.addEventListener('click', () => setActiveTab(button.dataset.tab)));
-    document.querySelectorAll('.product-tab').forEach((button) => button.addEventListener('click', () => switchProductView(button.dataset.product)));
+    document.querySelectorAll('.product-menu-action').forEach((button) => button.addEventListener('click', () => switchProductView(button.dataset.product)));
     document.querySelectorAll('.voice-card').forEach((button) => button.addEventListener('click', () => selectTtsVoice(button.dataset.voice)));
     document.querySelectorAll('.format-button').forEach((button) => button.addEventListener('click', () => {
       selectedTtsFormat = button.dataset.format;
