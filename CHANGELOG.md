@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Remove the meeting recorder's browser-local raw-audio archive/download control. The current recorder now presents one clear boundary: audio is used for realtime transcription only, while durable storage is text, summaries, and metadata.
+- Add MkDocs recording-storage boundary docs explaining that pure recording/file-library support should be designed as a separate future capability.
+
 ## 0.1.6 - 2026-08-20
 
 ### Changed

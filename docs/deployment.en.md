@@ -115,7 +115,7 @@ The v0.1.6 packaged web app uses SQLite WAL by default:
 <chatarch-home>/chatvoice/data/meetings.sqlite3
 ```
 
-Core tables are `accounts`, `auth_sessions`, `api_tokens`, `meeting_records`, and `conversation_records`. Transcripts, summary content, and realtime messages are stored as JSON strings. Raw audio is not stored in the backend database. Guest-mode local records and recording chunks stay in browser IndexedDB.
+Core tables are `accounts`, `auth_sessions`, `api_tokens`, `meeting_records`, and `conversation_records`. Transcripts, summary content, and realtime messages are stored as JSON strings. Raw audio is not stored in the backend database. Guest-mode local text, summaries, and metadata stay in browser IndexedDB; the current meeting recorder does not store recording chunks and does not provide recording downloads. See [Recording Storage Boundary](recording-storage.md).
 
 This is suitable for one service process, light concurrency, and controlled internal use. The current boundary is:
 

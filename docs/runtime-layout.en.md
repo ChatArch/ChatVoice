@@ -85,11 +85,10 @@ Guest-mode data lives in the current browser's IndexedDB:
 ```text
 IndexedDB: speakr-meetings
 - guest meetings
-- recording chunks while recording
-- local playback/export state
+- guest summaries and metadata
 ```
 
-For signed-in accounts, meeting/conversation text is saved to server-side SQLite. The browser may still hold recording chunks for the active recording and local download. Raw audio is not persisted in the backend database.
+For signed-in accounts, meeting/conversation text is saved to server-side SQLite. The current meeting recorder does not provide recording archive/download controls and does not store recording chunks in browser IndexedDB. Audio is used only for realtime ASR; the durable result is text and summaries. See [Recording Storage Boundary](recording-storage.md).
 
 ## Temporary audio and model cache
 

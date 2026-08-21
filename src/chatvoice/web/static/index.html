@@ -450,12 +450,10 @@
     .finish-wrap { display: flex; justify-content: flex-end; gap: 8px; }
     .finish-control, .download-control, .reset-control { min-width: 72px; height: 47px; border: 0; border-radius: 16px; background: #f5f5f6; color: #292a2f; font-size: 11px; font-weight: 680; }
     .download-control, .reset-control { border: 1px solid var(--line); background: #fff; }
-    .download-control { min-width: 118px; display: inline-flex; align-items: center; justify-content: center; padding: 0 12px; }
-    .download-control.active { border-color: #bdd8b2; background: #f5fff1; color: #2f7031; }
     .reset-control { display: none; }
     .reset-control.visible { display: inline-block; }
     .finish-control.hidden { display: none; }
-    .finish-control:disabled, .download-control:disabled, .reset-control:disabled { color: #a0a2a7; cursor: not-allowed; }
+    .finish-control:disabled, .reset-control:disabled { color: #a0a2a7; cursor: not-allowed; }
 
     dialog { width: min(420px, calc(100vw - 32px)); padding: 0; border: 0; border-radius: 22px; color: var(--ink); box-shadow: 0 30px 90px rgba(20, 24, 38, .25); }
     dialog::backdrop { background: rgba(22, 24, 30, .28); backdrop-filter: blur(4px); }
@@ -842,14 +840,13 @@
         <div class="console-controls">
           <div class="elapsed-time">
             <strong id="elapsed">00:00</strong>
-            <small><i></i><span id="local-save-status">服务器不保存录音</span></small>
+            <small><i></i><span id="local-save-status">服务器只保存文字和摘要</span></small>
           </div>
 
           <button class="record-toggle" id="record-toggle" type="button" aria-label="开始录音"><span class="record-icon"></span></button>
 
           <div class="finish-wrap">
             <button class="reset-control" id="reset-recording" type="button">清空</button>
-            <button class="download-control" id="download-recording" type="button" title="服务器不保存录音；点击后仅保存在当前浏览器，结束后可下载">保存到本机</button>
             <button class="finish-control" id="finish-recording" type="button" disabled>结束</button>
           </div>
         </div>
@@ -1068,7 +1065,7 @@
         <p class="access-intro">两种方式都可以使用实时转写与 AI 摘要；区别只在于会议记录保存在哪里。</p>
         <div class="mode-grid">
           <button class="mode-card primary" id="enter-guest" type="button">
-            <span class="mode-icon">⌂</span><strong>访客使用 · 单段 10 分钟</strong><span>文字和摘要仅保存在当前浏览器；服务器不保存录音。需要音频文件时可保存到本机。</span>
+            <span class="mode-icon">⌂</span><strong>访客使用 · 单段 10 分钟</strong><span>文字和摘要仅保存在当前浏览器；服务器不保存录音。</span>
           </button>
           <button class="mode-card" id="show-login" type="button">
             <span class="mode-icon">◎</span><strong>登录账号</strong><span>文字和摘要跨设备保存；服务器不保存录音，只保存文本和摘要。</span>
@@ -1102,9 +1099,6 @@
     const GUEST_DB_VERSION = 2;
     const GUEST_STORE = 'meetings';
     const GUEST_CONVERSATION_STORE = 'conversations';
-    const AUDIO_DB_NAME = 'voicenote-audio-v1';
-    const AUDIO_DB_VERSION = 1;
-    const AUDIO_CHUNK_STORE = 'recording-chunks';
     const createRecordId = () => (crypto.randomUUID ? crypto.randomUUID() : `meeting-${Date.now()}-${Math.random().toString(16).slice(2)}`).replace(/[^A-Za-z0-9_-]/g, '');
     const demoSegments = [
       { speaker: '说话人 1', time: '00:18', text: '我们先专注主要的会议录音体验，用户进入页面以后应该能够很快开始。', demo: true },
@@ -1129,15 +1123,6 @@
     let microphoneStream = null;
     let sendingAudio = false;
     let animationFrameId = null;
-    let mediaRecorder = null;
-    let archiveOptIn = false;
-    let archiveChunks = [];
-    let archiveSessionId = null;
-    let archiveChunkIndex = 0;
-    let archiveMimeType = 'audio/webm';
-    let archiveWriteChain = Promise.resolve();
-    let archiveStorageDegraded = false;
-    let recordingUrl = null;
     let transcriptSegments = [...demoSegments];
     let rewriteSegments = [];
     let liveTranscriptText = '';
@@ -1167,7 +1152,6 @@
     let authUser = null;
     let csrfToken = '';
     let guestDbPromise = null;
-    let audioDbPromise = null;
     let activeProductView = 'meeting';
     let selectedTtsVoice = 'longanlingxin';
     let selectedTtsFormat = 'mp3';
@@ -2039,60 +2023,6 @@
       });
     }
 
-    function openAudioDb() {
-      if (audioDbPromise) return audioDbPromise;
-      audioDbPromise = new Promise((resolve, reject) => {
-        const request = indexedDB.open(AUDIO_DB_NAME, AUDIO_DB_VERSION);
-        request.onupgradeneeded = () => {
-          const db = request.result;
-          if (!db.objectStoreNames.contains(AUDIO_CHUNK_STORE)) {
-            const store = db.createObjectStore(AUDIO_CHUNK_STORE, { keyPath: ['session_id', 'index'] });
-            store.createIndex('session_id', 'session_id');
-          }
-        };
-        request.onsuccess = () => {
-          request.result.onversionchange = () => request.result.close();
-          resolve(request.result);
-        };
-        request.onerror = () => reject(request.error || new Error('录音分片存储不可用'));
-        request.onblocked = () => reject(new Error('录音分片存储被其他页面占用'));
-      });
-      return audioDbPromise;
-    }
-
-    async function audioDbTransaction(mode, operation) {
-      const db = await openAudioDb();
-      return new Promise((resolve, reject) => {
-        const transaction = db.transaction(AUDIO_CHUNK_STORE, mode);
-        let request;
-        try { request = operation(transaction.objectStore(AUDIO_CHUNK_STORE)); }
-        catch (error) { reject(error); return; }
-        transaction.oncomplete = () => resolve(request && request.result);
-        transaction.onerror = () => reject(transaction.error || (request && request.error) || new Error('录音分片写入失败'));
-        transaction.onabort = () => reject(transaction.error || new Error('录音分片写入已中止'));
-      });
-    }
-
-    function audioSessionRange(sessionId) {
-      return IDBKeyRange.bound([sessionId, 0], [sessionId, Number.MAX_SAFE_INTEGER]);
-    }
-
-    async function putAudioArchiveChunk(sessionId, index, blob) {
-      return audioDbTransaction('readwrite', (store) => store.put({ session_id: sessionId, index, blob }));
-    }
-
-    async function readAudioArchiveChunks(sessionId) {
-      if (!sessionId) return [];
-      const rows = await audioDbTransaction('readonly', (store) => store.getAll(audioSessionRange(sessionId)));
-      return (rows || []).sort((a, b) => a.index - b.index);
-    }
-
-    async function deleteAudioArchiveSession(sessionId) {
-      if (!sessionId) return;
-      try { await audioDbTransaction('readwrite', (store) => store.delete(audioSessionRange(sessionId))); }
-      catch (_) {}
-    }
-
     async function listStoredMeetings() {
       if (storageMode === 'guest') {
         const rows = await guestDbRequest('readonly', (store) => store.getAll());
@@ -2335,7 +2265,7 @@
           : '对话文字仅保存在当前浏览器；原始语音只在实时请求中临时经过服务器。'
         : loggedIn
           ? '服务器同步文字、摘要和会议元数据；录音不上传，也不自动保存在浏览器。'
-          : '访客文字/摘要仅在当前浏览器；服务器不保存录音，保存到本机后才可下载。';
+          : '访客文字/摘要仅在当前浏览器；服务器不保存原始录音。';
       renderSidebarIndex();
     }
 
@@ -2582,8 +2512,6 @@
         } else {
           clearSummaryContent();
         }
-        archiveOptIn = false;
-        discardCurrentArchive();
         updateRecorderUi('ended', '已打开会议记录');
         renderTranscript();
         renderMeetingIndex();
@@ -2919,19 +2847,18 @@
       if (nextState === 'recording') {
         $('record-toggle').innerHTML = '<i></i><i></i>';
         $('record-toggle').setAttribute('aria-label', '暂停录音');
-        $('local-save-status').textContent = archiveOptIn ? '录音只在当前浏览器留存；服务器不保存录音' : '服务器不保存录音；音频只用于实时识别';
+        $('local-save-status').textContent = '服务器只保存文字和摘要';
       } else if (nextState === 'paused') {
         $('record-toggle').innerHTML = '<span class="play-icon"></span>';
         $('record-toggle').setAttribute('aria-label', '继续录音');
-        $('local-save-status').textContent = archiveOptIn ? '本机保存已暂停，录音仍只在当前浏览器' : '录音已暂停；服务器不保存录音';
+        $('local-save-status').textContent = '录音已暂停；服务器只保存文字和摘要';
       } else {
         $('record-toggle').innerHTML = '<span class="record-icon"></span>';
         $('record-toggle').setAttribute('aria-label', nextState === 'ended' || nextState === 'error' ? '继续录音' : '开始录音');
         $('local-save-status').textContent = nextState === 'ended'
-          ? (hasDownloadableArchive() ? '录音已保存在当前浏览器，可下载；服务器不保存录音' : '未保存到本机；服务器只保存文本和摘要')
-          : '服务器不保存录音';
+          ? '录音已结束；服务器只保存文字和摘要'
+          : '服务器只保存文字和摘要';
       }
-      updateArchiveButton();
       updateRecordingLimitUi();
       renderTranscript();
     }
@@ -2952,155 +2879,6 @@
     }
 
     function stopTimer() { clearInterval(timerId); timerId = null; }
-
-    function chooseRecorderMimeType() {
-      if (!window.MediaRecorder) return '';
-      const types = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm'];
-      return types.find((type) => MediaRecorder.isTypeSupported(type)) || '';
-    }
-
-    function discardCurrentArchive() {
-      const previousSessionId = archiveSessionId;
-      const previousWriteChain = archiveWriteChain;
-      archiveSessionId = null;
-      archiveChunkIndex = 0;
-      archiveChunks = [];
-      archiveWriteChain = Promise.resolve();
-      archiveStorageDegraded = false;
-      if (recordingUrl) URL.revokeObjectURL(recordingUrl);
-      recordingUrl = null;
-      if (previousSessionId) previousWriteChain.catch(() => {}).then(() => deleteAudioArchiveSession(previousSessionId));
-      updateArchiveButton();
-    }
-
-    function hasDownloadableArchive() {
-      return Boolean(archiveSessionId && archiveChunkIndex);
-    }
-
-    function updateArchiveButton() {
-      const button = $('download-recording');
-      if (!button) return;
-      const hasArchive = hasDownloadableArchive();
-      button.classList.toggle('active', archiveOptIn || hasArchive);
-      if (['ended', 'error'].includes(recorderState)) {
-        button.disabled = !hasArchive;
-        button.textContent = hasArchive ? '下载本机音频' : '未留存音频';
-        button.title = hasArchive
-          ? '从当前浏览器下载本机音频；服务器不保存录音'
-          : '未保存到本机；服务器不保存录音';
-        return;
-      }
-      if (['recording', 'connecting', 'finishing', 'paused'].includes(recorderState)) {
-        if (archiveOptIn) {
-          button.disabled = true;
-          button.textContent = recorderState === 'paused' ? '音频已暂停' : '本地保存中';
-          button.title = '录音只保存在当前浏览器，用于结束后下载；服务器不保存录音';
-        } else {
-          button.disabled = !microphoneStream || recorderState === 'connecting' || recorderState === 'finishing';
-          button.textContent = '保存到本机';
-          button.title = '点击后从现在开始把录音保存在当前浏览器，结束后可下载；服务器不保存录音';
-        }
-        return;
-      }
-      button.disabled = false;
-      button.textContent = archiveOptIn ? '下次保存到本机' : '保存到本机';
-      button.title = archiveOptIn
-        ? '下一次录音会保存在当前浏览器，结束后可下载'
-        : '服务器不保存录音；点击后仅保存在当前浏览器，结束后可下载';
-    }
-
-    function enableLocalAudioArchive({ fromClick = false } = {}) {
-      archiveOptIn = true;
-      if (microphoneStream && !mediaRecorder && ['recording', 'paused'].includes(recorderState)) {
-        startArchiveRecording(microphoneStream);
-        if (recorderState === 'paused' && mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.pause();
-        if (fromClick) showToast('已开启本地音频留存；只会保存从现在开始的音频分片');
-      } else if (fromClick) {
-        showToast('下一次录音会在当前浏览器暂存音频，结束后可下载');
-      }
-      updateArchiveButton();
-    }
-
-    function handleArchiveButton() {
-      if (['ended', 'error'].includes(recorderState)) {
-        if (hasDownloadableArchive()) downloadCurrentArchive();
-        else showToast('本次没有开启本机音频留存；服务器没有录音文件');
-        return;
-      }
-      if (archiveOptIn && !['recording', 'paused', 'connecting', 'finishing'].includes(recorderState)) {
-        archiveOptIn = false;
-        showToast('已关闭本地音频留存');
-        updateArchiveButton();
-        return;
-      }
-      if (!archiveOptIn) enableLocalAudioArchive({ fromClick: true });
-    }
-
-    function queueArchiveChunk(blob) {
-      const sessionId = archiveSessionId;
-      const index = archiveChunkIndex++;
-      if (!sessionId || !blob || !blob.size) return;
-      archiveWriteChain = archiveWriteChain.then(async () => {
-        try {
-          await putAudioArchiveChunk(sessionId, index, blob);
-        } catch (_) {
-          archiveStorageDegraded = true;
-          archiveChunks.push({ index, blob });
-          $('local-save-status').textContent = '浏览器存储空间不足，音频分片暂存在内存；服务器不保存录音';
-        }
-      });
-    }
-
-    async function downloadCurrentArchive() {
-      if (!archiveSessionId || !archiveChunkIndex) return;
-      const button = $('download-recording');
-      button.disabled = true;
-      button.textContent = '准备中…';
-      try {
-        await archiveWriteChain;
-        let stored = [];
-        try { stored = await readAudioArchiveChunks(archiveSessionId); }
-        catch (_) { archiveStorageDegraded = true; }
-        const chunks = [...stored, ...archiveChunks].sort((a, b) => a.index - b.index).map((item) => item.blob);
-        if (!chunks.length) throw new Error('当前录音没有可下载的音频分片');
-        if (recordingUrl) URL.revokeObjectURL(recordingUrl);
-        recordingUrl = URL.createObjectURL(new Blob(chunks, { type: archiveMimeType }));
-        const link = document.createElement('a');
-        link.href = recordingUrl;
-        link.download = `meeting-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.${archiveMimeType.includes('mp4') ? 'm4a' : 'webm'}`;
-        link.click();
-      } catch (error) {
-        showToast(error.message || '录音暂时无法下载');
-      } finally {
-        updateArchiveButton();
-      }
-    }
-
-    function startArchiveRecording(stream) {
-      if (!window.MediaRecorder) {
-        archiveOptIn = false;
-        showToast('当前浏览器不支持本地录音下载，只会保留文字/摘要');
-        updateArchiveButton();
-        return;
-      }
-      discardCurrentArchive();
-      archiveSessionId = `audio-${createRecordId()}-${Date.now()}`;
-      const mimeType = chooseRecorderMimeType();
-      mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
-      archiveMimeType = mediaRecorder.mimeType || mimeType || 'audio/webm';
-      mediaRecorder.ondataavailable = (event) => { if (event.data && event.data.size) queueArchiveChunk(event.data); };
-      mediaRecorder.onstop = async () => {
-        await archiveWriteChain;
-        if (!archiveChunkIndex) return;
-        $('local-save-status').textContent = archiveStorageDegraded
-          ? '录音已保存在当前浏览器（部分分片在内存）；服务器不保存录音'
-          : '录音已保存在当前浏览器，可下载；服务器不保存录音';
-        updateArchiveButton();
-      };
-      mediaRecorder.start(1000);
-      $('local-save-status').textContent = '录音只在当前浏览器留存；服务器不保存录音';
-      updateArchiveButton();
-    }
 
     function floatTo16BitPCM(input) {
       const output = new Int16Array(input.length);
@@ -3191,8 +2969,6 @@
       audioProcessor.connect(audioContext.destination);
       $('waveform-placeholder').classList.add('hidden');
       waveformLevels = [];
-      if (archiveOptIn) startArchiveRecording(microphoneStream);
-      updateArchiveButton();
       drawWaveform();
     }
 
@@ -3239,7 +3015,6 @@
         $('latency-label').textContent = '识别服务正在追赶';
       } else if (payload.demo_event === 'asr.stream.error') {
         stopTimer();
-        if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
         stopCaptureGraph();
         if (payload.asr_health) renderAsrHealthStatus({ ok: false, asr: payload.asr_health });
         updateRecorderUi('error', payload.message || '实时转写失败，可重新开始');
@@ -3270,14 +3045,7 @@
         if (asrStreamWs.readyState === WebSocket.OPEN || asrStreamWs.readyState === WebSocket.CONNECTING) asrStreamWs.close();
         asrStreamWs = null;
       }
-      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-        mediaRecorder.onstop = null;
-        mediaRecorder.stop();
-      }
-      mediaRecorder = null;
       stopCaptureGraph();
-      archiveOptIn = false;
-      discardCurrentArchive();
       transcriptSegments = [];
       rewriteSegments = [];
       liveTranscriptText = '';
@@ -3306,15 +3074,13 @@
         || rewriteSegments.length
         || liveTranscriptText.trim()
         || elapsedSeconds > 0
-        || recordingUrl
-        || archiveSessionId
         || (!showingDemo && activeMeetingId)
       );
     }
 
     function requestResetSession() {
       if (hasResettableMeetingContent()) {
-        const ok = confirm('确定清空这一次录音/会议内容吗？已显示的文字、摘要和本地录音引用会从当前页面移除。');
+        const ok = confirm('确定清空这一次录音/会议内容吗？已显示的文字和摘要会从当前页面移除。');
         if (!ok) return;
       }
       resetSession();
@@ -3375,8 +3141,6 @@
       asrWindowCommitPending = false;
       pauseCommitPending = false;
       lastAsrWindowCommitAt = 0;
-      if (!archiveOptIn) discardCurrentArchive();
-      updateArchiveButton();
       if (!continuingMeeting) elapsedSeconds = 0;
       $('elapsed').textContent = formatTime(elapsedSeconds);
       sessionStartedAt = new Date();
@@ -3406,10 +3170,6 @@
     function pauseRecording() {
       if (recorderState !== 'recording') return;
       sendingAudio = false;
-      if (mediaRecorder && mediaRecorder.state === 'recording') {
-        try { mediaRecorder.requestData(); } catch (_) {}
-        mediaRecorder.pause();
-      }
       updateRecorderUi('paused', '录音已暂停，正在整理刚才的转写…');
       const committed = requestAsrWindowCommit({ reason: 'pause', allowPaused: true });
       if (!committed) $('latency-label').textContent = '录音已暂停';
@@ -3419,7 +3179,6 @@
     function resumeRecording() {
       if (recorderState !== 'paused') return;
       sendingAudio = true;
-      if (mediaRecorder && mediaRecorder.state === 'paused') mediaRecorder.resume();
       updateRecorderUi('recording', pauseCommitPending ? '继续录音中，上一段仍在整理…' : undefined);
       if (pauseCommitPending) $('latency-label').textContent = '上一段仍在后台整理';
     }
@@ -3429,14 +3188,13 @@
       updateRecorderUi('finishing', typeof message === 'string' && message ? message : undefined);
       stopTimer();
       sendingAudio = false;
-      if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
       stopCaptureGraph();
       if (asrStreamWs && asrStreamWs.readyState === WebSocket.OPEN) asrStreamWs.send(JSON.stringify({ type: 'asr.stream.finish' }));
       else finishSessionUi();
       clearTimeout(finishFallbackTimer);
       finishFallbackTimer = setTimeout(() => {
         if (recorderState !== 'finishing') return;
-        finishSessionUi('最后一段识别等待超时，录音仍已保存在本地');
+        finishSessionUi('最后一段识别等待超时，可稍后查看已保存文字');
       }, 90000);
     }
 
@@ -3869,7 +3627,6 @@
       reviseSummaryWithChat(button.dataset.summaryPrompt);
     }));
     $('copy-transcript').addEventListener('click', copyTranscriptText);
-    $('download-recording').addEventListener('click', handleArchiveButton);
     window.addEventListener('beforeunload', (event) => {
       if (!['recording', 'paused'].includes(recorderState) && !isRealtimeActive()) return;
       event.preventDefault();

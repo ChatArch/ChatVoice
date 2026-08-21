@@ -10,6 +10,7 @@ Documentation entry: <https://arch.gh.wzhecnu.cn/ChatVoice/en/>
 | --- | --- |
 | Install from PyPI and start the service | [Deployment and Startup](deployment.md) |
 | Inspect install location, runtime directories, and SQLite/IndexedDB data structure | [Runtime Layout and Data Structure](runtime-layout.md) |
+| Understand why original recordings are not saved | [Recording Storage Boundary](recording-storage.md) |
 | Generate API tokens and read meeting/summary data | [API Access](api-access.md) |
 | Read back the real command tree and boundaries | [CLI Tree](cli-tree.md) |
 | Check first-class capabilities and current boundaries | [Capability Map](capability-map.md) |
@@ -37,6 +38,12 @@ Documentation entry: <https://arch.gh.wzhecnu.cn/ChatVoice/en/>
 
     [Read runtime layout](runtime-layout.md)
 
+- **Recording Storage Boundary**
+
+    The meeting recorder saves text and summaries only. It does not save original recordings; future pure-recording support should be designed as a separate capability.
+
+    [Read recording storage boundary](recording-storage.md)
+
 - **CLI Tree**
 
     The real implemented command tree, command status, and update rules.
@@ -62,6 +69,7 @@ Documentation entry: <https://arch.gh.wzhecnu.cn/ChatVoice/en/>
 - The packaged FastAPI app starts with `chatvoice serve app`.
 - Fresh start can create invited accounts with `chatvoice accounts add`; no source-tree script is required.
 - Signed-in users can create API tokens in the web UI; the CLI can use tokens to read meetings, summaries, and realtime conversations.
+- The meeting recorder does not save or download original recordings; the server stores text, summaries, and metadata only.
 - Production ASR should use `api-server` against a managed API or self-hosted GPU ASR server.
 - `stub-local` is only for credential-free / GPU-free contract smoke.
 - v0.1.6 defaults to SQLite WAL for one service process and light concurrency; high-concurrency storage migration needs a separate release.

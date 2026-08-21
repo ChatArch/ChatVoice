@@ -3,15 +3,10 @@ from pathlib import Path
 
 
 STATIC_INDEX = Path(__file__).resolve().parents[1] / "src" / "chatvoice" / "web" / "static" / "index.html"
-LAYOUT_OPTIONS = Path(__file__).resolve().parents[1] / "src" / "chatvoice" / "web" / "static" / "homepage-layout-options.html"
 
 
 def _script_source() -> str:
     return STATIC_INDEX.read_text(encoding="utf-8")
-
-
-def _layout_options_source() -> str:
-    return LAYOUT_OPTIONS.read_text(encoding="utf-8")
 
 
 def _function_body(source: str, name: str) -> str:
@@ -214,21 +209,7 @@ def test_title_refresh_is_icon_only_to_keep_title_row_compact():
     assert "<strong>刷新标题</strong>" not in title_actions
 
 
-def test_homepage_layout_options_offer_three_non_destructive_directions():
-    source = _layout_options_source()
-
-    assert "声笺首页排版方案" in source
-    assert "data-variant=\"a\"" in source
-    assert "data-variant=\"b\"" in source
-    assert "data-variant=\"c\"" in source
-    assert "A · 保守收敛版" in source
-    assert "B · 笔记感整理版" in source
-    assert "C · 录音优先版" in source
-    assert source.count("会议记录</span><span>声音工作室</span><span>实时对话") == 3
-    assert "先看方向，不影响当前主页" in source
-
-
-def test_raw_audio_archive_is_explicit_opt_in_and_local_only():
+def test_raw_audio_archive_is_not_offered_in_meeting_recorder():
     source = _script_source()
     footer_markup = source[source.index('<footer class="recording-console'):source.index('</footer>', source.index('<footer class="recording-console'))]
     entry_markup = source[source.index('<dialog id="entry-dialog"'):source.index('<div class="toast"')]
@@ -236,21 +217,29 @@ def test_raw_audio_archive_is_explicit_opt_in_and_local_only():
     assert "默认不保存" not in footer_markup
     assert "默认不保存" not in entry_markup
     assert "服务器不保存录音，只保存文本和摘要" in entry_markup
-    assert "保存到本机" in footer_markup
+    assert "服务器只保存文字和摘要" in footer_markup
     assert "服务器不保存录音" in entry_markup
     assert "音频只用于实时识别" in entry_markup
 
-    assert "let archiveOptIn = false" in source
-    capture_body = _function_body(source, "startMicrophoneCapture")
-    assert "if (archiveOptIn) startArchiveRecording(microphoneStream)" in capture_body
-    assert "startArchiveRecording(microphoneStream);" not in capture_body.replace("if (archiveOptIn) startArchiveRecording(microphoneStream);", "")
+    forbidden = [
+        "保存到本机",
+        "下载音频",
+        "下载本机音频",
+        "download-recording",
+        "MediaRecorder",
+        "AUDIO_DB_NAME",
+        "recording-chunks",
+        "archiveOptIn",
+        "startArchiveRecording",
+        "handleArchiveButton",
+        "updateArchiveButton",
+    ]
+    for marker in forbidden:
+        assert marker not in source
 
-    assert "function handleArchiveButton" in source
-    assert "download-recording').addEventListener('click', handleArchiveButton" in source
-    archive_body = _function_body(source, "updateArchiveButton")
-    assert "未留存音频" in archive_body
-    assert "下载本机音频" in archive_body
-    assert "服务器不保存录音" in archive_body
+    capture_body = _function_body(source, "startMicrophoneCapture")
+    assert "asr.stream.append" in capture_body
+    assert "MediaRecorder" not in capture_body
 
 
 def test_api_token_management_uses_one_time_key_modal_pattern():

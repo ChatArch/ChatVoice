@@ -1,6 +1,6 @@
 # ChatVoice / Speakr Voice Workspace
 
-ChatVoice is the ChatArch repository and Python package shell for the Speakr voice workspace: a FastAPI + browser product with realtime meeting transcription, local audio capture, AI notes, TTS, and full-duplex voice conversation. The deployed product uses Speakr as its canonical public service, while `ChatVoice` is the package, CLI, and repository name.
+ChatVoice is the ChatArch repository and Python package shell for the Speakr voice workspace: a FastAPI + browser product with realtime meeting transcription, AI notes, TTS, and full-duplex voice conversation. The deployed product uses Speakr as its canonical public service, while `ChatVoice` is the package, CLI, and repository name.
 
 Public site: [https://speakr.public.wzhecnu.cn/](https://speakr.public.wzhecnu.cn/)
 
@@ -17,12 +17,11 @@ The former `qwen-audio-demo.public.wzhecnu.cn` entry is retired and returns HTTP
 - **语音合成 (TTS)**: server-side proxy for `qwen-audio-3.0-tts-plus`, returning playable MP3/WAV audio.
 - **声音克隆**: server-side DashScope TTS v2 voice enrollment (`VoiceEnrollmentService`) creates reusable `voice_id` values; the browser never sees provider credentials.
 - **实时对话**: 独立的豆包式语音对话页；browser WebSocket -> FastAPI proxy -> Qwen Realtime，支持服务端模型列表、VAD、流式文字、24 kHz PCM 播放、自然打断、对话历史和 Markdown 导出。
-- **会议录音首页**: mobile-first recording surface with live transcript, waveform, pause/resume, finish, and local audio download.
+- **会议记录首页**: mobile-first recording surface with live transcript, waveform, pause/resume, and finish flow. Audio is used for realtime transcription; the product saves text and summaries, not recording files.
 - **暂停整理**: pausing a recording commits the current ASR window so pending live/rewrite text can be finalized before continuing.
 - **标题刷新与新建快捷入口**: the recorder header includes direct `刷新标题` and `新建` buttons for full-session title regeneration and faster mobile topic creation.
-- **清空防误触**: resetting a meeting with existing text/audio state requires confirmation.
-- **音频留存默认关闭**: 原始录音默认不保存在服务器，也不自动写入浏览器存储；需要音频文件时，用户先点 `保存音频`，录音结束后再从当前浏览器下载。
-- **Bounded local archive**: when the user opts into `保存音频`, MediaRecorder emits one-second chunks into browser-only IndexedDB; the full Blob is assembled only when the user requests a download.
+- **清空防误触**: resetting a meeting with existing text/summary state requires confirmation.
+- **原始录音不保存**: 当前会议记录功能不提供“保存录音”或“下载录音”。服务器只保存文字、摘要和会议元数据；访客模式只在浏览器保存文字/摘要。详见 [录音保存边界](docs/recording-storage.md)。
 - **语音转写**: the recorder streams microphone PCM16 to the ASR WebSocket and appends normalized final segments to the timeline.
 - **API-first ASR**: production ASR is designed around `api-server`, where the ChatVoice backend calls either a managed ASR API or a self-hosted GPU ASR server. `stub-local` remains available for contract smoke, and `funasr-gpu` / `funasr-cpu` remain compatibility channels.
 - **Realtime ASR WebSocket**: `WS /ws/asr/stream` accepts continuous PCM16 microphone frames and returns cumulative revision events. Long recordings transparently roll a bounded context window while confirmed text continues to grow.
@@ -37,7 +36,7 @@ The former `qwen-audio-demo.public.wzhecnu.cn` entry is retired and returns HTTP
 - Set provider credentials only in server-side environment/config storage; never expose them to the browser.
 - Do not commit real env files, model caches, probe output, audio files, runtime logs, or generated API token values.
 - Guest meeting and conversation records never enter the server database. Audio/transcript data still passes through ASR/summary or Realtime services while a request is processed.
-- Raw recording blobs are not uploaded by the meeting-history feature; the current page keeps them only for local download.
+- Raw meeting recordings are not saved by the meeting recorder: no backend raw-audio database/object store, no browser-local recording chunks, and no recording download endpoint in the current version.
 - Realtime history stores text, model, and voice only; raw conversation audio is never written to history storage.
 - API tokens are stored server-side as hashes. Token values are displayed only once on creation.
 
@@ -137,7 +136,7 @@ Use one service process (`--workers 1`) with SQLite. For high-concurrency produc
 └── model-cache/
 ```
 
-后端 SQLite `meetings.sqlite3` 目前包含 `accounts`、`auth_sessions`、`api_tokens`、`meeting_records`、`conversation_records`。转写、summary、实时对话消息以 JSON 字符串保存；原始音频不进后端数据库。访客模式仍使用浏览器 IndexedDB 保存本地会议和录音分片。高并发 Postgres/MySQL 迁移列入 TODO，当前 `0.1.6` 仍只支持 SQLite WAL + 单服务进程。详见 [运行目录与数据结构](docs/runtime-layout.md)。
+后端 SQLite `meetings.sqlite3` 目前包含 `accounts`、`auth_sessions`、`api_tokens`、`meeting_records`、`conversation_records`。转写、summary、实时对话消息以 JSON 字符串保存；原始音频不进后端数据库。访客模式仍使用浏览器 IndexedDB 保存本地会议文字和摘要，不保存录音分片。高并发 Postgres/MySQL 迁移列入 TODO，当前 `0.1.6` 仍只支持 SQLite WAL + 单服务进程。详见 [运行目录与数据结构](docs/runtime-layout.md) 和 [录音保存边界](docs/recording-storage.md)。
 
 ## API surface
 

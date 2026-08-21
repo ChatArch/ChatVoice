@@ -115,7 +115,7 @@ v0.1.6 packaged Web app 默认使用 SQLite WAL：
 <chatarch-home>/chatvoice/data/meetings.sqlite3
 ```
 
-核心表包括 `accounts`、`auth_sessions`、`api_tokens`、`meeting_records`、`conversation_records`。转写、summary、实时对话消息保存在 JSON 字符串字段；原始音频不进入后端数据库。访客模式的本地记录和录音分片保存在浏览器 IndexedDB。
+核心表包括 `accounts`、`auth_sessions`、`api_tokens`、`meeting_records`、`conversation_records`。转写、summary、实时对话消息保存在 JSON 字符串字段；原始音频不进入后端数据库。访客模式的本地文字、摘要和元数据保存在浏览器 IndexedDB；当前会议记录页不保存录音分片，也不提供录音下载。详见 [录音保存边界](recording-storage.md)。
 
 这适合单服务进程、轻并发和受控内部使用。当前版本的安全边界是：
 
