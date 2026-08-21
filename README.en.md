@@ -19,7 +19,7 @@
 
 ChatArch voice recording, transcription, and meeting-notes toolkit. ChatVoice packages the Speakr FastAPI + browser service so a release can be installed, started, account-provisioned, and queried from the Python package.
 
-Recent recorder UX includes pause-time ASR window finalization, direct `刷新标题` / `新建` header buttons for mobile use, and a confirmation guard before clearing a meeting with existing content.
+Recent recorder UX includes pause-time ASR window finalization, direct `刷新标题` / `新建` header buttons for mobile use, a clearer toolbar, and a confirmation guard before clearing a meeting with existing content. Original audio is not saved by default: logged-in accounts sync text, summaries, and metadata only; users must opt into `保存音频` to keep browser-local audio chunks for download.
 
 Documentation entry: <https://arch.gh.wzhecnu.cn/ChatVoice/en/>
 
@@ -29,7 +29,7 @@ Documentation entry: <https://arch.gh.wzhecnu.cn/ChatVoice/en/>
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "ChatVoice[web]==0.1.4"
+python -m pip install "ChatVoice[web]==0.1.5"
 
 chatvoice --tree
 chatvoice service plan --ensure-dirs --json
@@ -93,13 +93,13 @@ Meeting summary generation is also a server-side model boundary: configure the n
 
 ## Database and concurrency
 
-v0.1.4 defaults to SQLite WAL under:
+v0.1.5 defaults to SQLite WAL under:
 
 ```text
 <chatarch-home>/chatvoice/data/meetings.sqlite3
 ```
 
-Use one service process with SQLite (`--workers 1`). High-concurrency production should migrate the storage layer to Postgres/MySQL before scaling workers or nodes. An external database URL setting is detected in `chatvoice doctor` / `chatvoice service plan`, but the v0.1.4 packaged legacy storage layer still supports SQLite only.
+Use one service process with SQLite (`--workers 1`). High-concurrency production should migrate the storage layer to Postgres/MySQL before scaling workers or nodes. An external database URL setting is detected in `chatvoice doctor` / `chatvoice service plan`, but the v0.1.5 packaged legacy storage layer still supports SQLite only.
 
 
 ## Runtime layout and data structure
@@ -115,7 +115,7 @@ After `pip install`, package code lives under the active Python `site-packages/c
 └── model-cache/
 ```
 
-The backend SQLite `meetings.sqlite3` currently contains `accounts`, `auth_sessions`, `api_tokens`, `meeting_records`, and `conversation_records`. Transcripts, summary content, and realtime messages are stored as JSON strings; raw audio is not stored in the backend database. Guest mode still uses browser IndexedDB for local meetings and recording chunks. High-concurrency Postgres/MySQL migration is tracked as TODO; `0.1.4` still supports SQLite WAL + one service process only. See [Runtime Layout and Data Structure](docs/runtime-layout.en.md).
+The backend SQLite `meetings.sqlite3` currently contains `accounts`, `auth_sessions`, `api_tokens`, `meeting_records`, and `conversation_records`. Transcripts, summary content, and realtime messages are stored as JSON strings; raw audio is not stored in the backend database. Guest mode still uses browser IndexedDB for local meetings and recording chunks. High-concurrency Postgres/MySQL migration is tracked as TODO; `0.1.5` still supports SQLite WAL + one service process only. See [Runtime Layout and Data Structure](docs/runtime-layout.en.md).
 
 ## CLI contract
 

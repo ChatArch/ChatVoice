@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.5 - 2026-08-20
+
+### Changed
+
+- Clarify the recorder homepage toolbar: move the history/sidebar menu to the left, remove the inactive language button, and replace ambiguous icon-only controls with labeled `设置/状态` and `复制` actions.
+- Make recorder header actions more visible with stronger `刷新标题` and `新建` affordances.
+- Change raw audio retention to explicit opt-in. By default, ChatVoice does not save original recordings in the browser or on the server; users can click `保存音频` to keep local browser chunks for download after the recording ends.
+- Clarify privacy copy across entry, sidebar, and recorder console: logged-in accounts sync text, summaries, and metadata, while original audio is not uploaded or saved by default.
+
 ## 0.1.4 - 2026-08-19
 
 ### Added

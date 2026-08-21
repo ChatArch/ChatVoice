@@ -21,7 +21,8 @@ The former `qwen-audio-demo.public.wzhecnu.cn` entry is retired and returns HTTP
 - **暂停整理**: pausing a recording commits the current ASR window so pending live/rewrite text can be finalized before continuing.
 - **标题刷新与新建快捷入口**: the recorder header includes direct `刷新标题` and `新建` buttons for full-session title regeneration and faster mobile topic creation.
 - **清空防误触**: resetting a meeting with existing text/audio state requires confirmation.
-- **Bounded local archive**: MediaRecorder emits one-second chunks into browser-only IndexedDB; the full Blob is assembled only when the user requests a download.
+- **音频留存默认关闭**: 原始录音默认不保存在服务器，也不自动写入浏览器存储；需要音频文件时，用户先点 `保存音频`，录音结束后再从当前浏览器下载。
+- **Bounded local archive**: when the user opts into `保存音频`, MediaRecorder emits one-second chunks into browser-only IndexedDB; the full Blob is assembled only when the user requests a download.
 - **语音转写**: the recorder streams microphone PCM16 to the ASR WebSocket and appends normalized final segments to the timeline.
 - **API-first ASR**: production ASR is designed around `api-server`, where the ChatVoice backend calls either a managed ASR API or a self-hosted GPU ASR server. `stub-local` remains available for contract smoke, and `funasr-gpu` / `funasr-cpu` remain compatibility channels.
 - **Realtime ASR WebSocket**: `WS /ws/asr/stream` accepts continuous PCM16 microphone frames and returns cumulative revision events. Long recordings transparently roll a bounded context window while confirmed text continues to grow.
@@ -46,7 +47,7 @@ The former `qwen-audio-demo.public.wzhecnu.cn` entry is retired and returns HTTP
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "ChatVoice[web]==0.1.4"
+python -m pip install "ChatVoice[web]==0.1.5"
 
 chatvoice --tree
 chatvoice service plan --ensure-dirs --json
@@ -114,13 +115,13 @@ chatvoice data conversations --url http://127.0.0.1:18087 --token-env CHATVOICE_
 
 ## Database and concurrency
 
-The packaged v0.1.4 web app defaults to SQLite WAL at:
+The packaged v0.1.5 web app defaults to SQLite WAL at:
 
 ```text
 <chatarch-home>/chatvoice/data/meetings.sqlite3
 ```
 
-Use one service process (`--workers 1`) with SQLite. For high-concurrency production, migrate the storage layer to Postgres/MySQL before scaling workers or nodes. An external database URL setting is detected by `chatvoice doctor` / `chatvoice service plan`, but the v0.1.4 packaged legacy storage layer still supports SQLite only.
+Use one service process (`--workers 1`) with SQLite. For high-concurrency production, migrate the storage layer to Postgres/MySQL before scaling workers or nodes. An external database URL setting is detected by `chatvoice doctor` / `chatvoice service plan`, but the v0.1.5 packaged legacy storage layer still supports SQLite only.
 
 
 ## 运行目录与数据结构
@@ -136,7 +137,7 @@ Use one service process (`--workers 1`) with SQLite. For high-concurrency produc
 └── model-cache/
 ```
 
-后端 SQLite `meetings.sqlite3` 目前包含 `accounts`、`auth_sessions`、`api_tokens`、`meeting_records`、`conversation_records`。转写、summary、实时对话消息以 JSON 字符串保存；原始音频不进后端数据库。访客模式仍使用浏览器 IndexedDB 保存本地会议和录音分片。高并发 Postgres/MySQL 迁移列入 TODO，当前 `0.1.4` 仍只支持 SQLite WAL + 单服务进程。详见 [运行目录与数据结构](docs/runtime-layout.md)。
+后端 SQLite `meetings.sqlite3` 目前包含 `accounts`、`auth_sessions`、`api_tokens`、`meeting_records`、`conversation_records`。转写、summary、实时对话消息以 JSON 字符串保存；原始音频不进后端数据库。访客模式仍使用浏览器 IndexedDB 保存本地会议和录音分片。高并发 Postgres/MySQL 迁移列入 TODO，当前 `0.1.5` 仍只支持 SQLite WAL + 单服务进程。详见 [运行目录与数据结构](docs/runtime-layout.md)。
 
 ## API surface
 
