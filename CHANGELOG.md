@@ -1,9 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.1.7 - 2026-08-22
 
 ### Changed
 
+- Move recorder copy actions into their content areas: transcript copy stays in the transcript panel, summary copy stays in the summary panel, and the global top-right copy action is removed.
+- Replace the top-right toolbar action with a compact vertical `•••` menu containing only Settings, Docs, and GitHub; keep the three top-level workspace tabs visible for page switching.
+- Rework API Token creation around a one-time-visible token result: generation attempts clipboard copy, the manual copy button remains available before closing, delete wording replaces revoke wording, revoked/deleted tokens are hidden, and expiry choices are limited to 7/15/30/90 days or permanent.
+- Make meeting title actions icon-only (`↻` and `＋`) with hover/focus tooltips, keeping the mobile title row compact.
 - Remove the meeting recorder's browser-local raw-audio archive/download control. The current recorder now presents one clear boundary: audio is used for realtime transcription only, while durable storage is text, summaries, and metadata.
 - Add MkDocs recording-storage boundary docs explaining that pure recording/file-library support should be designed as a separate future capability.
 
