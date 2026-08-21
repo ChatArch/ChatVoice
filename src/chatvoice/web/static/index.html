@@ -107,15 +107,13 @@
     .toolbar-menu-toggle { width: 40px; height: 36px; font-size: 18px; letter-spacing: .08em; }
     .toolbar-menu { position: absolute; z-index: 120; right: 0; top: 44px; width: 246px; padding: 8px; border: 1px solid #e4e4e7; border-radius: 16px; background: rgba(255,255,255,.98); box-shadow: 0 20px 56px rgba(25, 28, 40, .15); backdrop-filter: blur(18px); }
     .toolbar-menu[hidden] { display: none; }
-    .toolbar-menu button { width: 100%; min-height: 54px; display: grid; grid-template-columns: 30px 1fr; gap: 10px; align-items: center; padding: 9px 10px; border: 0; border-radius: 12px; background: transparent; color: #4c4e55; text-align: left; }
-    .toolbar-menu button:hover { background: #f5f5f7; }
+    .toolbar-menu-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+    .toolbar-menu-action { min-height: 66px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; padding: 9px 6px; border: 0; border-radius: 13px; background: #f7f7f8; color: #4c4e55; text-align: center; text-decoration: none; }
+    .toolbar-menu-action:hover { background: #eeeeff; color: var(--violet); }
     .toolbar-menu b, .toolbar-menu small { display: block; }
     .toolbar-menu b { font-size: 10px; }
     .toolbar-menu small { margin-top: 3px; color: #93959b; font-size: 8px; line-height: 1.45; }
-    .menu-icon { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 10px; background: #f0f0ff; color: var(--violet); font-size: 14px; font-weight: 760; }
-    .toolbar-menu-links { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-top: 6px; padding-top: 7px; border-top: 1px solid #eeeeef; }
-    .toolbar-menu-links a { height: 34px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; background: #f7f7f8; color: #55575e; font-size: 9px; font-weight: 740; text-decoration: none; }
-    .toolbar-menu-links a:hover { background: #eeeeff; color: var(--violet); }
+    .menu-icon { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 10px; background: #fff; color: var(--violet); font-size: 12px; font-weight: 760; }
     .settings-icon { position: relative; width: 15px; height: 15px; border: 2px solid currentColor; border-radius: 50%; }
     .settings-icon::after { content: ""; position: absolute; width: 4px; height: 4px; border-radius: 50%; background: currentColor; left: 3.5px; top: 3.5px; }
 
@@ -428,6 +426,7 @@
     body.summary-chat-active .recording-policy, body.summary-chat-active .waveform-wrap { display: none; }
     body.summary-chat-active .console-controls { margin-top: 0; }
     body.summary-chat-active .content-scroll { padding-bottom: 118px; }
+    .recording-policy[hidden] { display: none; }
     .recording-policy { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 2px 9px; padding: 8px 10px; border: 1px solid #e8e1d1; border-radius: 13px; background: #fffaf0; color: #7a6848; font-size: 10px; line-height: 1.45; }
     .recording-policy strong { flex: none; color: #6b5a39; font-size: 9px; }
     .recording-policy.warning strong { color: #c17722; }
@@ -661,12 +660,10 @@
         <div class="toolbar-menu-wrap meeting-only-action">
           <button class="icon-button toolbar-menu-toggle" id="toggle-settings-menu" type="button" aria-label="打开设置菜单" aria-haspopup="true" aria-expanded="false" title="设置菜单">•••</button>
           <div class="toolbar-menu" id="settings-menu" role="menu" aria-label="设置菜单" hidden>
-            <button id="open-settings" type="button" role="menuitem" data-settings-focus="asr-channel"><span class="menu-icon" aria-hidden="true">⚙</span><span><b>识别设置 / 状态</b><small>通道、Heartbeat、服务端 Key 状态</small></span></button>
-            <button id="open-model-status" type="button" role="menuitem" data-settings-focus="asr-channel"><span class="menu-icon" aria-hidden="true">◇</span><span><b>模型与通道</b><small>查看当前 ASR 通道和可用模型入口</small></span></button>
-            <button id="open-token-settings" type="button" role="menuitem" data-settings-focus="api-token-title"><span class="menu-icon" aria-hidden="true">🔑</span><span><b>API Token</b><small>给 CLI 或下游系统读取会议数据</small></span></button>
-            <div class="toolbar-menu-links" aria-label="项目链接">
-              <a href="https://arch.gh.wzhecnu.cn/ChatVoice/" target="_blank" rel="noreferrer">文档</a>
-              <a href="https://github.com/ChatArch/ChatVoice" target="_blank" rel="noreferrer">GitHub</a>
+            <div class="toolbar-menu-grid" aria-label="更多入口">
+              <button class="toolbar-menu-action" id="open-settings" type="button" role="menuitem" data-settings-focus="asr-channel" aria-label="打开设置，包含识别状态、模型和 API Token"><span class="menu-icon" aria-hidden="true">⚙</span><b>设置</b></button>
+              <a class="toolbar-menu-action" href="https://arch.gh.wzhecnu.cn/ChatVoice/" target="_blank" rel="noreferrer" role="menuitem"><span class="menu-icon" aria-hidden="true">文</span><b>文档</b></a>
+              <a class="toolbar-menu-action" href="https://github.com/ChatArch/ChatVoice" target="_blank" rel="noreferrer" role="menuitem"><span class="menu-icon" aria-hidden="true">GH</span><b>GitHub</b></a>
             </div>
           </div>
         </div>
@@ -814,8 +811,8 @@
       </div>
 
       <footer class="recording-console idle" id="recording-console">
-        <div class="recording-policy" id="recording-policy">
-          <span id="record-limit-status">服务器不保存录音，只保存文本和摘要。录音只在当前浏览器留存。</span>
+        <div class="recording-policy" id="recording-policy" hidden>
+          <span id="record-limit-status">访客试用 · 每段最长 10 分钟</span>
           <strong id="record-limit-remaining">10:00</strong>
         </div>
         <div class="waveform-wrap">
@@ -1025,7 +1022,7 @@
             <span class="mode-icon">⌂</span><strong>访客使用 · 单段 10 分钟</strong><span>文字和摘要仅保存在当前浏览器；服务器不保存录音。需要音频文件时可保存到本机。</span>
           </button>
           <button class="mode-card" id="show-login" type="button">
-            <span class="mode-icon">◎</span><strong>登录账号 · 单段 2 小时</strong><span>文字和摘要跨设备保存；服务器不保存录音，只保存文本和摘要。</span>
+            <span class="mode-icon">◎</span><strong>登录账号</strong><span>文字和摘要跨设备保存；服务器不保存录音，只保存文本和摘要。</span>
           </button>
         </div>
         <p class="privacy-note">隐私提示：音频只用于实时识别；服务器不保存录音，只保存文本和摘要。</p>
@@ -1166,16 +1163,15 @@
     }
 
     function updateRecordingLimitUi() {
-      const accountMode = storageMode === 'account';
-      const policyMinutes = Math.round(asrPassLimitSeconds / 60);
+      const policy = $('recording-policy');
+      const guestMode = storageMode === 'guest';
+      policy.hidden = !guestMode;
+      if (!guestMode) return;
       const remaining = Math.max(0, asrPassLimitSeconds - recordingPassSeconds);
-      $('record-limit-status').textContent = accountMode
-        ? `登录模式 · 当前段最长 ${policyMinutes >= 120 ? '2 小时' : `${policyMinutes} 分钟`}；服务器不保存录音，只保存文本和摘要`
-        : '访客试用 · 每段最长 10 分钟；服务器不保存录音；录音只在当前浏览器留存';
-      $('record-limit-remaining').textContent = ['recording', 'paused', 'connecting', 'finishing'].includes(recorderState)
-        ? `本段剩余 ${formatTime(remaining)}`
-        : `单段上限 ${formatTime(asrPassLimitSeconds)}`;
-      $('recording-policy').classList.toggle('warning', remaining <= 60 && ['recording', 'paused'].includes(recorderState));
+      const active = ['recording', 'paused', 'connecting', 'finishing'].includes(recorderState);
+      $('record-limit-status').textContent = active ? '访客试用 · 本段剩余' : '访客试用 · 每段最长 10 分钟';
+      $('record-limit-remaining').textContent = active ? formatTime(remaining) : formatTime(asrPassLimitSeconds);
+      policy.classList.toggle('warning', remaining <= 60 && ['recording', 'paused'].includes(recorderState));
     }
 
     function requestAsrWindowCommit(options) {
@@ -2549,7 +2545,7 @@
       $('account-name').textContent = loggedIn ? (authUser.display_name || authUser.account) : storageMode === 'guest' ? '访客模式' : '选择使用方式';
       $('account-storage').textContent = loggedIn ? '服务器同步' : storageMode === 'guest' ? '仅此浏览器' : '尚未进入';
       $('account-action').textContent = loggedIn ? '退出' : storageMode === 'guest' ? '登录' : '选择';
-      if (!['recording', 'paused', 'connecting', 'finishing'].includes(recorderState)) asrPassLimitSeconds = loggedIn ? 2 * 60 * 60 : 10 * 60;
+      if (!['recording', 'paused', 'connecting', 'finishing'].includes(recorderState)) asrPassLimitSeconds = 10 * 60;
       updateSidebarContext();
       updateRecordingLimitUi();
     }
@@ -2856,7 +2852,7 @@
         updateRecordingLimitUi();
         if (elapsedSeconds % 5 === 0) scheduleMeetingSave(200);
         if (recordingPassSeconds - lastAsrWindowCommitAt >= 42) requestAsrWindowCommit();
-        if (recordingPassSeconds >= asrPassLimitSeconds) finishRecording('已达到当前录音段上限，最后文字正在提交；可稍后继续录下一段');
+        if (storageMode === 'guest' && recordingPassSeconds >= asrPassLimitSeconds) finishRecording('访客试用已达到 10 分钟，本段文字正在提交；登录后可继续长时间记录');
       }, 1000);
     }
 
@@ -3120,7 +3116,7 @@
 
     function handleAsrEvent(payload) {
       if (payload.demo_event === 'asr.stream.ready' || payload.demo_event === 'asr.stream.started') {
-        if (Number(payload.max_connection_seconds) > 0) asrPassLimitSeconds = Number(payload.max_connection_seconds);
+        if (storageMode === 'guest' && Number(payload.max_connection_seconds) > 0) asrPassLimitSeconds = Number(payload.max_connection_seconds);
         updateRecordingLimitUi();
       } else if (payload.demo_event === 'asr.stream.result') {
         const boardEvent = payload.board_event || (payload.result && payload.result.board_event) || {};
@@ -3280,7 +3276,7 @@
       ensureActiveMeeting();
       beginTranscriptPass();
       recordingPassSeconds = 0;
-      asrPassLimitSeconds = storageMode === 'account' ? 2 * 60 * 60 : 10 * 60;
+      asrPassLimitSeconds = 10 * 60;
       asrWindowCommitPending = false;
       pauseCommitPending = false;
       lastAsrWindowCommitAt = 0;
@@ -3572,7 +3568,7 @@
         refreshHeartbeat();
         const channelsResponse = await fetch('/api/asr/channels');
         const channelsData = await channelsResponse.json();
-        if (Number(channelsData.stream_policy && channelsData.stream_policy.max_connection_seconds) > 0) {
+        if (storageMode === 'guest' && Number(channelsData.stream_policy && channelsData.stream_policy.max_connection_seconds) > 0) {
           asrPassLimitSeconds = Number(channelsData.stream_policy.max_connection_seconds);
           updateRecordingLimitUi();
         }

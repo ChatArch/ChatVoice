@@ -151,9 +151,12 @@ def test_homepage_toolbar_uses_left_history_menu_and_right_settings_menu_only():
     assert "id=\"toggle-settings-menu\"" in site_bar
     assert ">•••</button>" in site_bar
     assert "id=\"settings-menu\"" in site_bar
-    assert "识别设置 / 状态" in site_bar
-    assert "模型与通道" in site_bar
-    assert "API Token" in site_bar
+    assert "toolbar-menu-grid" in site_bar
+    assert "打开设置，包含识别状态、模型和 API Token" in site_bar
+    assert "<b>设置</b>" in site_bar
+    assert "open-model-status" not in site_bar
+    assert "open-token-settings" not in site_bar
+    assert site_bar.count("data-settings-focus=") == 1
     assert "https://arch.gh.wzhecnu.cn/ChatVoice/" in site_bar
     assert "https://github.com/ChatArch/ChatVoice" in site_bar
     assert "id=\"copy-transcript\"" not in site_bar
@@ -178,7 +181,7 @@ def test_raw_audio_archive_is_explicit_opt_in_and_local_only():
 
     assert "默认不保存" not in footer_markup
     assert "默认不保存" not in entry_markup
-    assert "服务器不保存录音，只保存文本和摘要" in footer_markup
+    assert "服务器不保存录音，只保存文本和摘要" in entry_markup
     assert "保存到本机" in footer_markup
     assert "服务器不保存录音" in entry_markup
     assert "音频只用于实时识别" in entry_markup
@@ -194,3 +197,17 @@ def test_raw_audio_archive_is_explicit_opt_in_and_local_only():
     assert "未留存音频" in archive_body
     assert "下载本机音频" in archive_body
     assert "服务器不保存录音" in archive_body
+
+
+def test_logged_in_recording_has_no_frontend_duration_cap():
+    source = _script_source()
+
+    assert "登录账号 · 单段" not in source
+    assert "2 * 60 * 60" not in source
+    assert "访客使用 · 单段 10 分钟" in source
+    assert "访客试用 · 本段剩余" in source
+    assert "policy.hidden = !guestMode" in source
+
+    timer_body = _function_body(source, "startTimer")
+    assert "storageMode === 'guest' && recordingPassSeconds >= asrPassLimitSeconds" in timer_body
+    assert "访客试用已达到 10 分钟" in timer_body
