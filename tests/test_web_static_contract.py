@@ -137,3 +137,43 @@ def test_title_refresh_quick_new_and_reset_confirmation_are_exposed():
     assert "refresh-title').addEventListener('click', refreshMeetingTitle" in source
     assert "quick-new-meeting').addEventListener('click', () => createNewMeeting()" in source
     assert "reset-recording').addEventListener('click', requestResetSession" in source
+
+
+def test_homepage_toolbar_uses_clear_left_menu_and_labeled_actions():
+    source = _script_source()
+    site_bar = source[source.index('<header class="site-bar">'):source.index('<section class="recorder-shell')]
+
+    assert "brand-cluster" in site_bar
+    assert "id=\"toggle-sidebar\"" in site_bar
+    assert site_bar.index('id="toggle-sidebar"') < site_bar.index('class="brand"')
+    assert "language-button" not in site_bar
+    assert "设置/状态" in site_bar
+    assert "复制" in site_bar
+    assert '复制文字记录">•••' not in site_bar
+    assert "aria-label=\"打开识别设置与服务状态\"" in site_bar
+    assert "aria-label=\"复制文字记录\"" in site_bar
+
+
+def test_raw_audio_archive_is_explicit_opt_in_and_local_only():
+    source = _script_source()
+    footer_markup = source[source.index('<footer class="recording-console'):source.index('</footer>', source.index('<footer class="recording-console'))]
+    entry_markup = source[source.index('<dialog id="entry-dialog"'):source.index('<div class="toast"')]
+
+    assert "默认不保存原始录音" in footer_markup
+    assert "保存音频" in footer_markup
+    assert "仅在本浏览器暂存" in footer_markup
+    assert "原始录音默认不保存" in entry_markup
+    assert "原始录音仍默认不上传服务器，也不自动留存在浏览器" in entry_markup
+    assert "服务器默认不保存原始录音" in entry_markup
+
+    assert "let archiveOptIn = false" in source
+    capture_body = _function_body(source, "startMicrophoneCapture")
+    assert "if (archiveOptIn) startArchiveRecording(microphoneStream)" in capture_body
+    assert "startArchiveRecording(microphoneStream);" not in capture_body.replace("if (archiveOptIn) startArchiveRecording(microphoneStream);", "")
+
+    assert "function handleArchiveButton" in source
+    assert "download-recording').addEventListener('click', handleArchiveButton" in source
+    archive_body = _function_body(source, "updateArchiveButton")
+    assert "未保存音频" in archive_body
+    assert "下载录音" in archive_body
+    assert "服务器不保存原始录音" in archive_body
