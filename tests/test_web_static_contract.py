@@ -139,19 +139,30 @@ def test_title_refresh_quick_new_and_reset_confirmation_are_exposed():
     assert "reset-recording').addEventListener('click', requestResetSession" in source
 
 
-def test_homepage_toolbar_uses_clear_left_menu_and_labeled_actions():
+def test_homepage_toolbar_uses_left_history_menu_and_right_settings_menu_only():
     source = _script_source()
     site_bar = source[source.index('<header class="site-bar">'):source.index('<section class="recorder-shell')]
+    transcript_panel = source[source.index('<section class="tab-panel active" id="transcript-panel"'):source.index('<section class="tab-panel" id="summary-panel"')]
 
     assert "brand-cluster" in site_bar
     assert "id=\"toggle-sidebar\"" in site_bar
     assert site_bar.index('id="toggle-sidebar"') < site_bar.index('class="brand"')
     assert "language-button" not in site_bar
-    assert "设置/状态" in site_bar
-    assert "复制" in site_bar
-    assert '复制文字记录">•••' not in site_bar
-    assert "aria-label=\"打开识别设置与服务状态\"" in site_bar
-    assert "aria-label=\"复制文字记录\"" in site_bar
+    assert "id=\"toggle-settings-menu\"" in site_bar
+    assert "id=\"settings-menu\"" in site_bar
+    assert "识别设置 / 状态" in site_bar
+    assert "模型与通道" in site_bar
+    assert "API Token" in site_bar
+    assert "id=\"copy-transcript\"" not in site_bar
+    assert "复制文字记录" not in site_bar
+    assert "id=\"copy-transcript\"" in transcript_panel
+    assert "复制文字" in transcript_panel
+
+    assert "function toggleSettingsMenu" in source
+    assert "function openSettingsDialog" in source
+    assert "toggle-settings-menu').addEventListener('click'" in source
+    assert "settings-menu').addEventListener('click'" in source
+    assert "copy-transcript').addEventListener('click', copyTranscriptText" in source
 
 
 def test_raw_audio_archive_is_explicit_opt_in_and_local_only():
