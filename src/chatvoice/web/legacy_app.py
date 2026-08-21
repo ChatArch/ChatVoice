@@ -60,6 +60,9 @@ FUNASR_GPU_DEVICE = os.getenv("FUNASR_GPU_DEVICE", "cuda:0")
 ASR_API_URL = os.getenv("CHATVOICE_ASR_API_URL", os.getenv("ASR_API_URL", "")).strip()
 ASR_API_KEY = os.getenv("CHATVOICE_ASR_API_KEY", os.getenv("ASR_API_KEY", "")).strip()
 ASR_API_TIMEOUT_SECONDS = float(os.getenv("CHATVOICE_ASR_API_TIMEOUT_SECONDS", "120"))
+VOICECLONE_API_URL = os.getenv("CHATVOICE_VOICECLONE_URL", os.getenv("VOICECLONE_API_URL", "")).strip().rstrip("/")
+VOICECLONE_API_TIMEOUT_SECONDS = float(os.getenv("CHATVOICE_VOICECLONE_TIMEOUT_SECONDS", "180"))
+MAX_VOICECLONE_REFERENCE_BYTES = int(os.getenv("CHATVOICE_VOICECLONE_MAX_REFERENCE_BYTES", str(50 * 1024 * 1024)))
 DEFAULT_ASR_CHANNEL = os.getenv("CHATVOICE_ASR_CHANNEL", os.getenv("DEFAULT_ASR_CHANNEL", "")).strip() or ("api-server" if ASR_API_URL else "stub-local")
 MEETING_NOTES_MODEL = os.getenv("QWEN_MEETING_NOTES_MODEL", os.getenv("QWEN_CODING_PLAN_MODEL", "qwen3.7-plus"))
 MEETING_TITLE_MODEL = os.getenv("QWEN_MEETING_TITLE_MODEL", "qwen3.6-flash")
@@ -367,8 +370,8 @@ def _safe_profile_summary() -> dict[str, Any]:
         "base_host": parsed.netloc if parsed else None,
         "base_path": parsed.path if parsed else None,
         "key_present": bool(key),
-        "voice_cloning_configured": voice_key_configured,
-        "voice_cloning_provider": "dashscope-direct",
+        "voice_cloning_configured": voice_key_configured or bool(VOICECLONE_API_URL),
+        "voice_cloning_provider": "dashscope-direct+local-sidecar" if VOICECLONE_API_URL else "dashscope-direct",
         "api_keys": {
             "asr_api_key_configured": bool(ASR_API_KEY),
             "model_api_key_configured": bool(key),
@@ -378,6 +381,11 @@ def _safe_profile_summary() -> dict[str, Any]:
             "url_configured": bool(ASR_API_URL),
             "endpoint_host": urlparse(ASR_API_URL).netloc if ASR_API_URL else None,
             "api_key_configured": bool(ASR_API_KEY),
+        },
+        "voiceclone_api": {
+            "url_configured": bool(VOICECLONE_API_URL),
+            "endpoint_host": urlparse(VOICECLONE_API_URL).netloc if VOICECLONE_API_URL else None,
+            "mode": "local-one-shot-sidecar",
         },
         "tts_model": TTS_MODEL,
         "meeting_title_model": _meeting_title_model(),
@@ -1223,6 +1231,134 @@ def voice_cloning_list(prefix: str | None = None) -> JSONResponse:
     except Exception as exc:
         raise HTTPException(status_code=502, detail={"error_type": type(exc).__name__, "message": str(exc)[:700]}) from exc
     return JSONResponse({"voices": voices})
+
+
+def _voiceclone_url(path: str) -> str:
+    if not VOICECLONE_API_URL:
+        raise HTTPException(status_code=503, detail="VoiceClone sidecar is not configured")
+    return VOICECLONE_API_URL + path
+
+
+def _read_voiceclone_error(exc: urllib.error.HTTPError) -> dict[str, Any] | str:
+    body = exc.read(4096).decode("utf-8", "replace")
+    try:
+        return json.loads(body)
+    except Exception:
+        return body[:600] or exc.reason
+
+
+def _voiceclone_get_json(path: str) -> dict[str, Any]:
+    request = urllib.request.Request(_voiceclone_url(path), headers={"User-Agent": "chatvoice-voiceclone/0.1"})
+    with urllib.request.urlopen(request, timeout=VOICECLONE_API_TIMEOUT_SECONDS) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def _voiceclone_request_json(method: str, path: str, body: bytes | None = None, content_type: str | None = None) -> dict[str, Any]:
+    headers = {"User-Agent": "chatvoice-voiceclone/0.1"}
+    if content_type:
+        headers["Content-Type"] = content_type
+    request = urllib.request.Request(_voiceclone_url(path), data=body, method=method, headers=headers)
+    with urllib.request.urlopen(request, timeout=VOICECLONE_API_TIMEOUT_SECONDS) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def _voiceclone_get_audio(path: str) -> tuple[bytes, str]:
+    request = urllib.request.Request(_voiceclone_url(path), headers={"User-Agent": "chatvoice-voiceclone/0.1"})
+    with urllib.request.urlopen(request, timeout=VOICECLONE_API_TIMEOUT_SECONDS) as response:
+        media_type = response.headers.get("Content-Type", "audio/wav")
+        return response.read(), media_type
+
+
+@app.get("/api/voice-clone/status")
+async def voice_clone_status() -> JSONResponse:
+    if not VOICECLONE_API_URL:
+        return JSONResponse({"configured": False, "ok": False, "status": "not-configured", "mode": "local-one-shot-sidecar"})
+    try:
+        payload = await asyncio.to_thread(_voiceclone_get_json, "/health")
+    except Exception as exc:
+        return JSONResponse(
+            {"configured": True, "ok": False, "status": "offline", "error_type": type(exc).__name__, "message": str(exc)[:300]},
+            status_code=200,
+        )
+    payload["configured"] = True
+    payload["status"] = "ready" if payload.get("ok") else "degraded"
+    return JSONResponse(payload)
+
+
+@app.post("/api/voice-clone/jobs")
+async def voice_clone_create_job(
+    request: Request,
+    text: str = Form(...),
+    lang: str = Form("zh"),
+    duration_factor: float = Form(1.0),
+    reference_audio: UploadFile = File(...),
+) -> JSONResponse:
+    auth = _auth_row(request)
+    _require_csrf(request, auth)
+    normalized_text = " ".join(text.split())
+    if not normalized_text:
+        raise HTTPException(status_code=400, detail="text is empty")
+    audio_bytes = await reference_audio.read()
+    if not audio_bytes:
+        raise HTTPException(status_code=400, detail="reference audio is empty")
+    if len(audio_bytes) > MAX_VOICECLONE_REFERENCE_BYTES:
+        raise HTTPException(status_code=413, detail="reference audio is too large")
+    fields = {"text": normalized_text, "lang": lang, "duration_factor": str(duration_factor)}
+    filename = Path(reference_audio.filename or "reference.wav").name
+    content_type = reference_audio.content_type or "application/octet-stream"
+    body, boundary = _multipart_form_data(fields, "reference_audio", filename, audio_bytes, content_type)
+    try:
+        payload = await asyncio.to_thread(_voiceclone_request_json, "POST", "/v1/jobs", body, f"multipart/form-data; boundary={boundary}")
+    except urllib.error.HTTPError as exc:
+        raise HTTPException(status_code=exc.code, detail=_read_voiceclone_error(exc)) from exc
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail={"error_type": type(exc).__name__, "message": str(exc)[:500]}) from exc
+    return JSONResponse(payload, status_code=202)
+
+
+@app.get("/api/voice-clone/jobs/{job_id}")
+async def voice_clone_get_job(job_id: str, request: Request) -> JSONResponse:
+    _auth_row(request)
+    try:
+        payload = await asyncio.to_thread(_voiceclone_get_json, f"/v1/jobs/{job_id}")
+    except urllib.error.HTTPError as exc:
+        raise HTTPException(status_code=exc.code, detail=_read_voiceclone_error(exc)) from exc
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail={"error_type": type(exc).__name__, "message": str(exc)[:500]}) from exc
+    return JSONResponse(payload)
+
+
+@app.get("/api/voice-clone/jobs/{job_id}/audio")
+async def voice_clone_get_audio(job_id: str, request: Request) -> Response:
+    _auth_row(request)
+    try:
+        audio, media_type = await asyncio.to_thread(_voiceclone_get_audio, f"/v1/jobs/{job_id}/audio")
+    except urllib.error.HTTPError as exc:
+        raise HTTPException(status_code=exc.code, detail=_read_voiceclone_error(exc)) from exc
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail={"error_type": type(exc).__name__, "message": str(exc)[:500]}) from exc
+    return Response(content=audio, media_type=media_type, headers={"Content-Disposition": f'inline; filename="voiceclone-{job_id}.wav"'})
+
+
+@app.delete("/api/voice-clone/jobs/{job_id}")
+async def voice_clone_delete_job(job_id: str, request: Request) -> JSONResponse:
+    auth = _auth_row(request)
+    _require_csrf(request, auth)
+    try:
+        payload = await asyncio.to_thread(_voiceclone_request_json, "DELETE", f"/v1/jobs/{job_id}")
+    except urllib.error.HTTPError as exc:
+        raise HTTPException(status_code=exc.code, detail=_read_voiceclone_error(exc)) from exc
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail={"error_type": type(exc).__name__, "message": str(exc)[:500]}) from exc
+    return JSONResponse(payload)
 
 
 def _meeting_notes_blocking(req: MeetingNotesRequest) -> dict[str, Any]:

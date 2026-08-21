@@ -251,7 +251,6 @@ def test_raw_audio_archive_is_not_offered_in_meeting_recorder():
         "下载音频",
         "下载本机音频",
         "download-recording",
-        "MediaRecorder",
         "AUDIO_DB_NAME",
         "recording-chunks",
         "archiveOptIn",
@@ -265,6 +264,41 @@ def test_raw_audio_archive_is_not_offered_in_meeting_recorder():
     capture_body = _function_body(source, "startMicrophoneCapture")
     assert "asr.stream.append" in capture_body
     assert "MediaRecorder" not in capture_body
+
+
+def test_voice_studio_uses_local_one_shot_clone_flow_instead_of_voice_id_enrollment():
+    source = _script_source()
+    studio_markup = source[source.index('<section class="voice-studio product-view"'):source.index('<section class="realtime-chat product-view"')]
+
+    assert "本地复刻 · 一次性生成" in studio_markup
+    assert "clone-reference-file" in studio_markup
+    assert "record-clone-reference" in studio_markup
+    assert "clone-consent" in studio_markup
+    assert "生成复刻试听" in studio_markup
+    assert "只用于生成当前试听，不保存为音色档案" in studio_markup
+    assert "参考音频公网 URL" not in studio_markup
+    assert "clone-audio-url" not in studio_markup
+    assert "clone-prefix" not in studio_markup
+    assert "创建复刻音色" not in studio_markup
+
+    configure_body = _function_body(source, "configureVoiceCloning")
+    assert "voiceclone_api" in configure_body
+    assert "refreshVoiceCloneStatus" in configure_body
+
+    create_body = _function_body(source, "createClonedVoice")
+    assert "FormData" in create_body
+    assert "reference_audio" in create_body
+    assert "'/api/voice-clone/jobs'" in create_body
+    assert "X-CSRF-Token" in create_body
+    assert "voice-cloning/create" not in create_body
+
+    record_body = _function_body(source, "toggleCloneRecording")
+    assert "MediaRecorder" in record_body
+    assert "recorded-reference.webm" in record_body
+
+    assert "clone-reference-file').addEventListener('change'" in source
+    assert "clone-consent').addEventListener('change', updateCloneSubmitState" in source
+    assert "record-clone-reference').addEventListener('click', toggleCloneRecording" in source
 
 
 def test_api_token_management_uses_one_time_key_modal_pattern():
