@@ -179,7 +179,7 @@ def test_raw_audio_archive_is_explicit_opt_in_and_local_only():
     assert "默认不保存" not in footer_markup
     assert "默认不保存" not in entry_markup
     assert "服务器不保存录音，只保存文本和摘要" in footer_markup
-    assert "本机留存音频" in footer_markup
+    assert "保存到本机" in footer_markup
     assert "服务器不保存录音" in entry_markup
     assert "音频只用于实时识别" in entry_markup
 

@@ -636,7 +636,7 @@
         <span class="account-copy"><strong id="account-name">选择使用方式</strong><small id="account-storage">尚未进入</small></span>
         <button class="account-action" id="account-action" type="button">选择</button>
       </div>
-      <p class="sidebar-footnote" id="storage-note">服务器不保存录音，只保存文本和摘要。本机留存后，录音只在当前浏览器。</p>
+      <p class="sidebar-footnote" id="storage-note">服务器不保存录音，只保存文本和摘要。录音只在当前浏览器留存。</p>
     </aside>
     <button class="sidebar-backdrop" id="sidebar-backdrop" type="button" aria-label="关闭会议记录"></button>
 
@@ -815,7 +815,7 @@
 
       <footer class="recording-console idle" id="recording-console">
         <div class="recording-policy" id="recording-policy">
-          <span id="record-limit-status">服务器不保存录音，只保存文本和摘要。本机留存后，录音只在当前浏览器。</span>
+          <span id="record-limit-status">服务器不保存录音，只保存文本和摘要。录音只在当前浏览器留存。</span>
           <strong id="record-limit-remaining">10:00</strong>
         </div>
         <div class="waveform-wrap">
@@ -833,7 +833,7 @@
 
           <div class="finish-wrap">
             <button class="reset-control" id="reset-recording" type="button">清空</button>
-            <button class="download-control" id="download-recording" type="button" title="服务器不保存录音；点击后仅在当前浏览器暂存，用于结束后下载">本机留存音频</button>
+            <button class="download-control" id="download-recording" type="button" title="服务器不保存录音；点击后仅保存在当前浏览器，结束后可下载">保存到本机</button>
             <button class="finish-control" id="finish-recording" type="button" disabled>结束</button>
           </div>
         </div>
@@ -1022,7 +1022,7 @@
         <p class="access-intro">两种方式都可以使用实时转写与 AI 摘要；区别只在于会议记录保存在哪里。</p>
         <div class="mode-grid">
           <button class="mode-card primary" id="enter-guest" type="button">
-            <span class="mode-icon">⌂</span><strong>访客使用 · 单段 10 分钟</strong><span>文字和摘要仅保存在当前浏览器；服务器不保存录音。需要音频文件时可手动开启本机留存。</span>
+            <span class="mode-icon">⌂</span><strong>访客使用 · 单段 10 分钟</strong><span>文字和摘要仅保存在当前浏览器；服务器不保存录音。需要音频文件时可保存到本机。</span>
           </button>
           <button class="mode-card" id="show-login" type="button">
             <span class="mode-icon">◎</span><strong>登录账号 · 单段 2 小时</strong><span>文字和摘要跨设备保存；服务器不保存录音，只保存文本和摘要。</span>
@@ -1171,7 +1171,7 @@
       const remaining = Math.max(0, asrPassLimitSeconds - recordingPassSeconds);
       $('record-limit-status').textContent = accountMode
         ? `登录模式 · 当前段最长 ${policyMinutes >= 120 ? '2 小时' : `${policyMinutes} 分钟`}；服务器不保存录音，只保存文本和摘要`
-        : '访客试用 · 每段最长 10 分钟；服务器不保存录音，本机留存后只在当前浏览器';
+        : '访客试用 · 每段最长 10 分钟；服务器不保存录音；录音只在当前浏览器留存';
       $('record-limit-remaining').textContent = ['recording', 'paused', 'connecting', 'finishing'].includes(recorderState)
         ? `本段剩余 ${formatTime(remaining)}`
         : `单段上限 ${formatTime(asrPassLimitSeconds)}`;
@@ -2244,7 +2244,7 @@
           : '对话文字仅保存在当前浏览器；原始语音只在实时请求中临时经过服务器。'
         : loggedIn
           ? '服务器同步文字、摘要和会议元数据；录音不上传，也不自动保存在浏览器。'
-          : '访客文字/摘要仅在当前浏览器；服务器不保存录音，本机留存后才可下载。';
+          : '访客文字/摘要仅在当前浏览器；服务器不保存录音，保存到本机后才可下载。';
       renderSidebarIndex();
     }
 
@@ -2832,12 +2832,12 @@
       } else if (nextState === 'paused') {
         $('record-toggle').innerHTML = '<span class="play-icon"></span>';
         $('record-toggle').setAttribute('aria-label', '继续录音');
-        $('local-save-status').textContent = archiveOptIn ? '音频留存已暂停，仍仅保存在当前浏览器' : '录音已暂停；服务器不保存录音';
+        $('local-save-status').textContent = archiveOptIn ? '本机保存已暂停，录音仍只在当前浏览器' : '录音已暂停；服务器不保存录音';
       } else {
         $('record-toggle').innerHTML = '<span class="record-icon"></span>';
         $('record-toggle').setAttribute('aria-label', nextState === 'ended' || nextState === 'error' ? '继续录音' : '开始录音');
         $('local-save-status').textContent = nextState === 'ended'
-          ? (hasDownloadableArchive() ? '录音已在当前浏览器留存，可下载；服务器不保存录音' : '本次未开启本机留存；服务器只保存文本和摘要')
+          ? (hasDownloadableArchive() ? '录音已保存在当前浏览器，可下载；服务器不保存录音' : '未保存到本机；服务器只保存文本和摘要')
           : '服务器不保存录音';
       }
       updateArchiveButton();
@@ -2896,26 +2896,26 @@
         button.textContent = hasArchive ? '下载本机音频' : '未留存音频';
         button.title = hasArchive
           ? '从当前浏览器下载本机音频；服务器不保存录音'
-          : '本次没有开启本机留存；服务器不保存录音';
+          : '未保存到本机；服务器不保存录音';
         return;
       }
       if (['recording', 'connecting', 'finishing', 'paused'].includes(recorderState)) {
         if (archiveOptIn) {
           button.disabled = true;
           button.textContent = recorderState === 'paused' ? '音频已暂停' : '本地保存中';
-          button.title = '录音只在当前浏览器留存，用于结束后下载；服务器不保存录音';
+          button.title = '录音只保存在当前浏览器，用于结束后下载；服务器不保存录音';
         } else {
           button.disabled = !microphoneStream || recorderState === 'connecting' || recorderState === 'finishing';
-          button.textContent = '本机留存音频';
-          button.title = '点击后从现在开始在当前浏览器留存录音，结束后可下载；服务器不保存录音';
+          button.textContent = '保存到本机';
+          button.title = '点击后从现在开始把录音保存在当前浏览器，结束后可下载；服务器不保存录音';
         }
         return;
       }
       button.disabled = false;
-      button.textContent = archiveOptIn ? '将留存音频' : '本机留存音频';
+      button.textContent = archiveOptIn ? '下次保存到本机' : '保存到本机';
       button.title = archiveOptIn
-        ? '下一次录音会在当前浏览器留存，结束后可下载'
-        : '服务器不保存录音；点击后仅在当前浏览器暂存，用于结束后下载';
+        ? '下一次录音会保存在当前浏览器，结束后可下载'
+        : '服务器不保存录音；点击后仅保存在当前浏览器，结束后可下载';
     }
 
     function enableLocalAudioArchive({ fromClick = false } = {}) {
@@ -3002,8 +3002,8 @@
         await archiveWriteChain;
         if (!archiveChunkIndex) return;
         $('local-save-status').textContent = archiveStorageDegraded
-          ? '录音已在当前浏览器留存（部分分片在内存）；服务器不保存录音'
-          : '录音已在当前浏览器留存，可下载；服务器不保存录音';
+          ? '录音已保存在当前浏览器（部分分片在内存）；服务器不保存录音'
+          : '录音已保存在当前浏览器，可下载；服务器不保存录音';
         updateArchiveButton();
       };
       mediaRecorder.start(1000);
