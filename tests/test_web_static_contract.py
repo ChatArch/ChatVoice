@@ -198,7 +198,7 @@ def test_homepage_toolbar_uses_left_history_menu_and_right_settings_menu_only():
     assert "copy-transcript').addEventListener('click', copyTranscriptText" in source
 
 
-def test_title_refresh_is_icon_only_to_keep_title_row_compact():
+def test_title_action_buttons_are_icon_only_to_keep_title_row_compact():
     source = _script_source()
     title_actions = source[source.index('<div class="meeting-title-actions"'):source.index('</div>', source.index('<div class="meeting-title-actions"'))]
 
@@ -208,6 +208,12 @@ def test_title_refresh_is_icon_only_to_keep_title_row_compact():
     assert "title=\"刷新标题\"" in title_actions
     assert "<strong>刷新标题</strong>" not in title_actions
     assert "<span aria-hidden=\"true\">↻</span>" in title_actions
+    assert "id=\"quick-new-meeting\"" in title_actions
+    assert "class=\"title-action-button icon-only primary\"" in title_actions
+    assert "aria-label=\"新建会议\"" in title_actions
+    assert "title=\"新建会议\"" in title_actions
+    assert "<strong>新建</strong>" not in title_actions
+    assert "<span aria-hidden=\"true\">＋</span>" in title_actions
 
     title_mode_body = _function_body(source, "setMeetingTitleMode")
     assert "refreshButton.setAttribute('aria-label'" in title_mode_body
