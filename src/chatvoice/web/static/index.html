@@ -1784,11 +1784,10 @@
 
     function updateCloneSubmitState() {
       const ready = Boolean(localVoiceCloneStatus && localVoiceCloneStatus.configured && localVoiceCloneStatus.ok);
-      const loggedIn = storageMode === 'account' && Boolean(authUser);
-      const hasReference = Boolean(cloneReferenceBlob);
-      const consent = Boolean($('clone-consent')?.checked);
-      $('create-cloned-voice').disabled = cloneGenerating || !ready || !loggedIn || !hasReference || !consent;
-      $('record-clone-reference').disabled = cloneGenerating || !ready || !loggedIn;
+      $('create-cloned-voice').disabled = cloneGenerating || !ready;
+      $('record-clone-reference').disabled = cloneGenerating || !ready;
+      $('create-cloned-voice').title = ready ? '检查登录、参考音频、授权确认和文本后提交生成' : '本地复刻服务尚未就绪';
+      $('record-clone-reference').title = ready ? '登录后可直接录制参考音频' : '本地复刻服务尚未就绪';
     }
 
     function setCloneProgress(progress = 0, message = '') {
@@ -1907,6 +1906,8 @@
     }
 
     async function createClonedVoice() {
+      const ready = Boolean(localVoiceCloneStatus && localVoiceCloneStatus.configured && localVoiceCloneStatus.ok);
+      if (!ready) { showToast('本地复刻服务尚未就绪'); return; }
       if (storageMode !== 'account' || !authUser) { showToast('请先登录账号'); return; }
       if (!cloneReferenceBlob) { showToast('请先上传或录制参考音频'); return; }
       if (!$('clone-consent').checked) { showToast('请先确认已获得声音本人授权'); return; }
@@ -1986,42 +1987,6 @@
       }
     }
 
-    async function createClonedVoice() {
-      if (!voiceCloningConfigured) { showToast('服务器尚未配置声音复刻密钥'); return; }
-      const audioUrl = $('clone-audio-url').value.trim();
-      const prefix = $('clone-prefix').value.trim();
-      if (!/^https?:\/\//i.test(audioUrl)) { showToast('请填写供应商可访问的 HTTP(S) 音频地址'); return; }
-      if (!/^[a-z0-9]{2,9}$/.test(prefix)) { showToast('音色前缀须为 2–9 位小写字母或数字'); return; }
-      const button = $('create-cloned-voice');
-      button.disabled = true;
-      button.textContent = '创建中…';
-      try {
-        const response = await fetch('/api/voice-cloning/create', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            audio_url: audioUrl,
-            prefix,
-            target_model: 'qwen-audio-3.0-tts-plus',
-            language_hints: [$('clone-language').value],
-            max_prompt_audio_length: 30,
-          }),
-        });
-        if (!response.ok) throw new Error(await responseError(response, '创建复刻音色失败'));
-        const payload = await response.json();
-        const voiceId = payload.voice_id || payload.voice;
-        if (!voiceId) throw new Error('服务没有返回 voice id');
-        $('custom-voice-id').value = voiceId;
-        document.querySelectorAll('.voice-card').forEach((card) => card.classList.remove('active'));
-        await loadClonedVoices();
-        showToast('复刻音色已创建，并填入合成器');
-      } catch (error) {
-        showToast(error.message || String(error));
-      } finally {
-        button.disabled = !voiceCloningConfigured;
-        button.textContent = '创建复刻音色';
-      }
-    }
 
     function meetingHeaders(write = false) {
       const headers = { 'Content-Type': 'application/json' };

@@ -285,7 +285,17 @@ def test_voice_studio_uses_local_one_shot_clone_flow_instead_of_voice_id_enrollm
     assert "voiceclone_api" in configure_body
     assert "refreshVoiceCloneStatus" in configure_body
 
+    assert source.count("async function createClonedVoice") == 1
+    assert "voice-cloning/create" not in source
     create_body = _function_body(source, "createClonedVoice")
+    submit_state_body = _function_body(source, "updateCloneSubmitState")
+    assert "!loggedIn" not in submit_state_body
+    assert "!hasReference" not in submit_state_body
+    assert "!consent" not in submit_state_body
+    assert "本地复刻服务尚未就绪" in create_body
+    assert "请先登录账号" in create_body
+    assert "请先上传或录制参考音频" in create_body
+    assert "请先确认已获得声音本人授权" in create_body
     assert "FormData" in create_body
     assert "reference_audio" in create_body
     assert "'/api/voice-clone/jobs'" in create_body
