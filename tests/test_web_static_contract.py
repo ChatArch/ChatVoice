@@ -207,6 +207,19 @@ def test_title_refresh_is_icon_only_to_keep_title_row_compact():
     assert "aria-label=\"刷新标题\"" in title_actions
     assert "title=\"刷新标题\"" in title_actions
     assert "<strong>刷新标题</strong>" not in title_actions
+    assert "<span aria-hidden=\"true\">↻</span>" in title_actions
+
+    title_mode_body = _function_body(source, "setMeetingTitleMode")
+    assert "refreshButton.setAttribute('aria-label'" in title_mode_body
+    assert "refreshButton.title" in title_mode_body
+    assert "refresh-title').textContent" not in source
+    assert "refreshButton.textContent" not in title_mode_body
+    assert "textContent = mode === 'generating'" not in title_mode_body
+
+    css_block = source[source.index(".title-action-button.icon-only") : source.index(".title-action-button.primary")]
+    assert "max-width: 34px" in css_block
+    assert "overflow: hidden" in css_block
+    assert ".title-action-button.icon-only strong { display: none; }" in css_block
 
 
 def test_raw_audio_archive_is_not_offered_in_meeting_recorder():

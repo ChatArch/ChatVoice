@@ -303,9 +303,10 @@
     .meeting-header input { flex: 1; min-width: 0; width: 100%; padding: 0; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: clamp(25px, 3.2vw, 38px); font-weight: 740; line-height: 1.25; letter-spacing: -.045em; }
     .meeting-title-actions { display: flex; gap: 8px; flex-shrink: 0; padding-top: 5px; }
     .title-action-button { min-height: 34px; border: 1px solid #e0d8c9; border-radius: 999px; padding: 0 12px; display: inline-flex; align-items: center; gap: 6px; background: #fff9ed; color: #6d5732; font-size: 10px; font-weight: 760; white-space: nowrap; cursor: pointer; box-shadow: 0 10px 24px rgba(89, 68, 28, .09); }
-    .title-action-button.icon-only { width: 34px; min-width: 34px; padding: 0; justify-content: center; }
+    .title-action-button.icon-only { width: 34px; min-width: 34px; max-width: 34px; padding: 0; justify-content: center; overflow: hidden; }
     .title-action-button span { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: rgba(120, 86, 34, .1); font-size: 12px; }
     .title-action-button.icon-only span { background: transparent; }
+    .title-action-button.icon-only strong { display: none; }
     .title-action-button.primary { border-color: #bdd8b2; background: #effbe9; color: #2f7031; box-shadow: 0 10px 24px rgba(49, 123, 51, .09); }
     .title-action-button.primary span { background: rgba(59, 135, 59, .13); }
     .title-action-button:disabled { opacity: .55; cursor: not-allowed; }
@@ -565,7 +566,7 @@
       .meeting-header input { font-size: 28px; }
       .meeting-title-actions { padding-top: 3px; flex-direction: column; }
       .title-action-button { padding: 6px 9px; font-size: 8px; }
-      .title-action-button.icon-only { width: 32px; min-width: 32px; padding: 0; }
+      .title-action-button.icon-only { width: 32px; min-width: 32px; max-width: 32px; padding: 0; }
       .meeting-meta { gap: 6px; font-size: 9px; overflow: hidden; white-space: nowrap; }
       .meeting-meta span:last-child, .meeting-meta i:last-of-type { display: none; }
       .content-tabs { padding: 0 22px; gap: 30px; }
@@ -1278,8 +1279,10 @@
       meetingTitleMode = mode;
       $('title-state').className = `title-state${mode === 'generating' ? ' generating' : mode === 'manual' ? ' manual' : ''}`;
       $('title-state').textContent = label || ({ default: 'AI 可自动命名', generating: '正在生成标题…', auto: 'AI 已命名', manual: '已手动命名' }[mode] || '');
-      $('refresh-title').disabled = mode === 'generating';
-      $('refresh-title').textContent = mode === 'generating' ? '生成中' : '刷新标题';
+      const refreshButton = $('refresh-title');
+      refreshButton.disabled = mode === 'generating';
+      refreshButton.setAttribute('aria-label', mode === 'generating' ? '标题生成中' : '刷新标题');
+      refreshButton.title = mode === 'generating' ? '标题生成中' : '刷新标题';
     }
 
     function resetMeetingTitleGeneration(mode = 'default') {
