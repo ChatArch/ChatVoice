@@ -1014,7 +1014,7 @@
           <header>
             <div>
               <h4 id="token-create-title">新建 API Token</h4>
-              <p>配置名称和有效期后生成。生成后的明文只在这里显示一次，关闭后不能再复制。</p>
+              <p>配置名称和有效期后生成。生成后会自动复制，并在这里显示一次；关闭后不能再复制。</p>
             </div>
             <button class="token-close" id="close-token-create" type="button" aria-label="关闭新建 Token 弹窗">×</button>
           </header>
@@ -1024,12 +1024,12 @@
               <input id="api-token-name" value="automation" maxlength="80" />
             </div>
             <div>
-              <label for="api-token-expires">有效期（天）</label>
-              <input id="api-token-expires" type="number" min="1" max="365" placeholder="长期" />
+              <label for="api-token-expires">有效期（天，可选）</label>
+              <input id="api-token-expires" type="number" min="1" max="365" placeholder="留空长期" />
             </div>
           </div>
           <div class="token-actions">
-            <button class="token-button" id="create-api-token" type="button">生成并复制</button>
+            <button class="token-button" id="create-api-token" type="button">生成 Token</button>
             <button class="token-button secondary" id="cancel-token-create" type="button">关闭</button>
           </div>
           <div class="token-result" id="api-token-result" hidden>

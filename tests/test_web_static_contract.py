@@ -210,12 +210,14 @@ def test_api_token_management_uses_one_time_key_modal_pattern():
     assert "新建 Token" in token_panel
     assert "id=\"token-create-popover\"" in token_panel
     assert "配置名称和有效期后生成" in token_panel
+    assert "生成后会自动复制" in token_panel
     assert "关闭后不能再复制" in token_panel
     assert "id=\"api-token-expires\"" in token_panel
+    assert "有效期（天，可选）" in token_panel
     assert "id=\"api-token-result\"" in token_panel
     assert "<code id=\"api-token-output\"></code>" in token_panel
     assert "textarea" not in token_panel
-    assert "生成并复制" in token_panel
+    assert "生成 Token" in token_panel
     assert "id=\"copy-api-token\"" in token_panel
     assert "masked key" in token_panel
 
