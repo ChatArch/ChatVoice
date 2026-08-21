@@ -3,10 +3,15 @@ from pathlib import Path
 
 
 STATIC_INDEX = Path(__file__).resolve().parents[1] / "src" / "chatvoice" / "web" / "static" / "index.html"
+LAYOUT_OPTIONS = Path(__file__).resolve().parents[1] / "src" / "chatvoice" / "web" / "static" / "homepage-layout-options.html"
 
 
 def _script_source() -> str:
     return STATIC_INDEX.read_text(encoding="utf-8")
+
+
+def _layout_options_source() -> str:
+    return LAYOUT_OPTIONS.read_text(encoding="utf-8")
 
 
 def _function_body(source: str, name: str) -> str:
@@ -148,10 +153,12 @@ def test_homepage_toolbar_uses_left_history_menu_and_right_settings_menu_only():
     assert "brand-cluster" in site_bar
     assert "id=\"toggle-sidebar\"" in site_bar
     assert site_bar.index('id="toggle-sidebar"') < site_bar.index('class="brand"')
-    assert "product-tabs" not in site_bar
-    assert "product-tab" not in site_bar
-    assert "workspace-label" in site_bar
-    assert "id=\"workspace-title\"" in site_bar
+    assert "product-tabs" in site_bar
+    assert "product-tab active" in site_bar
+    assert "id=\"meeting-product-tab\"" in site_bar
+    assert "id=\"studio-product-tab\"" in site_bar
+    assert "id=\"conversation-product-tab\"" in site_bar
+    assert "workspace-label" not in site_bar
     assert "language-button" not in site_bar
     assert "id=\"toggle-settings-menu\"" in site_bar
     assert ">•••</button>" in site_bar
@@ -159,10 +166,7 @@ def test_homepage_toolbar_uses_left_history_menu_and_right_settings_menu_only():
     assert "toolbar-menu-list" in site_bar
     assert "打开设置，包含识别状态、模型和 API Token" in site_bar
     assert "<b>设置</b>" in site_bar
-    assert "product-menu-action active" in site_bar
-    assert "<b>会议记录</b>" in site_bar
-    assert "<b>声音工作室</b>" in site_bar
-    assert "<b>实时对话</b>" in site_bar
+    assert "product-menu-action" not in site_bar
     assert "open-model-status" not in site_bar
     assert "open-token-settings" not in site_bar
     assert site_bar.count("data-settings-focus=") == 1
@@ -185,16 +189,43 @@ def test_homepage_toolbar_uses_left_history_menu_and_right_settings_menu_only():
     assert ".toolbar-menu-list { display: grid; grid-template-columns: 1fr" in toolbar_css
     assert "grid-template-columns: 26px max-content" in toolbar_css
     assert "grid-template-columns: repeat(3" not in toolbar_css
-    assert "querySelectorAll('.product-menu-action').forEach" in source
+    assert "querySelectorAll('.product-menu-action').forEach" not in source
+    assert "querySelectorAll('.product-tab').forEach" in source
     assert "addEventListener('click', () => switchProductView" in source
     switch_body = _function_body(source, "switchProductView")
-    assert "workspace-title').textContent = viewLabel" in switch_body
-    assert "product-menu-action" in switch_body
-    assert "aria-checked" in switch_body
+    assert "workspace-title" not in switch_body
+    assert "product-menu-action" not in switch_body
+    assert "aria-selected" in switch_body
+    assert "aria-checked" not in switch_body
     assert "toggle-settings-menu').addEventListener('pointerdown'" in source
     assert "toggle-settings-menu').addEventListener('click'" in source
     assert "settings-menu').addEventListener('click'" in source
     assert "copy-transcript').addEventListener('click', copyTranscriptText" in source
+
+
+def test_title_refresh_is_icon_only_to_keep_title_row_compact():
+    source = _script_source()
+    title_actions = source[source.index('<div class="meeting-title-actions"'):source.index('</div>', source.index('<div class="meeting-title-actions"'))]
+
+    assert "id=\"refresh-title\"" in title_actions
+    assert "icon-only" in title_actions
+    assert "aria-label=\"刷新标题\"" in title_actions
+    assert "title=\"刷新标题\"" in title_actions
+    assert "<strong>刷新标题</strong>" not in title_actions
+
+
+def test_homepage_layout_options_offer_three_non_destructive_directions():
+    source = _layout_options_source()
+
+    assert "声笺首页排版方案" in source
+    assert "data-variant=\"a\"" in source
+    assert "data-variant=\"b\"" in source
+    assert "data-variant=\"c\"" in source
+    assert "A · 保守收敛版" in source
+    assert "B · 笔记感整理版" in source
+    assert "C · 录音优先版" in source
+    assert source.count("会议记录</span><span>声音工作室</span><span>实时对话") == 3
+    assert "先看方向，不影响当前主页" in source
 
 
 def test_raw_audio_archive_is_explicit_opt_in_and_local_only():

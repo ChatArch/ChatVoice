@@ -447,6 +447,11 @@ def index() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
 
 
+@app.get("/layout-options", response_class=HTMLResponse)
+def layout_options() -> FileResponse:
+    return FileResponse(STATIC_DIR / "homepage-layout-options.html")
+
+
 @app.get("/assets/transcript-state.js")
 def transcript_state_asset() -> FileResponse:
     return FileResponse(STATIC_DIR / "transcript-state.js", media_type="text/javascript")
