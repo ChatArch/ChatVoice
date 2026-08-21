@@ -36,7 +36,7 @@ This page checks the first-class capabilities currently owned by `ChatVoice`, th
 
 | Capability | Status | Notes |
 | --- | --- | --- |
-| Base CLI entries | Implemented | `--help`, `--version`, and `--tree`. |
+| Base CLI entries | Implemented | `--help`, `--version`, and shared ChatStyle `--tree` / `--tree-brief`. |
 | Runtime paths | Implemented | Default `<chatarch-home>/chatvoice/`, override with runtime-home overrides. |
 | Packaged web startup | Implemented | `chatvoice serve app` calls `chatvoice.web.server:create_app`. |
 | Invited account CLI | Implemented | `chatvoice accounts add/list`; passwords are read from environment variables only. |
@@ -46,11 +46,11 @@ This page checks the first-class capabilities currently owned by `ChatVoice`, th
 | Local contract smoke | Implemented | `CHATVOICE_ASR_CHANNEL=stub-local` starts the full path without GPU/cloud credentials. |
 | Local FunASR compatibility | Preserved | `funasr-gpu` / `funasr-cpu` remain available, but production should prefer an external ASR API server. |
 | SQLite WAL storage | Implemented | Default for one service process and light concurrency; the `api_tokens` table stores only hash/prefix/metadata. |
-| Postgres/MySQL storage | Not implemented | External URLs are detected in plan/doctor, but v0.1.7 packaged legacy storage still supports SQLite only. |
+| Postgres/MySQL storage | Not implemented | External URLs are detected in plan/doctor, but v0.1.8 packaged legacy storage still supports SQLite only. |
 
 ## Out of scope now
 
 - Do not bundle GPU model download, CUDA/PyTorch installation, and the web process as one default runtime.
-- Do not claim MySQL/Postgres is complete in v0.1.7; high-concurrency storage migration needs a separate release.
+- Do not claim MySQL/Postgres is complete in v0.1.8; high-concurrency storage migration needs a separate release.
 - Do not print tokens, cookies, Authorization headers, or raw recordings; full transcripts are returned only by explicit data-read commands.
 - Do not manage services with `kill` / `kill -9`; restart commands need supervisor/graceful boundaries first.

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.8 - 2026-08-22
+
+### Changed
+
+- Replace the package-local Click tree renderer with ChatStyle `add_tree_option()`, explicitly name the `chatvoice` root, and add `--tree-brief` alongside the existing `--version` and full `--tree` contract.
+- Align the runtime with `chatstyle>=0.2.0,<0.3.0`, `chatenv>=0.2.10,<0.3.0`, bounded Click/docs dependencies, typed ChatEnv provider storage checks, and installed/built-wheel CLI release gates.
+
 ## 0.1.7 - 2026-08-22
 
 ### Changed

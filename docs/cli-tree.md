@@ -1,44 +1,77 @@
 # CLI 树
 
-`chatvoice --tree` 是每次 CLI 更新都要同步回读的真实命令契约。CLI 只做参数解析和展示，实际能力放在可 import 的 Python 函数中。
+`chatvoice --tree` 与 `chatvoice --tree-brief` 由共享的 `chatstyle.add_tree_option()` 从真实 Click 注册表渲染。完整树保留参数签名，简洁树保留相同节点与用途但省略签名。CLI 只做参数解析和展示，实际能力放在可 import 的 Python 函数中。
 
 可导入 Python 函数映射见 [接口树](interface-tree.md)。部署教程见 [部署与启动](deployment.md)。API Token 与数据读取见 [API 访问](api-access.md)。
 
 ## 当前已实现命令
 
 ```text
-chatvoice  # ChatVoice command line interface
-├── --help  # Show help for the current command.
-├── --version  # Show package version.
-├── --tree  # Print the registered CLI tree.
-├── paths [--json]  # Show resolved ChatVoice runtime paths
-├── doctor [--json]  # Check local ChatVoice service readiness without secrets
-├── serve  # Start packaged ChatVoice services
-│   └── app [--host HOST] [--port PORT] [--reload] [--workers WORKERS] [--dry-run] [--json]  # Start the packaged Speakr web application
-├── health  # Read health from a running ChatVoice service
-│   └── status [--url URL] [--timeout TIMEOUT] [--json]  # Read the /api/status endpoint
-├── asr  # Inspect ASR provider configuration
-│   └── channels [--json]  # List ASR channels and API-provider readiness
-├── accounts  # Manage invited accounts in the local service database
-│   ├── add ACCOUNT [--display-name DISPLAY-NAME] [--password-env PASSWORD-ENV] [--json]  # Create one invited account from the packaged runtime
-│   └── list [--json]  # List invited account metadata without password material
-├── tokens  # Manage service API tokens for automation
-│   ├── create [--url URL] --account ACCOUNT [--password-env PASSWORD-ENV] [--name NAME] [--expires-days EXPIRES-DAYS] [--scope SCOPES] [--timeout TIMEOUT] [--json]  # Create a one-time-visible API token after account login
-│   ├── list [--url URL] --account ACCOUNT [--password-env PASSWORD-ENV] [--timeout TIMEOUT] [--json]  # List API token metadata without revealing token values
-│   └── revoke TOKEN-ID [--url URL] --account ACCOUNT [--password-env PASSWORD-ENV] [--timeout TIMEOUT] [--json]  # Revoke an API token by id
-├── data  # Read meeting and conversation data from a running service
-│   ├── meetings [--url URL] [--token-env TOKEN-ENV] [--timeout TIMEOUT] [--json]  # List meeting metadata; use data meeting for transcript and summary
-│   ├── meeting MEETING-ID [--url URL] [--token-env TOKEN-ENV] [--timeout TIMEOUT] [--json]  # Read one meeting with transcript and summary
-│   ├── conversations [--url URL] [--token-env TOKEN-ENV] [--timeout TIMEOUT] [--json]  # List realtime conversation metadata; use data conversation for messages
-│   └── conversation CONVERSATION-ID [--url URL] [--token-env TOKEN-ENV] [--timeout TIMEOUT] [--json]  # Read one realtime conversation with messages
-└── service  # Plan and inspect ChatVoice service deployment
-    └── plan [--host HOST] [--port PORT] [--workers WORKERS] [--ensure-dirs] [--json]  # Render a sanitized service deployment plan
+chatvoice
+├── --help  # Show this message and exit.
+├── --version  # Show the version and exit.
+├── --tree  # Print the registered CLI tree and exit.
+├── --tree-brief  # Print the registered CLI tree without parameter signatures and exit.
+├── accounts  # Manage invited accounts in the local service database.
+│   ├── add <ACCOUNT> [--display-name DISPLAY-NAME] [--password-env PASSWORD-ENV] [--json]  # Create one invited account; writes the local service database.
+│   └── list [--json]  # List invited account metadata; read-only, without passwords.
+├── asr  # Inspect ASR provider configuration; no secret values.
+│   └── channels [--json]  # List ASR channel readiness; read-only and secret-safe.
+├── data  # Read meeting and conversation records from a running service.
+│   ├── conversation <CONVERSATION-ID> [--url URL] [--token-env TOKEN-ENV] [--timeout TIMEOUT] [--json]  # Read one realtime conversation; outputs stored messages.
+│   ├── conversations [--url URL] [--token-env TOKEN-ENV] [--timeout TIMEOUT] [--json]  # List realtime conversation metadata; read-only output.
+│   ├── meeting <MEETING-ID> [--url URL] [--token-env TOKEN-ENV] [--timeout TIMEOUT] [--json]  # Read one meeting; outputs its transcript and summary.
+│   └── meetings [--url URL] [--token-env TOKEN-ENV] [--timeout TIMEOUT] [--json]  # List meeting metadata; read-only text or JSON output.
+├── doctor [--json]  # Check local service readiness; read-only and secret-safe.
+├── health  # Read health from a running ChatVoice service; no writes.
+│   └── status [--url URL] [--timeout TIMEOUT] [--json]  # Read /api/status; returns redacted text or JSON.
+├── paths [--json]  # Show resolved runtime paths; read-only text or JSON output.
+├── serve  # Start packaged ChatVoice services; long-running side effects.
+│   └── app [--host HOST] [--port PORT] [--reload] [--workers WORKERS] [--dry-run] [--json]  # Start the Speakr web app; --dry-run only prints a safe plan.
+├── service  # Plan and inspect ChatVoice service deployment.
+│   └── plan [--host HOST] [--port PORT] [--workers WORKERS] [--ensure-dirs] [--json]  # Render a safe plan; --ensure-dirs creates runtime directories.
+└── tokens  # Manage service API tokens; remote credential side effects.
+    ├── create [--url URL] [--account ACCOUNT] [--password-env PASSWORD-ENV] [--name NAME] [--expires-days EXPIRES-DAYS] [--scope SCOPES] [--timeout TIMEOUT] [--json]  # Create a remote token; prints its secret value exactly once.
+    ├── list [--url URL] [--account ACCOUNT] [--password-env PASSWORD-ENV] [--timeout TIMEOUT] [--json]  # List remote token metadata; read-only, without token values.
+    └── revoke <TOKEN-ID> [--url URL] [--account ACCOUNT] [--password-env PASSWORD-ENV] [--timeout TIMEOUT] [--json]  # Revoke a remote API token by id; destructive credential write.
+```
+
+## 简洁命令树
+
+```text
+chatvoice
+├── --help  # Show this message and exit.
+├── --version  # Show the version and exit.
+├── --tree  # Print the registered CLI tree and exit.
+├── --tree-brief  # Print the registered CLI tree without parameter signatures and exit.
+├── accounts  # Manage invited accounts in the local service database.
+│   ├── add  # Create one invited account; writes the local service database.
+│   └── list  # List invited account metadata; read-only, without passwords.
+├── asr  # Inspect ASR provider configuration; no secret values.
+│   └── channels  # List ASR channel readiness; read-only and secret-safe.
+├── data  # Read meeting and conversation records from a running service.
+│   ├── conversation  # Read one realtime conversation; outputs stored messages.
+│   ├── conversations  # List realtime conversation metadata; read-only output.
+│   ├── meeting  # Read one meeting; outputs its transcript and summary.
+│   └── meetings  # List meeting metadata; read-only text or JSON output.
+├── doctor  # Check local service readiness; read-only and secret-safe.
+├── health  # Read health from a running ChatVoice service; no writes.
+│   └── status  # Read /api/status; returns redacted text or JSON.
+├── paths  # Show resolved runtime paths; read-only text or JSON output.
+├── serve  # Start packaged ChatVoice services; long-running side effects.
+│   └── app  # Start the Speakr web app; --dry-run only prints a safe plan.
+├── service  # Plan and inspect ChatVoice service deployment.
+│   └── plan  # Render a safe plan; --ensure-dirs creates runtime directories.
+└── tokens  # Manage service API tokens; remote credential side effects.
+    ├── create  # Create a remote token; prints its secret value exactly once.
+    ├── list  # List remote token metadata; read-only, without token values.
+    └── revoke  # Revoke a remote API token by id; destructive credential write.
 ```
 
 ## Fresh-start 服务入口
 
 ```bash
-python -m pip install "ChatVoice[web]==0.1.7"
+python -m pip install "ChatVoice[web]==0.1.8"
 chatvoice service plan --ensure-dirs --json
 chatvoice serve app --host 127.0.0.1 --port 18087
 ```

@@ -1,3 +1,6 @@
+from chatvoice import __version__
+
+
 def test_packaged_web_app_factory_exposes_core_routes(monkeypatch, tmp_path):
     monkeypatch.setenv("CHATARCH_HOME", str(tmp_path / "chatarch-home"))
     monkeypatch.setenv("CHATVOICE_ASR_CHANNEL", "stub-local")
@@ -75,7 +78,7 @@ def test_heartbeat_exposes_asr_health_without_secret_values(monkeypatch, tmp_pat
         assert response.status_code == 200
         assert payload["ok"] is True
         assert payload["service"] == "chatvoice"
-        assert payload["version"] == "0.1.7"
+        assert payload["version"] == __version__
         assert payload["database"]["ok"] is True
         assert payload["asr"]["default_channel"] == "stub-local"
         assert payload["asr"]["status"] == "ready"
