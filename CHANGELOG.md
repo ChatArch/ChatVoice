@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.6 - 2026-08-20
+
+### Changed
+
+- Make the recorder audio-retention/privacy notice more prominent in the recording console so users do not miss that original audio is not saved by default.
+
 ## 0.1.5 - 2026-08-20
 
 ### Changed

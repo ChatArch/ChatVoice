@@ -75,7 +75,7 @@ def test_heartbeat_exposes_asr_health_without_secret_values(monkeypatch, tmp_pat
         assert response.status_code == 200
         assert payload["ok"] is True
         assert payload["service"] == "chatvoice"
-        assert payload["version"] == "0.1.5"
+        assert payload["version"] == "0.1.6"
         assert payload["database"]["ok"] is True
         assert payload["asr"]["default_channel"] == "stub-local"
         assert payload["asr"]["status"] == "ready"

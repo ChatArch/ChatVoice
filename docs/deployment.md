@@ -1,6 +1,6 @@
 # 部署与启动
 
-这一页说明 v0.1.5 发布后，如何只通过 Python 包搭起一套 ChatVoice / Speakr 服务流程：安装、创建账号、启动服务、生成 API Token、读取会议/摘要数据。
+这一页说明 v0.1.6 发布后，如何只通过 Python 包搭起一套 ChatVoice / Speakr 服务流程：安装、创建账号、启动服务、生成 API Token、读取会议/摘要数据。
 
 ## 最小安装
 
@@ -8,7 +8,7 @@
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "ChatVoice[web]==0.1.5"
+python -m pip install "ChatVoice[web]==0.1.6"
 ```
 
 安装后先回读真实 CLI 树和运行目录：
@@ -65,7 +65,7 @@ http://127.0.0.1:18087/
 
 ## ASR provider：API 优先
 
-v0.1.5 的生产推荐方式是 **ChatVoice 后端通过 API 调用 ASR 服务**。这个 ASR 服务可以是：
+v0.1.6 的生产推荐方式是 **ChatVoice 后端通过 API 调用 ASR 服务**。这个 ASR 服务可以是：
 
 - 云服务 API，凭 API key 调用；
 - 自建 GPU ASR server，对外暴露 HTTP API；
@@ -109,7 +109,7 @@ chatvoice data conversations --url http://127.0.0.1:18087 --token-env CHATVOICE_
 
 ## 数据库与并发边界
 
-v0.1.5 packaged Web app 默认使用 SQLite WAL：
+v0.1.6 packaged Web app 默认使用 SQLite WAL：
 
 ```text
 <chatarch-home>/chatvoice/data/meetings.sqlite3
@@ -122,7 +122,7 @@ v0.1.5 packaged Web app 默认使用 SQLite WAL：
 - `chatvoice serve app --workers 1`；
 - 不要用多 worker / 多节点同时写同一个 SQLite 文件；
 - 高并发生产部署应把存储层迁移到 Postgres/MySQL 这类外部数据库后再扩多 worker；
-- an external database URL setting 会被 `doctor` / `service plan` 检测并报告，但 v0.1.5 的 packaged legacy storage 仍只真正支持 SQLite。
+- an external database URL setting 会被 `doctor` / `service plan` 检测并报告，但 v0.1.6 的 packaged legacy storage 仍只真正支持 SQLite。
 
 回读：
 
@@ -138,7 +138,7 @@ chatvoice health status --url http://127.0.0.1:18087 --json
 curl -s http://127.0.0.1:18087/api/heartbeat | python -m json.tool
 ```
 
-`0.1.5` 起新增轻量 heartbeat，用于区分“Web 服务挂了”“ASR 正在冷启动/处理中”“ASR 最近失败”：
+`0.1.6` 起新增轻量 heartbeat，用于区分“Web 服务挂了”“ASR 正在冷启动/处理中”“ASR 最近失败”：
 
 - `ok`：Web 服务、数据库只读检查和 ASR 状态是否可用。
 - `asr.status`：`ready`、`processing` 或 `degraded`。
