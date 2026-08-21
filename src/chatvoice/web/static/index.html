@@ -105,15 +105,15 @@
     .sidebar-toggle { flex: 0 0 auto; }
     .toolbar-menu-wrap { position: relative; }
     .toolbar-menu-toggle { width: 40px; height: 36px; font-size: 18px; letter-spacing: .08em; }
-    .toolbar-menu { position: absolute; z-index: 120; right: 0; top: 44px; width: 246px; padding: 8px; border: 1px solid #e4e4e7; border-radius: 16px; background: rgba(255,255,255,.98); box-shadow: 0 20px 56px rgba(25, 28, 40, .15); backdrop-filter: blur(18px); }
+    .toolbar-menu { position: absolute; z-index: 120; right: 0; top: 44px; width: 228px; padding: 8px; border: 1px solid #e4e4e7; border-radius: 16px; background: rgba(255,255,255,.98); box-shadow: 0 20px 56px rgba(25, 28, 40, .15); backdrop-filter: blur(18px); }
     .toolbar-menu[hidden] { display: none; }
-    .toolbar-menu-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
-    .toolbar-menu-action { min-height: 66px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; padding: 9px 6px; border: 0; border-radius: 13px; background: #f7f7f8; color: #4c4e55; text-align: center; text-decoration: none; }
+    .toolbar-menu-list { display: grid; grid-template-columns: 1fr; gap: 6px; }
+    .toolbar-menu-action { min-height: 46px; display: grid; grid-template-columns: 30px 1fr; align-items: center; gap: 10px; padding: 8px 10px; border: 0; border-radius: 13px; background: #fff; color: #4c4e55; text-align: left; text-decoration: none; }
     .toolbar-menu-action:hover { background: #eeeeff; color: var(--violet); }
     .toolbar-menu b, .toolbar-menu small { display: block; }
     .toolbar-menu b { font-size: 10px; }
     .toolbar-menu small { margin-top: 3px; color: #93959b; font-size: 8px; line-height: 1.45; }
-    .menu-icon { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 10px; background: #fff; color: var(--violet); font-size: 12px; font-weight: 760; }
+    .menu-icon { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 10px; background: #f0f0ff; color: var(--violet); font-size: 12px; font-weight: 760; }
     .settings-icon { position: relative; width: 15px; height: 15px; border: 2px solid currentColor; border-radius: 50%; }
     .settings-icon::after { content: ""; position: absolute; width: 4px; height: 4px; border-radius: 50%; background: currentColor; left: 3.5px; top: 3.5px; }
 
@@ -660,7 +660,7 @@
         <div class="toolbar-menu-wrap meeting-only-action">
           <button class="icon-button toolbar-menu-toggle" id="toggle-settings-menu" type="button" aria-label="打开设置菜单" aria-haspopup="true" aria-expanded="false" title="设置菜单">•••</button>
           <div class="toolbar-menu" id="settings-menu" role="menu" aria-label="设置菜单" hidden>
-            <div class="toolbar-menu-grid" aria-label="更多入口">
+            <div class="toolbar-menu-list" aria-label="更多入口">
               <button class="toolbar-menu-action" id="open-settings" type="button" role="menuitem" data-settings-focus="asr-channel" aria-label="打开设置，包含识别状态、模型和 API Token"><span class="menu-icon" aria-hidden="true">⚙</span><b>设置</b></button>
               <a class="toolbar-menu-action" href="https://arch.gh.wzhecnu.cn/ChatVoice/" target="_blank" rel="noreferrer" role="menuitem"><span class="menu-icon" aria-hidden="true">文</span><b>文档</b></a>
               <a class="toolbar-menu-action" href="https://github.com/ChatArch/ChatVoice" target="_blank" rel="noreferrer" role="menuitem"><span class="menu-icon" aria-hidden="true">GH</span><b>GitHub</b></a>

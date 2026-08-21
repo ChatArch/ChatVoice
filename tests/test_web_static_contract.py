@@ -143,6 +143,7 @@ def test_homepage_toolbar_uses_left_history_menu_and_right_settings_menu_only():
     source = _script_source()
     site_bar = source[source.index('<header class="site-bar">'):source.index('<section class="recorder-shell')]
     transcript_panel = source[source.index('<section class="tab-panel active" id="transcript-panel"'):source.index('<section class="tab-panel" id="summary-panel"')]
+    toolbar_css = source[source.index(".toolbar-menu-list {"):source.index(".settings-icon {")]
 
     assert "brand-cluster" in site_bar
     assert "id=\"toggle-sidebar\"" in site_bar
@@ -151,7 +152,7 @@ def test_homepage_toolbar_uses_left_history_menu_and_right_settings_menu_only():
     assert "id=\"toggle-settings-menu\"" in site_bar
     assert ">•••</button>" in site_bar
     assert "id=\"settings-menu\"" in site_bar
-    assert "toolbar-menu-grid" in site_bar
+    assert "toolbar-menu-list" in site_bar
     assert "打开设置，包含识别状态、模型和 API Token" in site_bar
     assert "<b>设置</b>" in site_bar
     assert "open-model-status" not in site_bar
@@ -168,6 +169,8 @@ def test_homepage_toolbar_uses_left_history_menu_and_right_settings_menu_only():
     assert "function openSettingsDialog" in source
     assert ".site-bar {" in source and "z-index: 80" in source
     assert ".toolbar-menu" in source and "z-index: 120" in source
+    assert ".toolbar-menu-list { display: grid; grid-template-columns: 1fr" in toolbar_css
+    assert "grid-template-columns: repeat(3" not in toolbar_css
     assert "toggle-settings-menu').addEventListener('pointerdown'" in source
     assert "toggle-settings-menu').addEventListener('click'" in source
     assert "settings-menu').addEventListener('click'" in source
