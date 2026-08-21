@@ -70,6 +70,8 @@
     body.sidebar-collapsed .site-shell { padding-left: 0; }
     body.sidebar-collapsed .meeting-sidebar { transform: translateX(-100%); }
     .site-bar {
+      position: relative;
+      z-index: 80;
       height: 64px;
       display: grid;
       grid-template-columns: 1fr auto 1fr;
@@ -102,8 +104,8 @@
     .icon-button:hover { background: #f8f8f9; }
     .sidebar-toggle { flex: 0 0 auto; }
     .toolbar-menu-wrap { position: relative; }
-    .toolbar-menu-toggle { width: 40px; height: 36px; font-size: 15px; }
-    .toolbar-menu { position: absolute; z-index: 45; right: 0; top: 44px; width: 246px; padding: 8px; border: 1px solid #e4e4e7; border-radius: 16px; background: rgba(255,255,255,.98); box-shadow: 0 20px 56px rgba(25, 28, 40, .15); backdrop-filter: blur(18px); }
+    .toolbar-menu-toggle { width: 40px; height: 36px; font-size: 18px; letter-spacing: .08em; }
+    .toolbar-menu { position: absolute; z-index: 120; right: 0; top: 44px; width: 246px; padding: 8px; border: 1px solid #e4e4e7; border-radius: 16px; background: rgba(255,255,255,.98); box-shadow: 0 20px 56px rgba(25, 28, 40, .15); backdrop-filter: blur(18px); }
     .toolbar-menu[hidden] { display: none; }
     .toolbar-menu button { width: 100%; min-height: 54px; display: grid; grid-template-columns: 30px 1fr; gap: 10px; align-items: center; padding: 9px 10px; border: 0; border-radius: 12px; background: transparent; color: #4c4e55; text-align: left; }
     .toolbar-menu button:hover { background: #f5f5f7; }
@@ -111,6 +113,9 @@
     .toolbar-menu b { font-size: 10px; }
     .toolbar-menu small { margin-top: 3px; color: #93959b; font-size: 8px; line-height: 1.45; }
     .menu-icon { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 10px; background: #f0f0ff; color: var(--violet); font-size: 14px; font-weight: 760; }
+    .toolbar-menu-links { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-top: 6px; padding-top: 7px; border-top: 1px solid #eeeeef; }
+    .toolbar-menu-links a { height: 34px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; background: #f7f7f8; color: #55575e; font-size: 9px; font-weight: 740; text-decoration: none; }
+    .toolbar-menu-links a:hover { background: #eeeeff; color: var(--violet); }
     .settings-icon { position: relative; width: 15px; height: 15px; border: 2px solid currentColor; border-radius: 50%; }
     .settings-icon::after { content: ""; position: absolute; width: 4px; height: 4px; border-radius: 50%; background: currentColor; left: 3.5px; top: 3.5px; }
 
@@ -631,7 +636,7 @@
         <span class="account-copy"><strong id="account-name">选择使用方式</strong><small id="account-storage">尚未进入</small></span>
         <button class="account-action" id="account-action" type="button">选择</button>
       </div>
-      <p class="sidebar-footnote" id="storage-note">服务器只保存文字/摘要；原始录音默认不保存。需要音频文件时，请在本机手动开启保存并下载。</p>
+      <p class="sidebar-footnote" id="storage-note">服务器不保存录音，只保存文本和摘要。本机留存后，录音只在当前浏览器。</p>
     </aside>
     <button class="sidebar-backdrop" id="sidebar-backdrop" type="button" aria-label="关闭会议记录"></button>
 
@@ -654,11 +659,15 @@
       <nav class="utility-actions" aria-label="录音工具">
         <span class="service-state" id="service-state"><i></i><span>检查识别服务…</span></span>
         <div class="toolbar-menu-wrap meeting-only-action">
-          <button class="icon-button toolbar-menu-toggle" id="toggle-settings-menu" type="button" aria-label="打开设置菜单" aria-haspopup="true" aria-expanded="false" title="设置菜单">☰</button>
+          <button class="icon-button toolbar-menu-toggle" id="toggle-settings-menu" type="button" aria-label="打开设置菜单" aria-haspopup="true" aria-expanded="false" title="设置菜单">•••</button>
           <div class="toolbar-menu" id="settings-menu" role="menu" aria-label="设置菜单" hidden>
             <button id="open-settings" type="button" role="menuitem" data-settings-focus="asr-channel"><span class="menu-icon" aria-hidden="true">⚙</span><span><b>识别设置 / 状态</b><small>通道、Heartbeat、服务端 Key 状态</small></span></button>
             <button id="open-model-status" type="button" role="menuitem" data-settings-focus="asr-channel"><span class="menu-icon" aria-hidden="true">◇</span><span><b>模型与通道</b><small>查看当前 ASR 通道和可用模型入口</small></span></button>
             <button id="open-token-settings" type="button" role="menuitem" data-settings-focus="api-token-title"><span class="menu-icon" aria-hidden="true">🔑</span><span><b>API Token</b><small>给 CLI 或下游系统读取会议数据</small></span></button>
+            <div class="toolbar-menu-links" aria-label="项目链接">
+              <a href="https://arch.gh.wzhecnu.cn/ChatVoice/" target="_blank" rel="noreferrer">文档</a>
+              <a href="https://github.com/ChatArch/ChatVoice" target="_blank" rel="noreferrer">GitHub</a>
+            </div>
           </div>
         </div>
       </nav>
@@ -735,7 +744,7 @@
           <article class="summary-lead">
             <small>一句话摘要</small>
             <h2 id="summary-title">前端以实时转写为核心，通过统一协议兼容不同语音识别服务。</h2>
-            <p id="summary-description">原始录音与实时识别彼此独立，后续摘要、待办和更多处理能力都消费标准化的转写结果。</p>
+            <p id="summary-description">录音与实时识别彼此独立，后续摘要、待办和更多处理能力都消费标准化的转写结果。</p>
           </article>
 
           <div class="summary-output" id="summary-output">核心结论
@@ -806,7 +815,7 @@
 
       <footer class="recording-console idle" id="recording-console">
         <div class="recording-policy" id="recording-policy">
-          <span id="record-limit-status">隐私：默认不保存原始录音；如需音频文件，请先点“保存音频”，结束后从本浏览器下载</span>
+          <span id="record-limit-status">服务器不保存录音，只保存文本和摘要。本机留存后，录音只在当前浏览器。</span>
           <strong id="record-limit-remaining">10:00</strong>
         </div>
         <div class="waveform-wrap">
@@ -817,14 +826,14 @@
         <div class="console-controls">
           <div class="elapsed-time">
             <strong id="elapsed">00:00</strong>
-            <small><i></i><span id="local-save-status">默认不保存原始录音</span></small>
+            <small><i></i><span id="local-save-status">服务器不保存录音</span></small>
           </div>
 
           <button class="record-toggle" id="record-toggle" type="button" aria-label="开始录音"><span class="record-icon"></span></button>
 
           <div class="finish-wrap">
             <button class="reset-control" id="reset-recording" type="button">清空</button>
-            <button class="download-control" id="download-recording" type="button" title="默认不保存原始录音；点击后仅在本浏览器暂存，用于结束后下载">保存音频</button>
+            <button class="download-control" id="download-recording" type="button" title="服务器不保存录音；点击后仅在当前浏览器暂存，用于结束后下载">本机留存音频</button>
             <button class="finish-control" id="finish-recording" type="button" disabled>结束</button>
           </div>
         </div>
@@ -1013,13 +1022,13 @@
         <p class="access-intro">两种方式都可以使用实时转写与 AI 摘要；区别只在于会议记录保存在哪里。</p>
         <div class="mode-grid">
           <button class="mode-card primary" id="enter-guest" type="button">
-            <span class="mode-icon">⌂</span><strong>访客使用 · 单段 10 分钟</strong><span>文字和摘要仅保存在当前浏览器；原始录音默认不保存，需要下载时可手动开启本地音频留存。</span>
+            <span class="mode-icon">⌂</span><strong>访客使用 · 单段 10 分钟</strong><span>文字和摘要仅保存在当前浏览器；服务器不保存录音。需要音频文件时可手动开启本机留存。</span>
           </button>
           <button class="mode-card" id="show-login" type="button">
-            <span class="mode-icon">◎</span><strong>登录账号 · 单段 2 小时</strong><span>文字和摘要跨设备保存；原始录音仍默认不上传服务器，也不自动留存在浏览器。</span>
+            <span class="mode-icon">◎</span><strong>登录账号 · 单段 2 小时</strong><span>文字和摘要跨设备保存；服务器不保存录音，只保存文本和摘要。</span>
           </button>
         </div>
-        <p class="privacy-note">隐私提示：音频会临时发送给转写服务处理；服务器默认不保存原始录音。登录账号只同步文字、摘要和会议元数据。</p>
+        <p class="privacy-note">隐私提示：音频只用于实时识别；服务器不保存录音，只保存文本和摘要。</p>
       </div>
       <div class="auth-view" id="auth-view" hidden>
         <button class="auth-back" id="auth-back" type="button">← 返回使用方式</button>
@@ -1161,8 +1170,8 @@
       const policyMinutes = Math.round(asrPassLimitSeconds / 60);
       const remaining = Math.max(0, asrPassLimitSeconds - recordingPassSeconds);
       $('record-limit-status').textContent = accountMode
-        ? `登录模式 · 当前段最长 ${policyMinutes >= 120 ? '2 小时' : `${policyMinutes} 分钟`}；服务器只保存文字/摘要，原始录音默认不保存`
-        : '访客试用 · 每段最长 10 分钟；原始录音默认不保存，点“保存音频”后才在本浏览器暂存';
+        ? `登录模式 · 当前段最长 ${policyMinutes >= 120 ? '2 小时' : `${policyMinutes} 分钟`}；服务器不保存录音，只保存文本和摘要`
+        : '访客试用 · 每段最长 10 分钟；服务器不保存录音，本机留存后只在当前浏览器';
       $('record-limit-remaining').textContent = ['recording', 'paused', 'connecting', 'finishing'].includes(recorderState)
         ? `本段剩余 ${formatTime(remaining)}`
         : `单段上限 ${formatTime(asrPassLimitSeconds)}`;
@@ -2234,8 +2243,8 @@
           ? '对话文字、模型和音色已绑定账号同步；原始语音不保存。'
           : '对话文字仅保存在当前浏览器；原始语音只在实时请求中临时经过服务器。'
         : loggedIn
-          ? '服务器同步文字、摘要和会议元数据；原始录音默认不上传，也不自动保存在浏览器。'
-          : '访客文字/摘要仅在当前浏览器；原始录音默认不保存，开启本地音频留存后才可下载。';
+          ? '服务器同步文字、摘要和会议元数据；录音不上传，也不自动保存在浏览器。'
+          : '访客文字/摘要仅在当前浏览器；服务器不保存录音，本机留存后才可下载。';
       renderSidebarIndex();
     }
 
@@ -2581,7 +2590,7 @@
       await Promise.all([fetchMeetingIndex(), fetchConversationIndex()]);
       if (meetingIndex.length) await openMeeting(meetingIndex[0].id);
       else await createNewMeeting({ announce: false });
-      showToast(mode === 'guest' ? '已进入访客模式，记录只保存在本浏览器' : '登录成功，会议记录将同步到服务器');
+      showToast(mode === 'guest' ? '已进入访客模式，记录只保存在当前浏览器' : '登录成功，会议记录将同步到服务器');
     }
 
     async function submitAuth(event) {
@@ -2819,17 +2828,17 @@
       if (nextState === 'recording') {
         $('record-toggle').innerHTML = '<i></i><i></i>';
         $('record-toggle').setAttribute('aria-label', '暂停录音');
-        $('local-save-status').textContent = archiveOptIn ? '音频仅在本浏览器暂存；服务器不保存原始录音' : '默认不保存原始录音，只实时识别';
+        $('local-save-status').textContent = archiveOptIn ? '录音只在当前浏览器留存；服务器不保存录音' : '服务器不保存录音；音频只用于实时识别';
       } else if (nextState === 'paused') {
         $('record-toggle').innerHTML = '<span class="play-icon"></span>';
         $('record-toggle').setAttribute('aria-label', '继续录音');
-        $('local-save-status').textContent = archiveOptIn ? '音频留存已暂停，仍仅保存在本浏览器' : '录音已暂停；未保存原始音频';
+        $('local-save-status').textContent = archiveOptIn ? '音频留存已暂停，仍仅保存在当前浏览器' : '录音已暂停；服务器不保存录音';
       } else {
         $('record-toggle').innerHTML = '<span class="record-icon"></span>';
         $('record-toggle').setAttribute('aria-label', nextState === 'ended' || nextState === 'error' ? '继续录音' : '开始录音');
         $('local-save-status').textContent = nextState === 'ended'
-          ? (hasDownloadableArchive() ? '音频已在本浏览器暂存，可下载；服务器不保存原始录音' : '本次未保存原始音频；服务器只保留文字/摘要')
-          : '默认不保存原始录音';
+          ? (hasDownloadableArchive() ? '录音已在当前浏览器留存，可下载；服务器不保存录音' : '本次未开启本机留存；服务器只保存文本和摘要')
+          : '服务器不保存录音';
       }
       updateArchiveButton();
       updateRecordingLimitUi();
@@ -2884,29 +2893,29 @@
       button.classList.toggle('active', archiveOptIn || hasArchive);
       if (['ended', 'error'].includes(recorderState)) {
         button.disabled = !hasArchive;
-        button.textContent = hasArchive ? '下载录音' : '未保存音频';
+        button.textContent = hasArchive ? '下载本机音频' : '未留存音频';
         button.title = hasArchive
-          ? '从当前浏览器下载本地暂存音频；服务器不保存原始录音'
-          : '本次没有开启本地音频留存；服务器也没有原始录音文件';
+          ? '从当前浏览器下载本机音频；服务器不保存录音'
+          : '本次没有开启本机留存；服务器不保存录音';
         return;
       }
       if (['recording', 'connecting', 'finishing', 'paused'].includes(recorderState)) {
         if (archiveOptIn) {
           button.disabled = true;
           button.textContent = recorderState === 'paused' ? '音频已暂停' : '本地保存中';
-          button.title = '原始音频仅在当前浏览器暂存，用于结束后下载；服务器不保存原始音频';
+          button.title = '录音只在当前浏览器留存，用于结束后下载；服务器不保存录音';
         } else {
           button.disabled = !microphoneStream || recorderState === 'connecting' || recorderState === 'finishing';
-          button.textContent = '保存音频';
-          button.title = '点击后从现在开始把原始音频暂存在本浏览器，结束后可下载；服务器不保存';
+          button.textContent = '本机留存音频';
+          button.title = '点击后从现在开始在当前浏览器留存录音，结束后可下载；服务器不保存录音';
         }
         return;
       }
       button.disabled = false;
-      button.textContent = archiveOptIn ? '将保存音频' : '保存音频';
+      button.textContent = archiveOptIn ? '将留存音频' : '本机留存音频';
       button.title = archiveOptIn
-        ? '下一次录音会把原始音频暂存在本浏览器，结束后可下载'
-        : '默认不保存原始录音；点击后仅在本浏览器暂存，用于结束后下载';
+        ? '下一次录音会在当前浏览器留存，结束后可下载'
+        : '服务器不保存录音；点击后仅在当前浏览器暂存，用于结束后下载';
     }
 
     function enableLocalAudioArchive({ fromClick = false } = {}) {
@@ -2916,7 +2925,7 @@
         if (recorderState === 'paused' && mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.pause();
         if (fromClick) showToast('已开启本地音频留存；只会保存从现在开始的音频分片');
       } else if (fromClick) {
-        showToast('下一次录音会在本浏览器暂存音频，结束后可下载');
+        showToast('下一次录音会在当前浏览器暂存音频，结束后可下载');
       }
       updateArchiveButton();
     }
@@ -2924,7 +2933,7 @@
     function handleArchiveButton() {
       if (['ended', 'error'].includes(recorderState)) {
         if (hasDownloadableArchive()) downloadCurrentArchive();
-        else showToast('本次没有保存原始音频；服务器也没有录音文件');
+        else showToast('本次没有开启本机音频留存；服务器没有录音文件');
         return;
       }
       if (archiveOptIn && !['recording', 'paused', 'connecting', 'finishing'].includes(recorderState)) {
@@ -2946,7 +2955,7 @@
         } catch (_) {
           archiveStorageDegraded = true;
           archiveChunks.push({ index, blob });
-          $('local-save-status').textContent = '浏览器存储空间不足，音频分片暂存在内存；服务器不保存原始录音';
+          $('local-save-status').textContent = '浏览器存储空间不足，音频分片暂存在内存；服务器不保存录音';
         }
       });
     }
@@ -2993,12 +3002,12 @@
         await archiveWriteChain;
         if (!archiveChunkIndex) return;
         $('local-save-status').textContent = archiveStorageDegraded
-          ? '音频已在本浏览器暂存（部分分片在内存）；服务器不保存原始录音'
-          : '音频已在本浏览器暂存，可下载；服务器不保存原始录音';
+          ? '录音已在当前浏览器留存（部分分片在内存）；服务器不保存录音'
+          : '录音已在当前浏览器留存，可下载；服务器不保存录音';
         updateArchiveButton();
       };
       mediaRecorder.start(1000);
-      $('local-save-status').textContent = '音频仅在本浏览器暂存；服务器不保存原始录音';
+      $('local-save-status').textContent = '录音只在当前浏览器留存；服务器不保存录音';
       updateArchiveButton();
     }
 
@@ -3679,7 +3688,16 @@
     $('reset-recording').addEventListener('click', requestResetSession);
     $('refresh-title').addEventListener('click', refreshMeetingTitle);
     $('quick-new-meeting').addEventListener('click', () => createNewMeeting());
-    $('toggle-settings-menu').addEventListener('click', (event) => { event.stopPropagation(); toggleSettingsMenu(); });
+    $('toggle-settings-menu').addEventListener('pointerdown', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      toggleSettingsMenu();
+    });
+    $('toggle-settings-menu').addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.detail === 0) toggleSettingsMenu();
+    });
     $('settings-menu').addEventListener('click', (event) => {
       const button = event.target.closest('[data-settings-focus]');
       if (!button) return;
