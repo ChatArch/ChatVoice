@@ -308,7 +308,7 @@
     .title-action-button.icon-only span { background: transparent; }
     .title-action-button.icon-only strong { display: none; }
     .title-action-button.icon-only::after { content: attr(aria-label); position: absolute; z-index: 160; right: 50%; top: calc(100% + 8px); transform: translateX(50%) translateY(-4px); padding: 6px 9px; border: 1px solid rgba(35, 35, 38, .08); border-radius: 999px; background: rgba(35, 35, 38, .94); color: #fff; font-size: 11px; font-weight: 680; line-height: 1; white-space: nowrap; box-shadow: 0 12px 28px rgba(24, 24, 26, .18); opacity: 0; pointer-events: none; transition: opacity .14s ease, transform .14s ease; }
-    .title-action-button.icon-only:hover::after, .title-action-button.icon-only:focus-visible::after { opacity: 1; transform: translateX(50%) translateY(0); }
+    .title-action-button.icon-only:hover::after, .title-action-button.icon-only:focus::after, .title-action-button.icon-only:focus-visible::after { opacity: 1; transform: translateX(50%) translateY(0); }
     @media (hover: none) { .title-action-button.icon-only::after { display: none; } }
     .title-action-button.primary { border-color: #bdd8b2; background: #effbe9; color: #2f7031; box-shadow: 0 10px 24px rgba(49, 123, 51, .09); }
     .title-action-button.primary span { background: rgba(59, 135, 59, .13); }

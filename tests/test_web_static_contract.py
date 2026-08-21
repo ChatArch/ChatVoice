@@ -229,6 +229,7 @@ def test_title_action_buttons_are_icon_only_to_keep_title_row_compact():
     assert ".title-action-button.icon-only::after" in css_block
     assert "content: attr(aria-label)" in css_block
     assert ".title-action-button.icon-only:hover::after" in css_block
+    assert ".title-action-button.icon-only:focus::after" in css_block
     assert ".title-action-button.icon-only:focus-visible::after" in css_block
     assert "@media (hover: none)" in css_block
 
