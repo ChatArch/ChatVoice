@@ -465,16 +465,31 @@
     .settings-card input { width: 100%; height: 38px; padding: 0 11px; border: 1px solid var(--line); border-radius: 11px; background: #fff; outline: 0; }
     .settings-card p { margin: 12px 0 0; color: var(--muted); font-size: 10px; line-height: 1.65; }
     .token-panel { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line); }
+    .token-panel-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+    .token-panel-header h3 { margin: 0; font-size: 12px; }
+    .token-panel-header p { margin-top: 6px; }
+    .token-create-popover { position: fixed; z-index: 92; left: 50%; top: 50%; width: min(430px, calc(100vw - 34px)); transform: translate(-50%, -50%); padding: 18px; border: 1px solid #e3e3e7; border-radius: 18px; background: #fff; box-shadow: 0 30px 90px rgba(20, 24, 38, .25); }
+    .token-create-popover[hidden] { display: none; }
+    .token-create-popover header { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+    .token-create-popover h4 { margin: 0; font-size: 13px; }
+    .token-create-popover p { margin: 6px 0 0; }
+    .token-close { width: 30px; height: 30px; border: 0; border-radius: 10px; background: var(--soft); color: #55575e; }
     .token-grid { display: grid; grid-template-columns: 1fr 120px; gap: 10px; align-items: end; }
     .token-actions { display: flex; gap: 8px; margin-top: 12px; }
     .token-button { height: 36px; padding: 0 12px; border: 0; border-radius: 10px; background: var(--ink); color: #fff; font-size: 9px; font-weight: 680; }
     .token-button.secondary { background: #f3f3f4; color: var(--ink); }
     .token-button.danger { background: #fff1f1; color: #b64646; }
-    .token-output { width: 100%; min-height: 54px; margin-top: 10px; padding: 9px 10px; border: 1px solid #dedff5; border-radius: 11px; background: #f8f8ff; color: var(--ink); font: 10px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; resize: vertical; }
+    .token-result { margin-top: 12px; display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; padding: 11px; border: 1px solid #dedff5; border-radius: 13px; background: #f8f8ff; }
+    .token-result[hidden] { display: none; }
+    .token-result strong, .token-result small, .token-result code { display: block; }
+    .token-result strong { font-size: 10px; }
+    .token-result small { margin-top: 3px; color: #747691; font-size: 8px; }
+    .token-result code { margin-top: 7px; padding: 8px; border-radius: 9px; background: #fff; color: var(--ink); font: 9px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; user-select: all; }
     .token-list { margin-top: 10px; display: grid; gap: 7px; }
     .token-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; padding: 9px 10px; border: 1px solid #ececef; border-radius: 11px; background: #fff; }
     .token-row strong { display: block; font-size: 10px; }
     .token-row small { display: block; margin-top: 3px; color: var(--muted); font-size: 8px; }
+    .token-mask { margin-top: 5px; display: inline-flex; padding: 4px 6px; border-radius: 8px; background: #f5f5f7; color: #55575e; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 8px; }
     .api-key-config { margin-top: 16px; padding: 12px; border: 1px solid #e8e7f6; border-radius: 13px; background: #fbfbff; }
     .api-key-config h3 { margin: 0 0 8px; font-size: 11px; }
     .api-key-status-list { display: grid; gap: 6px; margin-top: 9px; }
@@ -988,24 +1003,48 @@
         </ul>
       </section>
       <section class="token-panel" aria-labelledby="api-token-title">
-        <h3 id="api-token-title">API Token</h3>
-        <p id="api-token-login-note">登录账号后，可以生成给 CLI 或下游自动化读取会议转写和摘要的 Token。Token 明文只显示一次。</p>
-        <div class="token-grid">
+        <div class="token-panel-header">
           <div>
-            <label for="api-token-name">Token 名称</label>
-            <input id="api-token-name" value="automation" maxlength="80" />
+            <h3 id="api-token-title">API Token</h3>
+            <p id="api-token-login-note">给 CLI 或下游自动化读取会议转写和摘要。列表只显示 masked key；明文只在新建弹窗里显示一次。</p>
           </div>
-          <div>
-            <label for="api-token-expires">有效期（天）</label>
-            <input id="api-token-expires" type="number" min="1" max="365" placeholder="不填则长期" />
+          <button class="token-button" id="open-token-create" type="button">新建 Token</button>
+        </div>
+        <div class="token-create-popover" id="token-create-popover" role="dialog" aria-labelledby="token-create-title" hidden>
+          <header>
+            <div>
+              <h4 id="token-create-title">新建 API Token</h4>
+              <p>配置名称和有效期后生成。生成后的明文只在这里显示一次，关闭后不能再复制。</p>
+            </div>
+            <button class="token-close" id="close-token-create" type="button" aria-label="关闭新建 Token 弹窗">×</button>
+          </header>
+          <div class="token-grid">
+            <div>
+              <label for="api-token-name">名称</label>
+              <input id="api-token-name" value="automation" maxlength="80" />
+            </div>
+            <div>
+              <label for="api-token-expires">有效期（天）</label>
+              <input id="api-token-expires" type="number" min="1" max="365" placeholder="长期" />
+            </div>
+          </div>
+          <div class="token-actions">
+            <button class="token-button" id="create-api-token" type="button">生成并复制</button>
+            <button class="token-button secondary" id="cancel-token-create" type="button">关闭</button>
+          </div>
+          <div class="token-result" id="api-token-result" hidden>
+            <div>
+              <strong>新 Token（只显示一次）</strong>
+              <small>已尝试自动复制。请立即保存到安全位置。</small>
+              <code id="api-token-output"></code>
+            </div>
+            <button class="token-button secondary" id="copy-api-token" type="button">复制</button>
           </div>
         </div>
+        <div class="token-list" id="api-token-list"><p>尚未读取 Token 列表。</p></div>
         <div class="token-actions">
-          <button class="token-button" id="create-api-token" type="button">生成 Token</button>
           <button class="token-button secondary" id="refresh-api-tokens" type="button">刷新列表</button>
         </div>
-        <textarea class="token-output" id="api-token-output" readonly hidden></textarea>
-        <div class="token-list" id="api-token-list"><p>尚未读取 Token 列表。</p></div>
         <p id="api-token-message" role="status"></p>
       </section>
     </form>
@@ -1826,33 +1865,79 @@
     }
 
     function clearApiTokenOutput() {
-      $('api-token-output').value = '';
-      $('api-token-output').hidden = true;
+      $('api-token-output').textContent = '';
+      $('api-token-result').hidden = true;
+    }
+
+    function closeTokenCreatePopover() {
+      $('token-create-popover').hidden = true;
+      clearApiTokenOutput();
+    }
+
+    function openTokenCreatePopover() {
+      if (storageMode !== 'account' || !authUser) {
+        showToast('请先登录账号');
+        return;
+      }
+      clearApiTokenOutput();
+      $('token-create-popover').hidden = false;
+      $('api-token-message').textContent = '';
+      setTimeout(() => $('api-token-name').focus(), 0);
+    }
+
+    async function copyApiTokenOutput() {
+      const token = $('api-token-output').textContent.trim();
+      if (!token) {
+        showToast('当前没有可复制的 Token 明文');
+        return false;
+      }
+      try {
+        await navigator.clipboard.writeText(token);
+        showToast('Token 已复制');
+        return true;
+      } catch (_) {
+        showToast('自动复制失败，请手动选择复制');
+        return false;
+      }
+    }
+
+    function maskApiToken(token) {
+      const prefix = token.prefix || String(token.id || '').slice(0, 8) || 'token';
+      return `${prefix}••••••••`;
     }
 
     function renderApiTokens(tokens = []) {
+      const activeTokens = (tokens || []).filter((token) => !token.revoked_at);
       if (storageMode !== 'account' || !authUser) {
         clearApiTokenOutput();
         $('api-token-list').innerHTML = '<p>请先登录账号后再管理 API Token。</p>';
+        $('open-token-create').disabled = true;
         $('create-api-token').disabled = true;
         $('refresh-api-tokens').disabled = true;
         return;
       }
+      $('open-token-create').disabled = false;
       $('create-api-token').disabled = false;
       $('refresh-api-tokens').disabled = false;
-      if (!tokens.length) {
-        $('api-token-list').innerHTML = '<p>暂无 API Token。</p>';
+      if (!activeTokens.length) {
+        $('api-token-list').innerHTML = '<p>暂无可用 API Token。</p>';
         return;
       }
-      $('api-token-list').innerHTML = tokens.map((token) => `
+      $('api-token-list').innerHTML = activeTokens.map((token) => {
+        const scopes = Array.isArray(token.scopes) && token.scopes.length ? token.scopes.join(', ') : 'read';
+        const expires = token.expires_at ? ` · 到期 ${escapeHtml(token.expires_at.slice(0, 10))}` : ' · 长期';
+        const created = token.created_at ? ` · 创建 ${escapeHtml(token.created_at.slice(0, 10))}` : '';
+        return `
         <article class="token-row">
           <span>
             <strong>${escapeHtml(token.name || 'automation')}</strong>
-            <small>${escapeHtml(token.id)} · prefix ${escapeHtml(token.prefix || '')} · ${token.revoked_at ? '已撤销' : '可用'}${token.expires_at ? ` · 到期 ${escapeHtml(token.expires_at.slice(0, 10))}` : ''}</small>
+            <span class="token-mask">${escapeHtml(maskApiToken(token))}</span>
+            <small>${escapeHtml(token.id)} · ${escapeHtml(scopes)}${expires}${created}</small>
           </span>
-          <button class="token-button danger" type="button" data-revoke-token="${escapeHtml(token.id)}" ${token.revoked_at ? 'disabled' : ''}>撤销</button>
+          <button class="token-button danger" type="button" data-revoke-token="${escapeHtml(token.id)}">删除</button>
         </article>
-      `).join('');
+      `;
+      }).join('');
     }
 
     async function loadApiTokens() {
@@ -1887,10 +1972,12 @@
         const response = await fetch('/api/tokens', { method: 'POST', headers: meetingHeaders(true), body: JSON.stringify(body) });
         if (!response.ok) throw new Error(await responseError(response, '生成 Token 失败'));
         const payload = await response.json();
-        $('api-token-output').hidden = false;
-        $('api-token-output').value = payload.token || '';
-        $('api-token-message').textContent = 'Token 已生成。请立即复制保存，关闭后无法再次查看明文。';
-        await navigator.clipboard.writeText(payload.token || '').catch(() => {});
+        $('api-token-result').hidden = false;
+        $('api-token-output').textContent = payload.token || '';
+        const copied = await copyApiTokenOutput();
+        $('api-token-message').textContent = copied
+          ? 'Token 已生成并复制。关闭新建弹窗后无法再次查看明文。'
+          : 'Token 已生成。请在新建弹窗里手动复制，关闭后无法再次查看明文。';
         await loadApiTokens();
       } catch (error) {
         $('api-token-message').textContent = error.message || '生成 Token 失败';
@@ -1900,16 +1987,15 @@
     }
 
     async function revokeApiToken(tokenId) {
-      if (!tokenId || !confirm('撤销这个 API Token？已接入的 CLI/自动化会立即失效。')) return;
+      if (!tokenId || !confirm('删除这个 API Token？已接入的 CLI/自动化会立即失效。')) return;
       try {
         const response = await fetch(`/api/tokens/${encodeURIComponent(tokenId)}`, { method: 'DELETE', headers: meetingHeaders(true) });
-        if (!response.ok) throw new Error(await responseError(response, '撤销 Token 失败'));
-        $('api-token-output').hidden = true;
-        $('api-token-output').value = '';
-        $('api-token-message').textContent = 'Token 已撤销';
+        if (!response.ok) throw new Error(await responseError(response, '删除 Token 失败'));
+        clearApiTokenOutput();
+        $('api-token-message').textContent = 'Token 已删除';
         await loadApiTokens();
       } catch (error) {
-        $('api-token-message').textContent = error.message || '撤销 Token 失败';
+        $('api-token-message').textContent = error.message || '删除 Token 失败';
       }
     }
 
@@ -3703,10 +3789,17 @@
       if (!event.target.closest('.toolbar-menu-wrap')) closeSettingsMenu();
     });
     document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape') closeSettingsMenu();
+      if (event.key === 'Escape') {
+        closeSettingsMenu();
+        if (!$('token-create-popover').hidden) closeTokenCreatePopover();
+      }
     });
-    $('settings-dialog').addEventListener('close', () => clearApiTokenOutput());
-    $('settings-dialog').addEventListener('cancel', (event) => { clearApiTokenOutput(); });
+    $('settings-dialog').addEventListener('close', () => closeTokenCreatePopover());
+    $('settings-dialog').addEventListener('cancel', (event) => { closeTokenCreatePopover(); });
+    $('open-token-create').addEventListener('click', openTokenCreatePopover);
+    $('close-token-create').addEventListener('click', closeTokenCreatePopover);
+    $('cancel-token-create').addEventListener('click', closeTokenCreatePopover);
+    $('copy-api-token').addEventListener('click', copyApiTokenOutput);
     $('create-api-token').addEventListener('click', createApiToken);
     $('refresh-api-tokens').addEventListener('click', loadApiTokens);
     $('api-token-list').addEventListener('click', (event) => {

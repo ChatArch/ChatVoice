@@ -31,8 +31,8 @@ def test_one_time_api_token_value_is_cleared_on_unauthenticated_render_and_mode_
 
     clear_body = _function_body(source, "clearApiTokenOutput")
     assert "api-token-output" in clear_body
-    assert ".value = ''" in clear_body
-    assert ".hidden = true" in clear_body
+    assert ".textContent = ''" in clear_body
+    assert "api-token-result').hidden = true" in clear_body
 
     render_body = _function_body(source, "renderApiTokens")
     unauthenticated_branch = render_body.split("return;", 1)[0]
@@ -45,8 +45,8 @@ def test_one_time_api_token_value_is_cleared_on_unauthenticated_render_and_mode_
 def test_one_time_api_token_value_is_cleared_when_settings_panel_closes_or_logout_starts():
     source = _script_source()
 
-    assert re.search(r"settings-dialog'\)\.addEventListener\('close',\s*\(\) => clearApiTokenOutput\(\)", source)
-    assert re.search(r"settings-dialog'\)\.addEventListener\('cancel',\s*\([^)]*\) => \{[^}]*clearApiTokenOutput\(\)", source, re.S)
+    assert re.search(r"settings-dialog'\)\.addEventListener\('close',\s*\(\) => closeTokenCreatePopover\(\)", source)
+    assert re.search(r"settings-dialog'\)\.addEventListener\('cancel',\s*\([^)]*\) => \{[^}]*closeTokenCreatePopover\(\)", source, re.S)
 
     logout_body = _function_body(source, "handleAccountAction")
     assert "clearApiTokenOutput()" in logout_body
@@ -200,6 +200,51 @@ def test_raw_audio_archive_is_explicit_opt_in_and_local_only():
     assert "未留存音频" in archive_body
     assert "下载本机音频" in archive_body
     assert "服务器不保存录音" in archive_body
+
+
+def test_api_token_management_uses_one_time_key_modal_pattern():
+    source = _script_source()
+    token_panel = source[source.index('<section class="token-panel"'):source.index('</section>', source.index('<section class="token-panel"'))]
+
+    assert "id=\"open-token-create\"" in token_panel
+    assert "新建 Token" in token_panel
+    assert "id=\"token-create-popover\"" in token_panel
+    assert "配置名称和有效期后生成" in token_panel
+    assert "关闭后不能再复制" in token_panel
+    assert "id=\"api-token-expires\"" in token_panel
+    assert "id=\"api-token-result\"" in token_panel
+    assert "<code id=\"api-token-output\"></code>" in token_panel
+    assert "textarea" not in token_panel
+    assert "生成并复制" in token_panel
+    assert "id=\"copy-api-token\"" in token_panel
+    assert "masked key" in token_panel
+
+    render_body = _function_body(source, "renderApiTokens")
+    assert "filter((token) => !token.revoked_at)" in render_body
+    assert "token-mask" in render_body
+    assert "maskApiToken(token)" in render_body
+    assert ">删除</button>" in render_body
+    assert "已撤销" not in render_body
+    assert ">撤销</button>" not in render_body
+
+    create_body = _function_body(source, "createApiToken")
+    assert "api-token-result').hidden = false" in create_body
+    assert "api-token-output').textContent = payload.token" in create_body
+    assert "copyApiTokenOutput()" in create_body
+    assert "关闭新建弹窗后无法再次查看明文" in create_body
+
+    clear_body = _function_body(source, "clearApiTokenOutput")
+    assert "api-token-output').textContent = ''" in clear_body
+    assert "api-token-result').hidden = true" in clear_body
+
+    revoke_body = _function_body(source, "revokeApiToken")
+    assert "删除这个 API Token" in revoke_body
+    assert "Token 已删除" in revoke_body
+    assert "撤销" not in revoke_body
+
+    assert "open-token-create').addEventListener('click', openTokenCreatePopover" in source
+    assert "copy-api-token').addEventListener('click', copyApiTokenOutput" in source
+    assert "close-token-create').addEventListener('click', closeTokenCreatePopover" in source
 
 
 def test_logged_in_recording_has_no_frontend_duration_cap():
