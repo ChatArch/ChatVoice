@@ -40,5 +40,5 @@ def test_cli_tree_exposes_account_commands():
 
     assert result.exit_code == 0
     assert "accounts" in result.output
-    assert "add ACCOUNT" in result.output
+    assert "add <ACCOUNT>" in result.output
     assert "list [--json]" in result.output

@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import inspect
 import json as jsonlib
 import os
 
 import click
+from chatstyle import add_tree_option
 
 from chatvoice import __version__
 from chatvoice.accounts import AccountRuntimeError, create_account, list_accounts
@@ -25,74 +25,6 @@ from chatvoice.doctor import run_doctor
 from chatvoice.health import get_status
 from chatvoice.paths import ensure_runtime_dirs, state_paths
 from chatvoice.service import render_service_plan, serve_app
-
-
-def _purpose(command: click.Command) -> str:
-    text = command.short_help or inspect.getdoc(command.callback) or ""
-    return " ".join(text.strip().split()).rstrip(".")
-
-
-def _parameter_piece(parameter: click.Parameter) -> str | None:
-    if getattr(parameter, "hidden", False) or parameter.name == "help":
-        return None
-    if isinstance(parameter, click.Argument):
-        piece = parameter.name.upper().replace("_", "-")
-        if not parameter.required:
-            piece = f"[{piece}]"
-        if parameter.nargs == -1:
-            piece = f"{piece}..."
-        return piece
-    if not isinstance(parameter, click.Option):
-        return None
-    option_names = [name for name in (*parameter.opts, *parameter.secondary_opts) if name.startswith("--")]
-    if not option_names:
-        option_names = [name for name in (*parameter.opts, *parameter.secondary_opts) if name.startswith("-")]
-    if not option_names:
-        return None
-    if parameter.is_flag or parameter.flag_value is not None:
-        piece = "/".join(option_names)
-    else:
-        metavar = parameter.metavar or parameter.name.upper().replace("_", "-")
-        piece = f"{'/'.join(option_names)} {metavar}"
-    if not parameter.required:
-        piece = f"[{piece}]"
-    return piece
-
-
-def _command_signature(name: str, command: click.Command) -> str:
-    pieces = [piece for piece in (_parameter_piece(parameter) for parameter in command.params) if piece]
-    return " ".join([name, *pieces])
-
-
-def _render_command_tree(command: click.Command, name: str, prefix: str, is_last: bool, lines: list[str]) -> None:
-    connector = "└── " if is_last else "├── "
-    line = f"{prefix}{connector}{_command_signature(name, command)}"
-    purpose = _purpose(command)
-    if purpose:
-        line = f"{line}  # {purpose}"
-    lines.append(line)
-    if not isinstance(command, click.Group):
-        return
-    children = [(child_name, child) for child_name, child in command.commands.items() if not child.hidden]
-    child_prefix = prefix + ("    " if is_last else "│   ")
-    for index, (child_name, child) in enumerate(children):
-        _render_command_tree(child, child_name, child_prefix, index == len(children) - 1, lines)
-
-
-def _render_cli_tree(root: click.Group) -> str:
-    children = [(name, command) for name, command in root.commands.items() if not command.hidden]
-    lines = [f"chatvoice  # {_purpose(root)}"]
-    root_options = [
-        ("--help", "Show help for the current command."),
-        ("--version", "Show package version."),
-        ("--tree", "Print the registered CLI tree."),
-    ]
-    for index, (option, purpose) in enumerate(root_options):
-        is_last = not children and index == len(root_options) - 1
-        lines.append(f"{'└──' if is_last else '├──'} {option}  # {purpose}")
-    for index, (child_name, child) in enumerate(children):
-        _render_command_tree(child, child_name, "", index == len(children) - 1, lines)
-    return "\n".join(lines)
 
 
 def _emit(payload: object, *, as_json: bool = False) -> None:
@@ -126,21 +58,21 @@ def _api_call(func, *args, **kwargs):
         raise click.ClickException(prefix + str(exc)) from exc
 
 
-@click.group(invoke_without_command=True, no_args_is_help=True)
+@click.group(
+    name="chatvoice",
+    invoke_without_command=True,
+    no_args_is_help=True,
+)
 @click.version_option(__version__, prog_name="chatvoice")
-@click.option("--tree", "show_tree", is_flag=True, is_eager=True, help="Print the registered CLI tree.")
-@click.pass_context
-def main(ctx: click.Context, show_tree: bool) -> None:
+@add_tree_option(renderer_options={"root_name": "chatvoice"})
+def main() -> None:
     """ChatVoice command line interface."""
-    if show_tree:
-        click.echo(_render_cli_tree(ctx.command))
-        ctx.exit()
 
 
 @main.command("paths")
 @click.option("--json", "as_json", is_flag=True, help="Print JSON output.")
 def paths_command(as_json: bool) -> None:
-    """Show resolved ChatVoice runtime paths."""
+    """Show resolved runtime paths; read-only text or JSON output."""
 
     _emit(state_paths().as_dict(), as_json=as_json)
 
@@ -148,14 +80,14 @@ def paths_command(as_json: bool) -> None:
 @main.command("doctor")
 @click.option("--json", "as_json", is_flag=True, help="Print JSON output.")
 def doctor_command(as_json: bool) -> None:
-    """Check local ChatVoice service readiness without secrets."""
+    """Check local service readiness; read-only and secret-safe."""
 
     _emit(run_doctor(), as_json=as_json)
 
 
 @main.group()
 def serve() -> None:
-    """Start packaged ChatVoice services."""
+    """Start packaged ChatVoice services; long-running side effects."""
 
 
 @serve.command("app")
@@ -166,7 +98,7 @@ def serve() -> None:
 @click.option("--dry-run", is_flag=True, help="Print the sanitized service plan without starting.")
 @click.option("--json", "as_json", is_flag=True, help="Print JSON output for --dry-run.")
 def serve_app_command(host: str, port: int, reload: bool, workers: int, dry_run: bool, as_json: bool) -> None:
-    """Start the packaged Speakr web application."""
+    """Start the Speakr web app; --dry-run only prints a safe plan."""
 
     if dry_run:
         _emit(render_service_plan(host=host, port=port, workers=workers), as_json=as_json)
@@ -178,7 +110,7 @@ def serve_app_command(host: str, port: int, reload: bool, workers: int, dry_run:
 
 @main.group()
 def health() -> None:
-    """Read health from a running ChatVoice service."""
+    """Read health from a running ChatVoice service; no writes."""
 
 
 @health.command("status")
@@ -186,7 +118,7 @@ def health() -> None:
 @click.option("--timeout", default=5.0, show_default=True, type=float, help="HTTP timeout in seconds.")
 @click.option("--json", "as_json", is_flag=True, help="Print JSON output.")
 def health_status_command(url: str, timeout: float, as_json: bool) -> None:
-    """Read the /api/status endpoint."""
+    """Read /api/status; returns redacted text or JSON."""
 
     result = get_status(url, timeout=timeout)
     _emit(result, as_json=as_json)
@@ -196,13 +128,13 @@ def health_status_command(url: str, timeout: float, as_json: bool) -> None:
 
 @main.group()
 def asr() -> None:
-    """Inspect ASR provider configuration."""
+    """Inspect ASR provider configuration; no secret values."""
 
 
 @asr.command("channels")
 @click.option("--json", "as_json", is_flag=True, help="Print JSON output.")
 def asr_channels_command(as_json: bool) -> None:
-    """List ASR channels and API-provider readiness."""
+    """List ASR channel readiness; read-only and secret-safe."""
 
     _emit(get_asr_channels(), as_json=as_json)
 
@@ -218,7 +150,7 @@ def accounts_group() -> None:
 @click.option("--password-env", default="CHATVOICE_ACCOUNT_LOGIN", show_default=True, help="Environment variable containing the new account password.")
 @click.option("--json", "as_json", is_flag=True, help="Print JSON output.")
 def account_add_command(account: str, display_name: str | None, password_env: str, as_json: bool) -> None:
-    """Create one invited account from the packaged runtime."""
+    """Create one invited account; writes the local service database."""
 
     password = _env_value(password_env, label="new account password")
     try:
@@ -231,7 +163,7 @@ def account_add_command(account: str, display_name: str | None, password_env: st
 @accounts_group.command("list")
 @click.option("--json", "as_json", is_flag=True, help="Print JSON output.")
 def account_list_command(as_json: bool) -> None:
-    """List invited account metadata without password material."""
+    """List invited account metadata; read-only, without passwords."""
 
     try:
         payload = {"accounts": list_accounts()}
@@ -242,7 +174,7 @@ def account_list_command(as_json: bool) -> None:
 
 @main.group("tokens")
 def tokens_group() -> None:
-    """Manage service API tokens for automation."""
+    """Manage service API tokens; remote credential side effects."""
 
 
 @tokens_group.command("create")
@@ -255,7 +187,7 @@ def tokens_group() -> None:
 @click.option("--timeout", default=10.0, show_default=True, type=float, help="HTTP timeout in seconds.")
 @click.option("--json", "as_json", is_flag=True, help="Print JSON output.")
 def token_create_command(url: str, account: str, password_env: str, name: str, expires_days: int | None, scopes: tuple[str, ...], timeout: float, as_json: bool) -> None:
-    """Create a one-time-visible API token after account login."""
+    """Create a remote token; prints its secret value exactly once."""
 
     password = _env_value(password_env, label="account password")
     payload = _api_call(create_remote_token, url, account, password, name, expires_days, scopes, timeout=timeout)
@@ -269,7 +201,7 @@ def token_create_command(url: str, account: str, password_env: str, name: str, e
 @click.option("--timeout", default=10.0, show_default=True, type=float, help="HTTP timeout in seconds.")
 @click.option("--json", "as_json", is_flag=True, help="Print JSON output.")
 def token_list_command(url: str, account: str, password_env: str, timeout: float, as_json: bool) -> None:
-    """List API token metadata without revealing token values."""
+    """List remote token metadata; read-only, without token values."""
 
     password = _env_value(password_env, label="account password")
     payload = _api_call(list_remote_tokens, url, account, password, timeout=timeout)
@@ -284,7 +216,7 @@ def token_list_command(url: str, account: str, password_env: str, timeout: float
 @click.option("--timeout", default=10.0, show_default=True, type=float, help="HTTP timeout in seconds.")
 @click.option("--json", "as_json", is_flag=True, help="Print JSON output.")
 def token_revoke_command(token_id: str, url: str, account: str, password_env: str, timeout: float, as_json: bool) -> None:
-    """Revoke an API token by id."""
+    """Revoke a remote API token by id; destructive credential write."""
 
     password = _env_value(password_env, label="account password")
     payload = _api_call(revoke_remote_token, url, account, password, token_id, timeout=timeout)
@@ -293,7 +225,7 @@ def token_revoke_command(token_id: str, url: str, account: str, password_env: st
 
 @main.group("data")
 def data_group() -> None:
-    """Read meeting and conversation data from a running service."""
+    """Read meeting and conversation records from a running service."""
 
 
 def _resolved_api_token(token_env: str) -> str:
@@ -306,7 +238,7 @@ def _resolved_api_token(token_env: str) -> str:
 @click.option("--timeout", default=10.0, show_default=True, type=float, help="HTTP timeout in seconds.")
 @click.option("--json", "as_json", is_flag=True, help="Print JSON output.")
 def data_meetings_command(url: str, token_env: str, timeout: float, as_json: bool) -> None:
-    """List meeting metadata; use data meeting for transcript and summary."""
+    """List meeting metadata; read-only text or JSON output."""
 
     payload = _api_call(list_remote_meetings, url, _resolved_api_token(token_env), timeout=timeout)
     _emit(payload, as_json=as_json)
@@ -319,7 +251,7 @@ def data_meetings_command(url: str, token_env: str, timeout: float, as_json: boo
 @click.option("--timeout", default=10.0, show_default=True, type=float, help="HTTP timeout in seconds.")
 @click.option("--json", "as_json", is_flag=True, help="Print JSON output.")
 def data_meeting_command(meeting_id: str, url: str, token_env: str, timeout: float, as_json: bool) -> None:
-    """Read one meeting with transcript and summary."""
+    """Read one meeting; outputs its transcript and summary."""
 
     payload = _api_call(get_remote_meeting, url, _resolved_api_token(token_env), meeting_id, timeout=timeout)
     _emit(payload, as_json=as_json)
@@ -331,7 +263,7 @@ def data_meeting_command(meeting_id: str, url: str, token_env: str, timeout: flo
 @click.option("--timeout", default=10.0, show_default=True, type=float, help="HTTP timeout in seconds.")
 @click.option("--json", "as_json", is_flag=True, help="Print JSON output.")
 def data_conversations_command(url: str, token_env: str, timeout: float, as_json: bool) -> None:
-    """List realtime conversation metadata; use data conversation for messages."""
+    """List realtime conversation metadata; read-only output."""
 
     payload = _api_call(list_remote_conversations, url, _resolved_api_token(token_env), timeout=timeout)
     _emit(payload, as_json=as_json)
@@ -344,7 +276,7 @@ def data_conversations_command(url: str, token_env: str, timeout: float, as_json
 @click.option("--timeout", default=10.0, show_default=True, type=float, help="HTTP timeout in seconds.")
 @click.option("--json", "as_json", is_flag=True, help="Print JSON output.")
 def data_conversation_command(conversation_id: str, url: str, token_env: str, timeout: float, as_json: bool) -> None:
-    """Read one realtime conversation with messages."""
+    """Read one realtime conversation; outputs stored messages."""
 
     payload = _api_call(get_remote_conversation, url, _resolved_api_token(token_env), conversation_id, timeout=timeout)
     _emit(payload, as_json=as_json)
@@ -362,7 +294,7 @@ def service() -> None:
 @click.option("--ensure-dirs", is_flag=True, help="Create runtime directories before printing the plan.")
 @click.option("--json", "as_json", is_flag=True, help="Print JSON output.")
 def service_plan_command(host: str, port: int, workers: int, ensure_dirs: bool, as_json: bool) -> None:
-    """Render a sanitized service deployment plan."""
+    """Render a safe plan; --ensure-dirs creates runtime directories."""
 
     if ensure_dirs:
         ensure_runtime_dirs()

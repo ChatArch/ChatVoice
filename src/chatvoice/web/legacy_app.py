@@ -109,7 +109,7 @@ ASR_CHANNELS: dict[str, dict[str, Any]] = {
     },
 }
 
-app = FastAPI(title="ChatVoice Speakr", version="0.1.7")
+app = FastAPI(title="ChatVoice Speakr", version=__version__)
 logger = logging.getLogger("chatvoice")
 _FUNASR_MODELS: dict[tuple[str, str], Any] = {}
 _FUNASR_MODEL_LOCKS: dict[tuple[str, str], threading.Lock] = {}
@@ -1660,7 +1660,7 @@ def _api_server_asr(audio_bytes: bytes, filename: str) -> dict[str, Any]:
     headers = {
         "Accept": "application/json",
         "Content-Type": f"multipart/form-data; boundary={boundary}",
-        "User-Agent": "ChatVoice/0.1.7 ASR API client",
+        "User-Agent": f"ChatVoice/{__version__} ASR API client",
     }
     if ASR_API_KEY:
         headers["Authorization"] = f"Bearer {ASR_API_KEY}"

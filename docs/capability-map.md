@@ -36,7 +36,7 @@
 
 | 能力 | 状态 | 说明 |
 | --- | --- | --- |
-| CLI 基础入口 | 已实现 | `--help`、`--version`、`--tree`。 |
+| CLI 基础入口 | 已实现 | `--help`、`--version`、共享 ChatStyle `--tree` 与 `--tree-brief`。 |
 | 运行目录 | 已实现 | 默认 `<chatarch-home>/chatvoice/`，可由 runtime-home overrides 调整。 |
 | packaged Web 启动 | 已实现 | `chatvoice serve app` 调用 `chatvoice.web.server:create_app`。 |
 | 受邀账号 CLI | 已实现 | `chatvoice accounts add/list`，密码只从环境变量读取。 |
@@ -46,11 +46,11 @@
 | 本地合同 smoke | 已实现 | `CHATVOICE_ASR_CHANNEL=stub-local` 可无 GPU/云凭据启动全链路。 |
 | 本地 FunASR 兼容通道 | 保留 | `funasr-gpu` / `funasr-cpu` 仍可用，但生产建议改成外部 ASR API server。 |
 | SQLite WAL 存储 | 已实现 | 单服务进程、轻并发默认；`api_tokens` 表只保存 hash/prefix/metadata。 |
-| Postgres/MySQL 存储 | 未实现 | 已在 plan/doctor 中检测外部 URL，但 v0.1.7 packaged legacy storage 仍只支持 SQLite。 |
+| Postgres/MySQL 存储 | 未实现 | 已在 plan/doctor 中检测外部 URL，但 v0.1.8 packaged legacy storage 仍只支持 SQLite。 |
 
 ## 不在当前范围
 
 - 不把 GPU 模型下载、CUDA/PyTorch 安装和 Web 服务打成一个默认进程。
-- 不在 v0.1.7 里宣称 MySQL/Postgres 已经完成；高并发数据库迁移需要单独版本。
+- 不在 v0.1.8 里宣称 MySQL/Postgres 已经完成；高并发数据库迁移需要单独版本。
 - 不输出 token、cookie、Authorization header 或原始录音；完整 transcript 只通过用户显式调用的数据读取接口返回。
 - 不用 `kill` / `kill -9` 管理服务；重启类命令要先有 supervisor/graceful 方案。
