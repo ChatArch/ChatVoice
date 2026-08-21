@@ -1,6 +1,6 @@
 # 运行目录与数据结构
 
-这一页说明 `pip install "ChatVoice[web]==0.1.6"` 之后，代码安装在哪里、运行数据默认写到哪里，以及 SQLite / 浏览器侧分别保存什么。
+这一页说明 `pip install "ChatVoice[web]==0.1.7"` 之后，代码安装在哪里、运行数据默认写到哪里，以及 SQLite / 浏览器侧分别保存什么。
 
 ## 代码安装位置
 
@@ -85,11 +85,10 @@ export MEETING_DB_PATH=/srv/chatvoice/data/meetings.sqlite3
 ```text
 IndexedDB: speakr-meetings
 - guest meetings
-- recording chunks while recording
-- local playback/export state
+- guest summaries and metadata
 ```
 
-登录账号模式下，会议/对话文本保存到服务端 SQLite；浏览器仍可能短暂持有录音分片用于当前录音和本地下载。原始音频不会持久化到后端数据库。
+登录账号模式下，会议/对话文本保存到服务端 SQLite。当前会议记录页不提供录音保存/下载功能，也不在浏览器 IndexedDB 中保存录音分片。音频只用于实时 ASR，持久化结果是文字和摘要。详见 [录音保存边界](recording-storage.md)。
 
 ## 临时音频与模型缓存
 
@@ -111,7 +110,7 @@ export CHATVOICE_ASR_API_URL="https://<asr-service>/v1/transcribe"
 
 ## 高并发 TODO
 
-`0.1.6` 的 packaged legacy storage 仍只支持 SQLite WAL，适合单服务进程、轻并发和内部受控使用：
+`0.1.7` 的 packaged legacy storage 仍只支持 SQLite WAL，适合单服务进程、轻并发和内部受控使用：
 
 ```bash
 chatvoice serve app --workers 1

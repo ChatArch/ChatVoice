@@ -70,6 +70,8 @@
     body.sidebar-collapsed .site-shell { padding-left: 0; }
     body.sidebar-collapsed .meeting-sidebar { transform: translateX(-100%); }
     .site-bar {
+      position: relative;
+      z-index: 80;
       height: 64px;
       display: grid;
       grid-template-columns: 1fr auto 1fr;
@@ -101,10 +103,18 @@
     .icon-button { width: 36px; height: 36px; padding: 0; display: grid; place-items: center; border: 1px solid #e7e7e9; border-radius: 12px; background: #fff; font-size: 12px; font-weight: 700; }
     .icon-button:hover { background: #f8f8f9; }
     .sidebar-toggle { flex: 0 0 auto; }
-    .tool-button { min-width: 74px; height: 36px; padding: 0 11px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid #e7e7e9; border-radius: 12px; background: #fff; color: #42444a; font-size: 10px; font-weight: 720; }
-    .tool-button:hover { background: #f8f8f9; }
-    .tool-button .tool-icon { display: inline-grid; place-items: center; width: 15px; height: 15px; font-size: 13px; line-height: 1; }
-    .tool-button.more-status { min-width: 86px; }
+    .toolbar-menu-wrap { position: relative; }
+    .toolbar-menu-toggle { width: 40px; height: 36px; font-size: 18px; letter-spacing: .08em; }
+    .toolbar-menu { position: absolute; z-index: 120; right: 0; top: 44px; width: max-content; min-width: 128px; max-width: calc(100vw - 24px); padding: 7px; border: 1px solid #e4e4e7; border-radius: 15px; background: rgba(255,255,255,.98); box-shadow: 0 20px 56px rgba(25, 28, 40, .15); backdrop-filter: blur(18px); }
+    .toolbar-menu[hidden] { display: none; }
+    .toolbar-menu-list { display: grid; grid-template-columns: 1fr; gap: 6px; }
+    .toolbar-menu-action { min-height: 40px; display: grid; grid-template-columns: 26px max-content; align-items: center; gap: 8px; padding: 7px 8px; border: 0; border-radius: 12px; background: #fff; color: #4c4e55; text-align: left; text-decoration: none; }
+    .toolbar-menu-action:hover { background: #eeeeff; color: var(--violet); }
+
+    .toolbar-menu b, .toolbar-menu small { display: block; }
+    .toolbar-menu b { font-size: 10px; }
+    .toolbar-menu small { margin-top: 3px; color: #93959b; font-size: 8px; line-height: 1.45; }
+    .menu-icon { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 9px; background: #f0f0ff; color: var(--violet); font-size: 11px; font-weight: 760; }
     .settings-icon { position: relative; width: 15px; height: 15px; border: 2px solid currentColor; border-radius: 50%; }
     .settings-icon::after { content: ""; position: absolute; width: 4px; height: 4px; border-radius: 50%; background: currentColor; left: 3.5px; top: 3.5px; }
 
@@ -293,7 +303,13 @@
     .meeting-header input { flex: 1; min-width: 0; width: 100%; padding: 0; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: clamp(25px, 3.2vw, 38px); font-weight: 740; line-height: 1.25; letter-spacing: -.045em; }
     .meeting-title-actions { display: flex; gap: 8px; flex-shrink: 0; padding-top: 5px; }
     .title-action-button { min-height: 34px; border: 1px solid #e0d8c9; border-radius: 999px; padding: 0 12px; display: inline-flex; align-items: center; gap: 6px; background: #fff9ed; color: #6d5732; font-size: 10px; font-weight: 760; white-space: nowrap; cursor: pointer; box-shadow: 0 10px 24px rgba(89, 68, 28, .09); }
+    .title-action-button.icon-only { position: relative; width: 34px; min-width: 34px; max-width: 34px; padding: 0; justify-content: center; }
     .title-action-button span { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: rgba(120, 86, 34, .1); font-size: 12px; }
+    .title-action-button.icon-only span { background: transparent; }
+    .title-action-button.icon-only strong { display: none; }
+    .title-action-button.icon-only::after { content: attr(aria-label); position: absolute; z-index: 160; right: 50%; top: calc(100% + 8px); transform: translateX(50%) translateY(-4px); padding: 6px 9px; border: 1px solid rgba(35, 35, 38, .08); border-radius: 999px; background: rgba(35, 35, 38, .94); color: #fff; font-size: 11px; font-weight: 680; line-height: 1; white-space: nowrap; box-shadow: 0 12px 28px rgba(24, 24, 26, .18); opacity: 0; pointer-events: none; transition: opacity .14s ease, transform .14s ease; }
+    .title-action-button.icon-only:hover::after, .title-action-button.icon-only:focus::after, .title-action-button.icon-only:focus-visible::after { opacity: 1; transform: translateX(50%) translateY(0); }
+    @media (hover: none) { .title-action-button.icon-only::after { display: none; } }
     .title-action-button.primary { border-color: #bdd8b2; background: #effbe9; color: #2f7031; box-shadow: 0 10px 24px rgba(49, 123, 51, .09); }
     .title-action-button.primary span { background: rgba(59, 135, 59, .13); }
     .title-action-button:disabled { opacity: .55; cursor: not-allowed; }
@@ -315,10 +331,13 @@
     .content-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 21px 48px 205px; scrollbar-width: thin; scrollbar-color: #ddd transparent; }
     .tab-panel { display: none; width: min(100%, 760px); margin: 0 auto; }
     .tab-panel.active { display: block; }
-    .stream-status { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; color: #9a9ca2; font-size: 9px; }
+    .stream-status { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 10px; color: #9a9ca2; font-size: 9px; }
     .stream-status span { display: flex; align-items: center; gap: 6px; }
     .stream-status i { width: 5px; height: 5px; border-radius: 50%; background: #b5b7bc; }
     .stream-status.recording i { background: var(--green); }.stream-status.connecting i { background: var(--orange); }.stream-status.error i { background: var(--red); }
+    .stream-actions { flex: none; }
+    .content-copy-button { height: 28px; padding: 0 10px; border: 1px solid #e6e6e9; border-radius: 10px; background: #fff; color: #5f6168; font-size: 9px; font-weight: 700; }
+    .content-copy-button:hover { background: #f8f8f9; }
 
     .transcript-list, .rewrite-list { min-height: 0; }
     .history-label { display: none; align-items: center; gap: 9px; margin: 3px 0 7px; color: #a0a2a7; font-size: 8px; font-weight: 680; letter-spacing: .06em; }
@@ -414,6 +433,7 @@
     body.summary-chat-active .recording-policy, body.summary-chat-active .waveform-wrap { display: none; }
     body.summary-chat-active .console-controls { margin-top: 0; }
     body.summary-chat-active .content-scroll { padding-bottom: 118px; }
+    .recording-policy[hidden] { display: none; }
     .recording-policy { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 2px 9px; padding: 8px 10px; border: 1px solid #e8e1d1; border-radius: 13px; background: #fffaf0; color: #7a6848; font-size: 10px; line-height: 1.45; }
     .recording-policy strong { flex: none; color: #6b5a39; font-size: 9px; }
     .recording-policy.warning strong { color: #c17722; }
@@ -434,12 +454,10 @@
     .finish-wrap { display: flex; justify-content: flex-end; gap: 8px; }
     .finish-control, .download-control, .reset-control { min-width: 72px; height: 47px; border: 0; border-radius: 16px; background: #f5f5f6; color: #292a2f; font-size: 11px; font-weight: 680; }
     .download-control, .reset-control { border: 1px solid var(--line); background: #fff; }
-    .download-control { min-width: 118px; display: inline-flex; align-items: center; justify-content: center; padding: 0 12px; }
-    .download-control.active { border-color: #bdd8b2; background: #f5fff1; color: #2f7031; }
     .reset-control { display: none; }
     .reset-control.visible { display: inline-block; }
     .finish-control.hidden { display: none; }
-    .finish-control:disabled, .download-control:disabled, .reset-control:disabled { color: #a0a2a7; cursor: not-allowed; }
+    .finish-control:disabled, .reset-control:disabled { color: #a0a2a7; cursor: not-allowed; }
 
     dialog { width: min(420px, calc(100vw - 32px)); padding: 0; border: 0; border-radius: 22px; color: var(--ink); box-shadow: 0 30px 90px rgba(20, 24, 38, .25); }
     dialog::backdrop { background: rgba(22, 24, 30, .28); backdrop-filter: blur(4px); }
@@ -452,16 +470,31 @@
     .settings-card input { width: 100%; height: 38px; padding: 0 11px; border: 1px solid var(--line); border-radius: 11px; background: #fff; outline: 0; }
     .settings-card p { margin: 12px 0 0; color: var(--muted); font-size: 10px; line-height: 1.65; }
     .token-panel { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line); }
+    .token-panel-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+    .token-panel-header h3 { margin: 0; font-size: 12px; }
+    .token-panel-header p { margin-top: 6px; }
+    .token-create-popover { position: fixed; z-index: 92; left: 50%; top: 50%; width: min(430px, calc(100vw - 34px)); transform: translate(-50%, -50%); padding: 18px; border: 1px solid #e3e3e7; border-radius: 18px; background: #fff; box-shadow: 0 30px 90px rgba(20, 24, 38, .25); }
+    .token-create-popover[hidden] { display: none; }
+    .token-create-popover header { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+    .token-create-popover h4 { margin: 0; font-size: 13px; }
+    .token-create-popover p { margin: 6px 0 0; }
+    .token-close { width: 30px; height: 30px; border: 0; border-radius: 10px; background: var(--soft); color: #55575e; }
     .token-grid { display: grid; grid-template-columns: 1fr 120px; gap: 10px; align-items: end; }
     .token-actions { display: flex; gap: 8px; margin-top: 12px; }
     .token-button { height: 36px; padding: 0 12px; border: 0; border-radius: 10px; background: var(--ink); color: #fff; font-size: 9px; font-weight: 680; }
     .token-button.secondary { background: #f3f3f4; color: var(--ink); }
     .token-button.danger { background: #fff1f1; color: #b64646; }
-    .token-output { width: 100%; min-height: 54px; margin-top: 10px; padding: 9px 10px; border: 1px solid #dedff5; border-radius: 11px; background: #f8f8ff; color: var(--ink); font: 10px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; resize: vertical; }
+    .token-result { margin-top: 12px; display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; padding: 11px; border: 1px solid #dedff5; border-radius: 13px; background: #f8f8ff; }
+    .token-result[hidden] { display: none; }
+    .token-result strong, .token-result small, .token-result code { display: block; }
+    .token-result strong { font-size: 10px; }
+    .token-result small { margin-top: 3px; color: #747691; font-size: 8px; }
+    .token-result code { margin-top: 7px; padding: 8px; border-radius: 9px; background: #fff; color: var(--ink); font: 9px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; user-select: all; }
     .token-list { margin-top: 10px; display: grid; gap: 7px; }
     .token-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; padding: 9px 10px; border: 1px solid #ececef; border-radius: 11px; background: #fff; }
     .token-row strong { display: block; font-size: 10px; }
     .token-row small { display: block; margin-top: 3px; color: var(--muted); font-size: 8px; }
+    .token-mask { margin-top: 5px; display: inline-flex; padding: 4px 6px; border-radius: 8px; background: #f5f5f7; color: #55575e; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 8px; }
     .api-key-config { margin-top: 16px; padding: 12px; border: 1px solid #e8e7f6; border-radius: 13px; background: #fbfbff; }
     .api-key-config h3 { margin: 0 0 8px; font-size: 11px; }
     .api-key-status-list { display: grid; gap: 6px; margin-top: 9px; }
@@ -528,14 +561,15 @@
       .product-tabs { justify-self: center; }
       .product-tab { min-width: 64px; height: 32px; padding: 0 7px; font-size: 8px; }
       .icon-button { width: 34px; height: 34px; border: 0; }
-      .tool-button, .tool-button.more-status { min-width: 34px; width: 34px; height: 34px; padding: 0; border: 0; }
-      .tool-button span:last-child { display: none; }
+      .toolbar-menu-toggle { width: 34px; height: 34px; border: 0; }
+      .toolbar-menu { right: -4px; top: 41px; width: max-content; min-width: 124px; max-width: calc(100vw - 22px); }
       .recorder-shell { width: 100%; height: calc(100dvh - 60px); min-height: 590px; margin: 0; border: 0; border-radius: 0; box-shadow: none; }
       .meeting-header { padding: 29px 22px 17px; }
       .meeting-title-row { gap: 8px; }
       .meeting-header input { font-size: 28px; }
       .meeting-title-actions { padding-top: 3px; flex-direction: column; }
       .title-action-button { padding: 6px 9px; font-size: 8px; }
+      .title-action-button.icon-only { width: 32px; min-width: 32px; max-width: 32px; padding: 0; }
       .meeting-meta { gap: 6px; font-size: 9px; overflow: hidden; white-space: nowrap; }
       .meeting-meta span:last-child, .meeting-meta i:last-of-type { display: none; }
       .content-tabs { padding: 0 22px; gap: 30px; }
@@ -622,7 +656,7 @@
         <span class="account-copy"><strong id="account-name">选择使用方式</strong><small id="account-storage">尚未进入</small></span>
         <button class="account-action" id="account-action" type="button">选择</button>
       </div>
-      <p class="sidebar-footnote" id="storage-note">服务器只保存文字/摘要；原始录音默认不保存。需要音频文件时，请在本机手动开启保存并下载。</p>
+      <p class="sidebar-footnote" id="storage-note">服务器不保存录音，只保存文本和摘要。录音只在当前浏览器留存。</p>
     </aside>
     <button class="sidebar-backdrop" id="sidebar-backdrop" type="button" aria-label="关闭会议记录"></button>
 
@@ -644,8 +678,16 @@
 
       <nav class="utility-actions" aria-label="录音工具">
         <span class="service-state" id="service-state"><i></i><span>检查识别服务…</span></span>
-        <button class="tool-button more-status meeting-only-action" id="open-settings" type="button" aria-label="打开识别设置与服务状态" title="识别设置与服务状态"><span class="settings-icon" aria-hidden="true"></span><span>设置/状态</span></button>
-        <button class="tool-button meeting-only-action" id="copy-transcript" type="button" aria-label="复制文字记录" title="复制文字记录"><span class="tool-icon" aria-hidden="true">⧉</span><span>复制</span></button>
+        <div class="toolbar-menu-wrap">
+          <button class="icon-button toolbar-menu-toggle" id="toggle-settings-menu" type="button" aria-label="打开设置菜单" aria-haspopup="true" aria-expanded="false" title="设置菜单">•••</button>
+          <div class="toolbar-menu" id="settings-menu" role="menu" aria-label="设置菜单" hidden>
+            <div class="toolbar-menu-list" aria-label="更多入口">
+              <button class="toolbar-menu-action" id="open-settings" type="button" role="menuitem" data-settings-focus="asr-channel" aria-label="打开设置，包含识别状态、模型和 API Token"><span class="menu-icon" aria-hidden="true">⚙</span><b>设置</b></button>
+              <a class="toolbar-menu-action" href="https://arch.gh.wzhecnu.cn/ChatVoice/" target="_blank" rel="noreferrer" role="menuitem"><span class="menu-icon" aria-hidden="true">文</span><b>文档</b></a>
+              <a class="toolbar-menu-action" href="https://github.com/ChatArch/ChatVoice" target="_blank" rel="noreferrer" role="menuitem"><span class="menu-icon" aria-hidden="true">GH</span><b>GitHub</b></a>
+            </div>
+          </div>
+        </div>
       </nav>
     </header>
 
@@ -654,8 +696,8 @@
         <div class="meeting-title-row">
           <input id="meeting-title" aria-label="录音标题" value="新录音" />
           <div class="meeting-title-actions" aria-label="标题与会议快捷操作">
-            <button class="title-action-button" id="refresh-title" type="button"><span aria-hidden="true">↻</span><strong>刷新标题</strong></button>
-            <button class="title-action-button primary" id="quick-new-meeting" type="button"><span aria-hidden="true">＋</span><strong>新建</strong></button>
+            <button class="title-action-button icon-only" id="refresh-title" type="button" aria-label="刷新标题" title="刷新标题"><span aria-hidden="true">↻</span></button>
+            <button class="title-action-button icon-only primary" id="quick-new-meeting" type="button" aria-label="新建会议" title="新建会议"><span aria-hidden="true">＋</span></button>
           </div>
         </div>
         <div class="meeting-meta">
@@ -680,7 +722,7 @@
         <section class="tab-panel active" id="transcript-panel" data-panel="transcript" role="tabpanel">
           <div class="stream-status idle" id="stream-status">
             <span><i></i><b id="status-message">点击下方按钮开始录音</b></span>
-            <span id="latency-label">尚未连接</span>
+            <span class="stream-actions"><span id="latency-label">尚未连接</span><button class="content-copy-button" id="copy-transcript" type="button">复制文字</button></span>
           </div>
 
           <div class="history-label" id="history-label">已确认记录</div>
@@ -720,7 +762,7 @@
           <article class="summary-lead">
             <small>一句话摘要</small>
             <h2 id="summary-title">前端以实时转写为核心，通过统一协议兼容不同语音识别服务。</h2>
-            <p id="summary-description">原始录音与实时识别彼此独立，后续摘要、待办和更多处理能力都消费标准化的转写结果。</p>
+            <p id="summary-description">录音与实时识别彼此独立，后续摘要、待办和更多处理能力都消费标准化的转写结果。</p>
           </article>
 
           <div class="summary-output" id="summary-output">核心结论
@@ -790,8 +832,8 @@
       </div>
 
       <footer class="recording-console idle" id="recording-console">
-        <div class="recording-policy" id="recording-policy">
-          <span id="record-limit-status">隐私：默认不保存原始录音；如需音频文件，请先点“保存音频”，结束后从本浏览器下载</span>
+        <div class="recording-policy" id="recording-policy" hidden>
+          <span id="record-limit-status">访客试用 · 每段最长 10 分钟</span>
           <strong id="record-limit-remaining">10:00</strong>
         </div>
         <div class="waveform-wrap">
@@ -802,14 +844,13 @@
         <div class="console-controls">
           <div class="elapsed-time">
             <strong id="elapsed">00:00</strong>
-            <small><i></i><span id="local-save-status">默认不保存原始录音</span></small>
+            <small><i></i><span id="local-save-status">服务器只保存文字和摘要</span></small>
           </div>
 
           <button class="record-toggle" id="record-toggle" type="button" aria-label="开始录音"><span class="record-icon"></span></button>
 
           <div class="finish-wrap">
             <button class="reset-control" id="reset-recording" type="button">清空</button>
-            <button class="download-control" id="download-recording" type="button" title="默认不保存原始录音；点击后仅在本浏览器暂存，用于结束后下载">保存音频</button>
             <button class="finish-control" id="finish-recording" type="button" disabled>结束</button>
           </div>
         </div>
@@ -967,24 +1008,54 @@
         </ul>
       </section>
       <section class="token-panel" aria-labelledby="api-token-title">
-        <h3 id="api-token-title">API Token</h3>
-        <p id="api-token-login-note">登录账号后，可以生成给 CLI 或下游自动化读取会议转写和摘要的 Token。Token 明文只显示一次。</p>
-        <div class="token-grid">
+        <div class="token-panel-header">
           <div>
-            <label for="api-token-name">Token 名称</label>
-            <input id="api-token-name" value="automation" maxlength="80" />
+            <h3 id="api-token-title">API Token</h3>
+            <p id="api-token-login-note">给 CLI 或下游自动化读取会议转写和摘要。列表只显示 masked key；明文只在新建弹窗里显示一次。</p>
           </div>
-          <div>
-            <label for="api-token-expires">有效期（天）</label>
-            <input id="api-token-expires" type="number" min="1" max="365" placeholder="不填则长期" />
+          <button class="token-button" id="open-token-create" type="button">新建 Token</button>
+        </div>
+        <div class="token-create-popover" id="token-create-popover" role="dialog" aria-labelledby="token-create-title" hidden>
+          <header>
+            <div>
+              <h4 id="token-create-title">新建 API Token</h4>
+              <p>配置名称和有效期后生成。生成后会自动复制，并在这里显示一次；关闭后不能再复制。</p>
+            </div>
+            <button class="token-close" id="close-token-create" type="button" aria-label="关闭新建 Token 弹窗">×</button>
+          </header>
+          <div class="token-grid">
+            <div>
+              <label for="api-token-name">名称</label>
+              <input id="api-token-name" value="automation" maxlength="80" />
+            </div>
+            <div>
+              <label for="api-token-expires">有效期</label>
+              <select id="api-token-expires">
+                <option value="7">7 天</option>
+                <option value="15">15 天</option>
+                <option value="30" selected>30 天</option>
+                <option value="90">90 天</option>
+                <option value="">永久</option>
+              </select>
+            </div>
+          </div>
+          <div class="token-actions">
+            <button class="token-button" id="create-api-token" type="button">生成 Token</button>
+            <button class="token-button secondary" id="cancel-token-create" type="button">关闭</button>
+          </div>
+          <div class="token-result" id="api-token-result" hidden>
+            <div>
+              <strong>新 Token（只显示一次）</strong>
+              <small>已尝试自动复制。请立即保存到安全位置。</small>
+              <code id="api-token-output"></code>
+            </div>
+            <button class="token-button secondary" id="copy-api-token" type="button">复制</button>
           </div>
         </div>
+        <div class="token-list" id="api-token-list"><p>尚未读取 Token 列表。</p></div>
         <div class="token-actions">
-          <button class="token-button" id="create-api-token" type="button">生成 Token</button>
           <button class="token-button secondary" id="refresh-api-tokens" type="button">刷新列表</button>
         </div>
-        <textarea class="token-output" id="api-token-output" readonly hidden></textarea>
-        <div class="token-list" id="api-token-list"><p>尚未读取 Token 列表。</p></div>
         <p id="api-token-message" role="status"></p>
       </section>
     </form>
@@ -998,13 +1069,13 @@
         <p class="access-intro">两种方式都可以使用实时转写与 AI 摘要；区别只在于会议记录保存在哪里。</p>
         <div class="mode-grid">
           <button class="mode-card primary" id="enter-guest" type="button">
-            <span class="mode-icon">⌂</span><strong>访客使用 · 单段 10 分钟</strong><span>文字和摘要仅保存在当前浏览器；原始录音默认不保存，需要下载时可手动开启本地音频留存。</span>
+            <span class="mode-icon">⌂</span><strong>访客使用 · 单段 10 分钟</strong><span>文字和摘要仅保存在当前浏览器；服务器不保存录音。</span>
           </button>
           <button class="mode-card" id="show-login" type="button">
-            <span class="mode-icon">◎</span><strong>登录账号 · 单段 2 小时</strong><span>文字和摘要跨设备保存；原始录音仍默认不上传服务器，也不自动留存在浏览器。</span>
+            <span class="mode-icon">◎</span><strong>登录账号</strong><span>文字和摘要跨设备保存；服务器不保存录音，只保存文本和摘要。</span>
           </button>
         </div>
-        <p class="privacy-note">隐私提示：音频会临时发送给转写服务处理；服务器默认不保存原始录音。登录账号只同步文字、摘要和会议元数据。</p>
+        <p class="privacy-note">隐私提示：音频只用于实时识别；服务器不保存录音，只保存文本和摘要。</p>
       </div>
       <div class="auth-view" id="auth-view" hidden>
         <button class="auth-back" id="auth-back" type="button">← 返回使用方式</button>
@@ -1032,9 +1103,6 @@
     const GUEST_DB_VERSION = 2;
     const GUEST_STORE = 'meetings';
     const GUEST_CONVERSATION_STORE = 'conversations';
-    const AUDIO_DB_NAME = 'voicenote-audio-v1';
-    const AUDIO_DB_VERSION = 1;
-    const AUDIO_CHUNK_STORE = 'recording-chunks';
     const createRecordId = () => (crypto.randomUUID ? crypto.randomUUID() : `meeting-${Date.now()}-${Math.random().toString(16).slice(2)}`).replace(/[^A-Za-z0-9_-]/g, '');
     const demoSegments = [
       { speaker: '说话人 1', time: '00:18', text: '我们先专注主要的会议录音体验，用户进入页面以后应该能够很快开始。', demo: true },
@@ -1059,15 +1127,6 @@
     let microphoneStream = null;
     let sendingAudio = false;
     let animationFrameId = null;
-    let mediaRecorder = null;
-    let archiveOptIn = false;
-    let archiveChunks = [];
-    let archiveSessionId = null;
-    let archiveChunkIndex = 0;
-    let archiveMimeType = 'audio/webm';
-    let archiveWriteChain = Promise.resolve();
-    let archiveStorageDegraded = false;
-    let recordingUrl = null;
     let transcriptSegments = [...demoSegments];
     let rewriteSegments = [];
     let liveTranscriptText = '';
@@ -1097,7 +1156,6 @@
     let authUser = null;
     let csrfToken = '';
     let guestDbPromise = null;
-    let audioDbPromise = null;
     let activeProductView = 'meeting';
     let selectedTtsVoice = 'longanlingxin';
     let selectedTtsFormat = 'mp3';
@@ -1142,16 +1200,15 @@
     }
 
     function updateRecordingLimitUi() {
-      const accountMode = storageMode === 'account';
-      const policyMinutes = Math.round(asrPassLimitSeconds / 60);
+      const policy = $('recording-policy');
+      const guestMode = storageMode === 'guest';
+      policy.hidden = !guestMode;
+      if (!guestMode) return;
       const remaining = Math.max(0, asrPassLimitSeconds - recordingPassSeconds);
-      $('record-limit-status').textContent = accountMode
-        ? `登录模式 · 当前段最长 ${policyMinutes >= 120 ? '2 小时' : `${policyMinutes} 分钟`}；服务器只保存文字/摘要，原始录音默认不保存`
-        : '访客试用 · 每段最长 10 分钟；原始录音默认不保存，点“保存音频”后才在本浏览器暂存';
-      $('record-limit-remaining').textContent = ['recording', 'paused', 'connecting', 'finishing'].includes(recorderState)
-        ? `本段剩余 ${formatTime(remaining)}`
-        : `单段上限 ${formatTime(asrPassLimitSeconds)}`;
-      $('recording-policy').classList.toggle('warning', remaining <= 60 && ['recording', 'paused'].includes(recorderState));
+      const active = ['recording', 'paused', 'connecting', 'finishing'].includes(recorderState);
+      $('record-limit-status').textContent = active ? '访客试用 · 本段剩余' : '访客试用 · 每段最长 10 分钟';
+      $('record-limit-remaining').textContent = active ? formatTime(remaining) : formatTime(asrPassLimitSeconds);
+      policy.classList.toggle('warning', remaining <= 60 && ['recording', 'paused'].includes(recorderState));
     }
 
     function requestAsrWindowCommit(options) {
@@ -1190,7 +1247,6 @@
         button.classList.toggle('active', active);
         button.setAttribute('aria-selected', active ? 'true' : 'false');
       });
-      document.querySelectorAll('.meeting-only-action').forEach((button) => { button.hidden = view !== 'meeting'; });
       document.title = view === 'meeting' ? '声笺 · 实时会议记录' : view === 'studio' ? '声笺 · 声音工作室' : '声笺 · 实时对话';
       $('meeting-search').value = '';
       updateSidebarContext();
@@ -1226,8 +1282,10 @@
       meetingTitleMode = mode;
       $('title-state').className = `title-state${mode === 'generating' ? ' generating' : mode === 'manual' ? ' manual' : ''}`;
       $('title-state').textContent = label || ({ default: 'AI 可自动命名', generating: '正在生成标题…', auto: 'AI 已命名', manual: '已手动命名' }[mode] || '');
-      $('refresh-title').disabled = mode === 'generating';
-      $('refresh-title').textContent = mode === 'generating' ? '生成中' : '刷新标题';
+      const refreshButton = $('refresh-title');
+      refreshButton.disabled = mode === 'generating';
+      refreshButton.setAttribute('aria-label', mode === 'generating' ? '标题生成中' : '刷新标题');
+      refreshButton.title = mode === 'generating' ? '标题生成中' : '刷新标题';
     }
 
     function resetMeetingTitleGeneration(mode = 'default') {
@@ -1806,33 +1864,79 @@
     }
 
     function clearApiTokenOutput() {
-      $('api-token-output').value = '';
-      $('api-token-output').hidden = true;
+      $('api-token-output').textContent = '';
+      $('api-token-result').hidden = true;
+    }
+
+    function closeTokenCreatePopover() {
+      $('token-create-popover').hidden = true;
+      clearApiTokenOutput();
+    }
+
+    function openTokenCreatePopover() {
+      if (storageMode !== 'account' || !authUser) {
+        showToast('请先登录账号');
+        return;
+      }
+      clearApiTokenOutput();
+      $('token-create-popover').hidden = false;
+      $('api-token-message').textContent = '';
+      setTimeout(() => $('api-token-name').focus(), 0);
+    }
+
+    async function copyApiTokenOutput() {
+      const token = $('api-token-output').textContent.trim();
+      if (!token) {
+        showToast('当前没有可复制的 Token 明文');
+        return false;
+      }
+      try {
+        await navigator.clipboard.writeText(token);
+        showToast('Token 已复制');
+        return true;
+      } catch (_) {
+        showToast('自动复制失败，请手动选择复制');
+        return false;
+      }
+    }
+
+    function maskApiToken(token) {
+      const prefix = token.prefix || String(token.id || '').slice(0, 8) || 'token';
+      return `${prefix}••••••••`;
     }
 
     function renderApiTokens(tokens = []) {
+      const activeTokens = (tokens || []).filter((token) => !token.revoked_at);
       if (storageMode !== 'account' || !authUser) {
         clearApiTokenOutput();
         $('api-token-list').innerHTML = '<p>请先登录账号后再管理 API Token。</p>';
+        $('open-token-create').disabled = true;
         $('create-api-token').disabled = true;
         $('refresh-api-tokens').disabled = true;
         return;
       }
+      $('open-token-create').disabled = false;
       $('create-api-token').disabled = false;
       $('refresh-api-tokens').disabled = false;
-      if (!tokens.length) {
-        $('api-token-list').innerHTML = '<p>暂无 API Token。</p>';
+      if (!activeTokens.length) {
+        $('api-token-list').innerHTML = '<p>暂无可用 API Token。</p>';
         return;
       }
-      $('api-token-list').innerHTML = tokens.map((token) => `
+      $('api-token-list').innerHTML = activeTokens.map((token) => {
+        const scopes = Array.isArray(token.scopes) && token.scopes.length ? token.scopes.join(', ') : 'read';
+        const expires = token.expires_at ? ` · 到期 ${escapeHtml(token.expires_at.slice(0, 10))}` : ' · 长期';
+        const created = token.created_at ? ` · 创建 ${escapeHtml(token.created_at.slice(0, 10))}` : '';
+        return `
         <article class="token-row">
           <span>
             <strong>${escapeHtml(token.name || 'automation')}</strong>
-            <small>${escapeHtml(token.id)} · prefix ${escapeHtml(token.prefix || '')} · ${token.revoked_at ? '已撤销' : '可用'}${token.expires_at ? ` · 到期 ${escapeHtml(token.expires_at.slice(0, 10))}` : ''}</small>
+            <span class="token-mask">${escapeHtml(maskApiToken(token))}</span>
+            <small>${escapeHtml(token.id)} · ${escapeHtml(scopes)}${expires}${created}</small>
           </span>
-          <button class="token-button danger" type="button" data-revoke-token="${escapeHtml(token.id)}" ${token.revoked_at ? 'disabled' : ''}>撤销</button>
+          <button class="token-button danger" type="button" data-revoke-token="${escapeHtml(token.id)}">删除</button>
         </article>
-      `).join('');
+      `;
+      }).join('');
     }
 
     async function loadApiTokens() {
@@ -1867,10 +1971,12 @@
         const response = await fetch('/api/tokens', { method: 'POST', headers: meetingHeaders(true), body: JSON.stringify(body) });
         if (!response.ok) throw new Error(await responseError(response, '生成 Token 失败'));
         const payload = await response.json();
-        $('api-token-output').hidden = false;
-        $('api-token-output').value = payload.token || '';
-        $('api-token-message').textContent = 'Token 已生成。请立即复制保存，关闭后无法再次查看明文。';
-        await navigator.clipboard.writeText(payload.token || '').catch(() => {});
+        $('api-token-result').hidden = false;
+        $('api-token-output').textContent = payload.token || '';
+        const copied = await copyApiTokenOutput();
+        $('api-token-message').textContent = copied
+          ? 'Token 已生成并复制。关闭新建弹窗后无法再次查看明文。'
+          : 'Token 已生成。请在新建弹窗里手动复制，关闭后无法再次查看明文。';
         await loadApiTokens();
       } catch (error) {
         $('api-token-message').textContent = error.message || '生成 Token 失败';
@@ -1880,16 +1986,15 @@
     }
 
     async function revokeApiToken(tokenId) {
-      if (!tokenId || !confirm('撤销这个 API Token？已接入的 CLI/自动化会立即失效。')) return;
+      if (!tokenId || !confirm('删除这个 API Token？已接入的 CLI/自动化会立即失效。')) return;
       try {
         const response = await fetch(`/api/tokens/${encodeURIComponent(tokenId)}`, { method: 'DELETE', headers: meetingHeaders(true) });
-        if (!response.ok) throw new Error(await responseError(response, '撤销 Token 失败'));
-        $('api-token-output').hidden = true;
-        $('api-token-output').value = '';
-        $('api-token-message').textContent = 'Token 已撤销';
+        if (!response.ok) throw new Error(await responseError(response, '删除 Token 失败'));
+        clearApiTokenOutput();
+        $('api-token-message').textContent = 'Token 已删除';
         await loadApiTokens();
       } catch (error) {
-        $('api-token-message').textContent = error.message || '撤销 Token 失败';
+        $('api-token-message').textContent = error.message || '删除 Token 失败';
       }
     }
 
@@ -1922,60 +2027,6 @@
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error || new Error('浏览器存储操作失败'));
       });
-    }
-
-    function openAudioDb() {
-      if (audioDbPromise) return audioDbPromise;
-      audioDbPromise = new Promise((resolve, reject) => {
-        const request = indexedDB.open(AUDIO_DB_NAME, AUDIO_DB_VERSION);
-        request.onupgradeneeded = () => {
-          const db = request.result;
-          if (!db.objectStoreNames.contains(AUDIO_CHUNK_STORE)) {
-            const store = db.createObjectStore(AUDIO_CHUNK_STORE, { keyPath: ['session_id', 'index'] });
-            store.createIndex('session_id', 'session_id');
-          }
-        };
-        request.onsuccess = () => {
-          request.result.onversionchange = () => request.result.close();
-          resolve(request.result);
-        };
-        request.onerror = () => reject(request.error || new Error('录音分片存储不可用'));
-        request.onblocked = () => reject(new Error('录音分片存储被其他页面占用'));
-      });
-      return audioDbPromise;
-    }
-
-    async function audioDbTransaction(mode, operation) {
-      const db = await openAudioDb();
-      return new Promise((resolve, reject) => {
-        const transaction = db.transaction(AUDIO_CHUNK_STORE, mode);
-        let request;
-        try { request = operation(transaction.objectStore(AUDIO_CHUNK_STORE)); }
-        catch (error) { reject(error); return; }
-        transaction.oncomplete = () => resolve(request && request.result);
-        transaction.onerror = () => reject(transaction.error || (request && request.error) || new Error('录音分片写入失败'));
-        transaction.onabort = () => reject(transaction.error || new Error('录音分片写入已中止'));
-      });
-    }
-
-    function audioSessionRange(sessionId) {
-      return IDBKeyRange.bound([sessionId, 0], [sessionId, Number.MAX_SAFE_INTEGER]);
-    }
-
-    async function putAudioArchiveChunk(sessionId, index, blob) {
-      return audioDbTransaction('readwrite', (store) => store.put({ session_id: sessionId, index, blob }));
-    }
-
-    async function readAudioArchiveChunks(sessionId) {
-      if (!sessionId) return [];
-      const rows = await audioDbTransaction('readonly', (store) => store.getAll(audioSessionRange(sessionId)));
-      return (rows || []).sort((a, b) => a.index - b.index);
-    }
-
-    async function deleteAudioArchiveSession(sessionId) {
-      if (!sessionId) return;
-      try { await audioDbTransaction('readwrite', (store) => store.delete(audioSessionRange(sessionId))); }
-      catch (_) {}
     }
 
     async function listStoredMeetings() {
@@ -2219,8 +2270,8 @@
           ? '对话文字、模型和音色已绑定账号同步；原始语音不保存。'
           : '对话文字仅保存在当前浏览器；原始语音只在实时请求中临时经过服务器。'
         : loggedIn
-          ? '服务器同步文字、摘要和会议元数据；原始录音默认不上传，也不自动保存在浏览器。'
-          : '访客文字/摘要仅在当前浏览器；原始录音默认不保存，开启本地音频留存后才可下载。';
+          ? '服务器同步文字、摘要和会议元数据；录音不上传，也不自动保存在浏览器。'
+          : '访客文字/摘要仅在当前浏览器；服务器不保存原始录音。';
       renderSidebarIndex();
     }
 
@@ -2467,8 +2518,6 @@
         } else {
           clearSummaryContent();
         }
-        archiveOptIn = false;
-        discardCurrentArchive();
         updateRecorderUi('ended', '已打开会议记录');
         renderTranscript();
         renderMeetingIndex();
@@ -2525,7 +2574,7 @@
       $('account-name').textContent = loggedIn ? (authUser.display_name || authUser.account) : storageMode === 'guest' ? '访客模式' : '选择使用方式';
       $('account-storage').textContent = loggedIn ? '服务器同步' : storageMode === 'guest' ? '仅此浏览器' : '尚未进入';
       $('account-action').textContent = loggedIn ? '退出' : storageMode === 'guest' ? '登录' : '选择';
-      if (!['recording', 'paused', 'connecting', 'finishing'].includes(recorderState)) asrPassLimitSeconds = loggedIn ? 2 * 60 * 60 : 10 * 60;
+      if (!['recording', 'paused', 'connecting', 'finishing'].includes(recorderState)) asrPassLimitSeconds = 10 * 60;
       updateSidebarContext();
       updateRecordingLimitUi();
     }
@@ -2566,7 +2615,7 @@
       await Promise.all([fetchMeetingIndex(), fetchConversationIndex()]);
       if (meetingIndex.length) await openMeeting(meetingIndex[0].id);
       else await createNewMeeting({ announce: false });
-      showToast(mode === 'guest' ? '已进入访客模式，记录只保存在本浏览器' : '登录成功，会议记录将同步到服务器');
+      showToast(mode === 'guest' ? '已进入访客模式，记录只保存在当前浏览器' : '登录成功，会议记录将同步到服务器');
     }
 
     async function submitAuth(event) {
@@ -2804,19 +2853,18 @@
       if (nextState === 'recording') {
         $('record-toggle').innerHTML = '<i></i><i></i>';
         $('record-toggle').setAttribute('aria-label', '暂停录音');
-        $('local-save-status').textContent = archiveOptIn ? '音频仅在本浏览器暂存；服务器不保存原始录音' : '默认不保存原始录音，只实时识别';
+        $('local-save-status').textContent = '服务器只保存文字和摘要';
       } else if (nextState === 'paused') {
         $('record-toggle').innerHTML = '<span class="play-icon"></span>';
         $('record-toggle').setAttribute('aria-label', '继续录音');
-        $('local-save-status').textContent = archiveOptIn ? '音频留存已暂停，仍仅保存在本浏览器' : '录音已暂停；未保存原始音频';
+        $('local-save-status').textContent = '录音已暂停；服务器只保存文字和摘要';
       } else {
         $('record-toggle').innerHTML = '<span class="record-icon"></span>';
         $('record-toggle').setAttribute('aria-label', nextState === 'ended' || nextState === 'error' ? '继续录音' : '开始录音');
         $('local-save-status').textContent = nextState === 'ended'
-          ? (hasDownloadableArchive() ? '音频已在本浏览器暂存，可下载；服务器不保存原始录音' : '本次未保存原始音频；服务器只保留文字/摘要')
-          : '默认不保存原始录音';
+          ? '录音已结束；服务器只保存文字和摘要'
+          : '服务器只保存文字和摘要';
       }
-      updateArchiveButton();
       updateRecordingLimitUi();
       renderTranscript();
     }
@@ -2832,160 +2880,11 @@
         updateRecordingLimitUi();
         if (elapsedSeconds % 5 === 0) scheduleMeetingSave(200);
         if (recordingPassSeconds - lastAsrWindowCommitAt >= 42) requestAsrWindowCommit();
-        if (recordingPassSeconds >= asrPassLimitSeconds) finishRecording('已达到当前录音段上限，最后文字正在提交；可稍后继续录下一段');
+        if (storageMode === 'guest' && recordingPassSeconds >= asrPassLimitSeconds) finishRecording('访客试用已达到 10 分钟，本段文字正在提交；登录后可继续长时间记录');
       }, 1000);
     }
 
     function stopTimer() { clearInterval(timerId); timerId = null; }
-
-    function chooseRecorderMimeType() {
-      if (!window.MediaRecorder) return '';
-      const types = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm'];
-      return types.find((type) => MediaRecorder.isTypeSupported(type)) || '';
-    }
-
-    function discardCurrentArchive() {
-      const previousSessionId = archiveSessionId;
-      const previousWriteChain = archiveWriteChain;
-      archiveSessionId = null;
-      archiveChunkIndex = 0;
-      archiveChunks = [];
-      archiveWriteChain = Promise.resolve();
-      archiveStorageDegraded = false;
-      if (recordingUrl) URL.revokeObjectURL(recordingUrl);
-      recordingUrl = null;
-      if (previousSessionId) previousWriteChain.catch(() => {}).then(() => deleteAudioArchiveSession(previousSessionId));
-      updateArchiveButton();
-    }
-
-    function hasDownloadableArchive() {
-      return Boolean(archiveSessionId && archiveChunkIndex);
-    }
-
-    function updateArchiveButton() {
-      const button = $('download-recording');
-      if (!button) return;
-      const hasArchive = hasDownloadableArchive();
-      button.classList.toggle('active', archiveOptIn || hasArchive);
-      if (['ended', 'error'].includes(recorderState)) {
-        button.disabled = !hasArchive;
-        button.textContent = hasArchive ? '下载录音' : '未保存音频';
-        button.title = hasArchive
-          ? '从当前浏览器下载本地暂存音频；服务器不保存原始录音'
-          : '本次没有开启本地音频留存；服务器也没有原始录音文件';
-        return;
-      }
-      if (['recording', 'connecting', 'finishing', 'paused'].includes(recorderState)) {
-        if (archiveOptIn) {
-          button.disabled = true;
-          button.textContent = recorderState === 'paused' ? '音频已暂停' : '本地保存中';
-          button.title = '原始音频仅在当前浏览器暂存，用于结束后下载；服务器不保存原始音频';
-        } else {
-          button.disabled = !microphoneStream || recorderState === 'connecting' || recorderState === 'finishing';
-          button.textContent = '保存音频';
-          button.title = '点击后从现在开始把原始音频暂存在本浏览器，结束后可下载；服务器不保存';
-        }
-        return;
-      }
-      button.disabled = false;
-      button.textContent = archiveOptIn ? '将保存音频' : '保存音频';
-      button.title = archiveOptIn
-        ? '下一次录音会把原始音频暂存在本浏览器，结束后可下载'
-        : '默认不保存原始录音；点击后仅在本浏览器暂存，用于结束后下载';
-    }
-
-    function enableLocalAudioArchive({ fromClick = false } = {}) {
-      archiveOptIn = true;
-      if (microphoneStream && !mediaRecorder && ['recording', 'paused'].includes(recorderState)) {
-        startArchiveRecording(microphoneStream);
-        if (recorderState === 'paused' && mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.pause();
-        if (fromClick) showToast('已开启本地音频留存；只会保存从现在开始的音频分片');
-      } else if (fromClick) {
-        showToast('下一次录音会在本浏览器暂存音频，结束后可下载');
-      }
-      updateArchiveButton();
-    }
-
-    function handleArchiveButton() {
-      if (['ended', 'error'].includes(recorderState)) {
-        if (hasDownloadableArchive()) downloadCurrentArchive();
-        else showToast('本次没有保存原始音频；服务器也没有录音文件');
-        return;
-      }
-      if (archiveOptIn && !['recording', 'paused', 'connecting', 'finishing'].includes(recorderState)) {
-        archiveOptIn = false;
-        showToast('已关闭本地音频留存');
-        updateArchiveButton();
-        return;
-      }
-      if (!archiveOptIn) enableLocalAudioArchive({ fromClick: true });
-    }
-
-    function queueArchiveChunk(blob) {
-      const sessionId = archiveSessionId;
-      const index = archiveChunkIndex++;
-      if (!sessionId || !blob || !blob.size) return;
-      archiveWriteChain = archiveWriteChain.then(async () => {
-        try {
-          await putAudioArchiveChunk(sessionId, index, blob);
-        } catch (_) {
-          archiveStorageDegraded = true;
-          archiveChunks.push({ index, blob });
-          $('local-save-status').textContent = '浏览器存储空间不足，音频分片暂存在内存；服务器不保存原始录音';
-        }
-      });
-    }
-
-    async function downloadCurrentArchive() {
-      if (!archiveSessionId || !archiveChunkIndex) return;
-      const button = $('download-recording');
-      button.disabled = true;
-      button.textContent = '准备中…';
-      try {
-        await archiveWriteChain;
-        let stored = [];
-        try { stored = await readAudioArchiveChunks(archiveSessionId); }
-        catch (_) { archiveStorageDegraded = true; }
-        const chunks = [...stored, ...archiveChunks].sort((a, b) => a.index - b.index).map((item) => item.blob);
-        if (!chunks.length) throw new Error('当前录音没有可下载的音频分片');
-        if (recordingUrl) URL.revokeObjectURL(recordingUrl);
-        recordingUrl = URL.createObjectURL(new Blob(chunks, { type: archiveMimeType }));
-        const link = document.createElement('a');
-        link.href = recordingUrl;
-        link.download = `meeting-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.${archiveMimeType.includes('mp4') ? 'm4a' : 'webm'}`;
-        link.click();
-      } catch (error) {
-        showToast(error.message || '录音暂时无法下载');
-      } finally {
-        updateArchiveButton();
-      }
-    }
-
-    function startArchiveRecording(stream) {
-      if (!window.MediaRecorder) {
-        archiveOptIn = false;
-        showToast('当前浏览器不支持本地录音下载，只会保留文字/摘要');
-        updateArchiveButton();
-        return;
-      }
-      discardCurrentArchive();
-      archiveSessionId = `audio-${createRecordId()}-${Date.now()}`;
-      const mimeType = chooseRecorderMimeType();
-      mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
-      archiveMimeType = mediaRecorder.mimeType || mimeType || 'audio/webm';
-      mediaRecorder.ondataavailable = (event) => { if (event.data && event.data.size) queueArchiveChunk(event.data); };
-      mediaRecorder.onstop = async () => {
-        await archiveWriteChain;
-        if (!archiveChunkIndex) return;
-        $('local-save-status').textContent = archiveStorageDegraded
-          ? '音频已在本浏览器暂存（部分分片在内存）；服务器不保存原始录音'
-          : '音频已在本浏览器暂存，可下载；服务器不保存原始录音';
-        updateArchiveButton();
-      };
-      mediaRecorder.start(1000);
-      $('local-save-status').textContent = '音频仅在本浏览器暂存；服务器不保存原始录音';
-      updateArchiveButton();
-    }
 
     function floatTo16BitPCM(input) {
       const output = new Int16Array(input.length);
@@ -3076,8 +2975,6 @@
       audioProcessor.connect(audioContext.destination);
       $('waveform-placeholder').classList.add('hidden');
       waveformLevels = [];
-      if (archiveOptIn) startArchiveRecording(microphoneStream);
-      updateArchiveButton();
       drawWaveform();
     }
 
@@ -3096,7 +2993,7 @@
 
     function handleAsrEvent(payload) {
       if (payload.demo_event === 'asr.stream.ready' || payload.demo_event === 'asr.stream.started') {
-        if (Number(payload.max_connection_seconds) > 0) asrPassLimitSeconds = Number(payload.max_connection_seconds);
+        if (storageMode === 'guest' && Number(payload.max_connection_seconds) > 0) asrPassLimitSeconds = Number(payload.max_connection_seconds);
         updateRecordingLimitUi();
       } else if (payload.demo_event === 'asr.stream.result') {
         const boardEvent = payload.board_event || (payload.result && payload.result.board_event) || {};
@@ -3124,7 +3021,6 @@
         $('latency-label').textContent = '识别服务正在追赶';
       } else if (payload.demo_event === 'asr.stream.error') {
         stopTimer();
-        if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
         stopCaptureGraph();
         if (payload.asr_health) renderAsrHealthStatus({ ok: false, asr: payload.asr_health });
         updateRecorderUi('error', payload.message || '实时转写失败，可重新开始');
@@ -3155,14 +3051,7 @@
         if (asrStreamWs.readyState === WebSocket.OPEN || asrStreamWs.readyState === WebSocket.CONNECTING) asrStreamWs.close();
         asrStreamWs = null;
       }
-      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-        mediaRecorder.onstop = null;
-        mediaRecorder.stop();
-      }
-      mediaRecorder = null;
       stopCaptureGraph();
-      archiveOptIn = false;
-      discardCurrentArchive();
       transcriptSegments = [];
       rewriteSegments = [];
       liveTranscriptText = '';
@@ -3191,18 +3080,56 @@
         || rewriteSegments.length
         || liveTranscriptText.trim()
         || elapsedSeconds > 0
-        || recordingUrl
-        || archiveSessionId
         || (!showingDemo && activeMeetingId)
       );
     }
 
     function requestResetSession() {
       if (hasResettableMeetingContent()) {
-        const ok = confirm('确定清空这一次录音/会议内容吗？已显示的文字、摘要和本地录音引用会从当前页面移除。');
+        const ok = confirm('确定清空这一次录音/会议内容吗？已显示的文字和摘要会从当前页面移除。');
         if (!ok) return;
       }
       resetSession();
+    }
+
+    function closeSettingsMenu() {
+      const menu = $('settings-menu');
+      const toggle = $('toggle-settings-menu');
+      if (!menu || !toggle) return;
+      menu.hidden = true;
+      toggle.setAttribute('aria-expanded', 'false');
+    }
+
+    function toggleSettingsMenu() {
+      const menu = $('settings-menu');
+      const toggle = $('toggle-settings-menu');
+      const nextOpen = menu.hidden;
+      menu.hidden = !nextOpen;
+      toggle.setAttribute('aria-expanded', String(nextOpen));
+    }
+
+    function openSettingsDialog(targetId = '') {
+      closeSettingsMenu();
+      $('settings-dialog').showModal();
+      loadApiTokens();
+      if (targetId) {
+        requestAnimationFrame(() => {
+          const target = $(targetId);
+          if (!target) return;
+          target.scrollIntoView({ block: 'center' });
+          if (typeof target.focus === 'function') target.focus({ preventScroll: true });
+        });
+      }
+    }
+
+    async function copyTranscriptText() {
+      const text = visibleTranscriptSegments().map((segment) => `${segment.time} ${segment.speaker}\n${segment.text}`).join('\n\n').trim();
+      if (!text) {
+        showToast('当前没有可复制的文字记录');
+        return;
+      }
+      await navigator.clipboard.writeText(text);
+      showToast('文字记录已复制');
     }
 
     async function startRecordingSession() {
@@ -3216,12 +3143,10 @@
       ensureActiveMeeting();
       beginTranscriptPass();
       recordingPassSeconds = 0;
-      asrPassLimitSeconds = storageMode === 'account' ? 2 * 60 * 60 : 10 * 60;
+      asrPassLimitSeconds = 10 * 60;
       asrWindowCommitPending = false;
       pauseCommitPending = false;
       lastAsrWindowCommitAt = 0;
-      if (!archiveOptIn) discardCurrentArchive();
-      updateArchiveButton();
       if (!continuingMeeting) elapsedSeconds = 0;
       $('elapsed').textContent = formatTime(elapsedSeconds);
       sessionStartedAt = new Date();
@@ -3251,10 +3176,6 @@
     function pauseRecording() {
       if (recorderState !== 'recording') return;
       sendingAudio = false;
-      if (mediaRecorder && mediaRecorder.state === 'recording') {
-        try { mediaRecorder.requestData(); } catch (_) {}
-        mediaRecorder.pause();
-      }
       updateRecorderUi('paused', '录音已暂停，正在整理刚才的转写…');
       const committed = requestAsrWindowCommit({ reason: 'pause', allowPaused: true });
       if (!committed) $('latency-label').textContent = '录音已暂停';
@@ -3264,7 +3185,6 @@
     function resumeRecording() {
       if (recorderState !== 'paused') return;
       sendingAudio = true;
-      if (mediaRecorder && mediaRecorder.state === 'paused') mediaRecorder.resume();
       updateRecorderUi('recording', pauseCommitPending ? '继续录音中，上一段仍在整理…' : undefined);
       if (pauseCommitPending) $('latency-label').textContent = '上一段仍在后台整理';
     }
@@ -3274,14 +3194,13 @@
       updateRecorderUi('finishing', typeof message === 'string' && message ? message : undefined);
       stopTimer();
       sendingAudio = false;
-      if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
       stopCaptureGraph();
       if (asrStreamWs && asrStreamWs.readyState === WebSocket.OPEN) asrStreamWs.send(JSON.stringify({ type: 'asr.stream.finish' }));
       else finishSessionUi();
       clearTimeout(finishFallbackTimer);
       finishFallbackTimer = setTimeout(() => {
         if (recorderState !== 'finishing') return;
-        finishSessionUi('最后一段识别等待超时，录音仍已保存在本地');
+        finishSessionUi('最后一段识别等待超时，可稍后查看已保存文字');
       }, 90000);
     }
 
@@ -3508,7 +3427,7 @@
         refreshHeartbeat();
         const channelsResponse = await fetch('/api/asr/channels');
         const channelsData = await channelsResponse.json();
-        if (Number(channelsData.stream_policy && channelsData.stream_policy.max_connection_seconds) > 0) {
+        if (storageMode === 'guest' && Number(channelsData.stream_policy && channelsData.stream_policy.max_connection_seconds) > 0) {
           asrPassLimitSeconds = Number(channelsData.stream_policy.max_connection_seconds);
           updateRecordingLimitUi();
         }
@@ -3624,9 +3543,36 @@
     $('reset-recording').addEventListener('click', requestResetSession);
     $('refresh-title').addEventListener('click', refreshMeetingTitle);
     $('quick-new-meeting').addEventListener('click', () => createNewMeeting());
-    $('open-settings').addEventListener('click', () => { $('settings-dialog').showModal(); loadApiTokens(); });
-    $('settings-dialog').addEventListener('close', () => clearApiTokenOutput());
-    $('settings-dialog').addEventListener('cancel', (event) => { clearApiTokenOutput(); });
+    $('toggle-settings-menu').addEventListener('pointerdown', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      toggleSettingsMenu();
+    });
+    $('toggle-settings-menu').addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.detail === 0) toggleSettingsMenu();
+    });
+    $('settings-menu').addEventListener('click', (event) => {
+      const button = event.target.closest('[data-settings-focus]');
+      if (!button) return;
+      openSettingsDialog(button.dataset.settingsFocus || '');
+    });
+    document.addEventListener('click', (event) => {
+      if (!event.target.closest('.toolbar-menu-wrap')) closeSettingsMenu();
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        closeSettingsMenu();
+        if (!$('token-create-popover').hidden) closeTokenCreatePopover();
+      }
+    });
+    $('settings-dialog').addEventListener('close', () => closeTokenCreatePopover());
+    $('settings-dialog').addEventListener('cancel', (event) => { closeTokenCreatePopover(); });
+    $('open-token-create').addEventListener('click', openTokenCreatePopover);
+    $('close-token-create').addEventListener('click', closeTokenCreatePopover);
+    $('cancel-token-create').addEventListener('click', closeTokenCreatePopover);
+    $('copy-api-token').addEventListener('click', copyApiTokenOutput);
     $('create-api-token').addEventListener('click', createApiToken);
     $('refresh-api-tokens').addEventListener('click', loadApiTokens);
     $('api-token-list').addEventListener('click', (event) => {
@@ -3686,12 +3632,7 @@
       $('summary-chat-input').value = button.dataset.summaryPrompt;
       reviseSummaryWithChat(button.dataset.summaryPrompt);
     }));
-    $('copy-transcript').addEventListener('click', async () => {
-      const text = visibleTranscriptSegments().map((segment) => `${segment.time} ${segment.speaker}\n${segment.text}`).join('\n\n');
-      await navigator.clipboard.writeText(text);
-      showToast('文字记录已复制');
-    });
-    $('download-recording').addEventListener('click', handleArchiveButton);
+    $('copy-transcript').addEventListener('click', copyTranscriptText);
     window.addEventListener('beforeunload', (event) => {
       if (!['recording', 'paused'].includes(recorderState) && !isRealtimeActive()) return;
       event.preventDefault();

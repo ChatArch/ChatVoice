@@ -38,6 +38,7 @@ plugins:
             部署与启动: Deployment and Startup
             运行目录与数据结构: Runtime Layout and Data Structure
             API 访问: API Access
+            录音保存边界: Recording Storage Boundary
             命令与接口: Commands and APIs
             CLI 树: CLI Tree
             能力地图: Capability Map
@@ -64,6 +65,7 @@ nav:
   - 首页: index.md
   - 部署与启动: deployment.md
   - 运行目录与数据结构: runtime-layout.md
+  - 录音保存边界: recording-storage.md
   - API 访问: api-access.md
   - 命令与接口:
       - CLI 树: cli-tree.md
