@@ -7,6 +7,7 @@ ChatVoice 0.1.0 adds an end-to-end data access path for the packaged service: si
 | Entry | Credential | Purpose |
 | --- | --- | --- |
 | Browser login | HttpOnly session cookie + CSRF token | Save meetings/conversations and create/revoke API tokens in the web UI |
+| Browser voice cloning | HttpOnly session cookie + CSRF token | Upload reference audio and create one-shot VoiceClone jobs |
 | API token | Bearer token | Automation reads for meeting transcripts, summaries, and realtime conversation text |
 | Guest mode | Browser IndexedDB | Local trial only; does not write the backend database and cannot create API tokens |
 
@@ -80,6 +81,29 @@ GET /api/data/conversations/{conversation_id}
 ```
 
 List endpoints return metadata / preview only. Detail endpoints return meeting transcripts, summaries, or realtime conversation messages so routine polling does not dump full text into logs.
+
+## Voice clone job API
+
+Voice cloning is not a bearer-token data-read API. It is an interactive browser capability within a signed-in session. The browser submits multipart form data with the HttpOnly session cookie and CSRF token:
+
+```text
+GET    /api/voice-clone/status
+POST   /api/voice-clone/jobs
+GET    /api/voice-clone/jobs/{job_id}
+GET    /api/voice-clone/jobs/{job_id}/audio
+DELETE /api/voice-clone/jobs/{job_id}
+```
+
+`POST /api/voice-clone/jobs` fields:
+
+```text
+text              New text for the cloned voice to speak
+lang              Language code such as ZH / EN / JA / ES / AR
+duration_factor   Speed factor, default 1
+reference_audio   Authorized reference audio uploaded or recorded by the user
+```
+
+The endpoint only proxies the local VoiceClone sidecar. Provider secrets are never sent to the browser. Generated audio is a temporary job artifact; no voice profile and no generated-audio history is saved. See [Voice Cloning Guide](voice-cloning.md) for the complete browser flow.
 
 Requests need:
 

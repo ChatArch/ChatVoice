@@ -30,6 +30,10 @@
 
     `chatvoice health status` 读取运行中服务的 `/api/status`。
 
+- **本地一次性声音复刻**
+
+    登录用户可在声音工作室上传或录制授权参考音频，输入新文本，经 ChatVoice 代理提交给 hitk VoiceClone sidecar / IndexTTS-2.5，页面显示进度并返回本次试听/下载音频。
+
 </div>
 
 ## 状态表
@@ -42,6 +46,7 @@
 | 受邀账号 CLI | 已实现 | `chatvoice accounts add/list`，密码只从环境变量读取。 |
 | API Token 管理 | 已实现 | 网页设置面板 + CLI token lifecycle；服务端只存 token hash。 |
 | 数据读取 API/CLI | 已实现 | Bearer token 读取会议、摘要和 realtime conversations。 |
+| 本地一次性声音复刻 | 已实现 | `/api/voice-clone/*` 代理 VoiceClone sidecar；不保存 voice profile，不保存生成历史。 |
 | ASR API provider | 已实现 | `CHATVOICE_ASR_CHANNEL=api-server` + the ASR API URL setting。 |
 | 本地合同 smoke | 已实现 | `CHATVOICE_ASR_CHANNEL=stub-local` 可无 GPU/云凭据启动全链路。 |
 | 本地 FunASR 兼容通道 | 保留 | `funasr-gpu` / `funasr-cpu` 仍可用，但生产建议改成外部 ASR API server。 |
@@ -53,4 +58,5 @@
 - 不把 GPU 模型下载、CUDA/PyTorch 安装和 Web 服务打成一个默认进程。
 - 不在 v0.1.8 里宣称 MySQL/Postgres 已经完成；高并发数据库迁移需要单独版本。
 - 不输出 token、cookie、Authorization header 或原始录音；完整 transcript 只通过用户显式调用的数据读取接口返回。
+- 不把一次性声音复刻说成永久 voice profile；当前流程每次都需要参考音频和目标文本。
 - 不用 `kill` / `kill -9` 管理服务；重启类命令要先有 supervisor/graceful 方案。

@@ -11,6 +11,7 @@ Documentation entry: <https://arch.gh.wzhecnu.cn/ChatVoice/en/>
 | Install from PyPI and start the service | [Deployment and Startup](deployment.md) |
 | Inspect install location, runtime directories, and SQLite/IndexedDB data structure | [Runtime Layout and Data Structure](runtime-layout.md) |
 | Understand why original recordings are not saved | [Recording Storage Boundary](recording-storage.md) |
+| Use one-shot local voice cloning in Voice Studio | [Voice Cloning Guide](voice-cloning.md) |
 | Generate API tokens and read meeting/summary data | [API Access](api-access.md) |
 | Read back the real command tree and boundaries | [CLI Tree](cli-tree.md) |
 | Check first-class capabilities and current boundaries | [Capability Map](capability-map.md) |
@@ -44,6 +45,12 @@ Documentation entry: <https://arch.gh.wzhecnu.cn/ChatVoice/en/>
 
     [Read recording storage boundary](recording-storage.md)
 
+- **Voice Cloning Guide**
+
+    Complete workflow for reference-audio upload/recording, new text entry, progress, preview playback, download, and current one-shot boundaries.
+
+    [Read voice cloning guide](voice-cloning.md)
+
 - **CLI Tree**
 
     The real implemented command tree, command status, and update rules.
@@ -69,6 +76,7 @@ Documentation entry: <https://arch.gh.wzhecnu.cn/ChatVoice/en/>
 - The packaged FastAPI app starts with `chatvoice serve app`.
 - Fresh start can create invited accounts with `chatvoice accounts add`; no source-tree script is required.
 - Signed-in users can create API tokens in the web UI; the CLI can use tokens to read meetings, summaries, and realtime conversations.
+- Signed-in users can upload or record authorized reference audio in Voice Studio and run a one-shot VoiceClone/IndexTTS-2.5 preview through the hitk sidecar.
 - The meeting recorder does not save or download original recordings; the server stores text, summaries, and metadata only.
 - Production ASR should use `api-server` against a managed API or self-hosted GPU ASR server.
 - `stub-local` is only for credential-free / GPU-free contract smoke.

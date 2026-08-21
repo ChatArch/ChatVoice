@@ -7,6 +7,7 @@ ChatVoice 0.1.8 提供从 packaged service 读取会议和对话数据的闭环�
 | 入口 | 凭证 | 用途 |
 | --- | --- | --- |
 | 浏览器登录 | HttpOnly session cookie + CSRF token | 保存会议、对话、网页创建/撤销 API Token |
+| 浏览器声音复刻 | HttpOnly session cookie + CSRF token | 上传参考音频并创建一次性 VoiceClone job |
 | API Token | Bearer token | 自动化读取会议转写、会议摘要和实时对话文本 |
 | 游客模式 | 浏览器 IndexedDB | 本机试用；不写后端数据库，也不能生成 API Token |
 
@@ -80,6 +81,29 @@ GET /api/data/conversations/{conversation_id}
 ```
 
 列表接口只返回 metadata / preview；详情接口才返回会议 transcript、summary 或实时对话 messages，避免普通轮询把完整文本打进日志。
+
+## 声音复刻 job API
+
+声音复刻不是 bearer-token 数据读取接口；它是登录会话内的交互式网页能力。浏览器用 HttpOnly session cookie 和 CSRF token 提交 multipart 表单：
+
+```text
+GET    /api/voice-clone/status
+POST   /api/voice-clone/jobs
+GET    /api/voice-clone/jobs/{job_id}
+GET    /api/voice-clone/jobs/{job_id}/audio
+DELETE /api/voice-clone/jobs/{job_id}
+```
+
+`POST /api/voice-clone/jobs` 字段：
+
+```text
+text              要让复刻声音说出的新文本
+lang              ZH / EN / JA / ES / AR 等语言代码
+duration_factor   语速倍率，默认 1
+reference_audio   用户上传或录制的授权参考音频文件
+```
+
+这个接口只代理本地 VoiceClone sidecar，不把 provider secret 发给浏览器；生成结果是临时 job audio，不创建 voice profile，也不进入会议历史。完整网页流程见 [声音复刻使用指南](voice-cloning.md)。
 
 请求需要：
 

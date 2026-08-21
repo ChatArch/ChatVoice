@@ -14,8 +14,8 @@ The former `qwen-audio-demo.public.wzhecnu.cn` entry is retired and returns HTTP
 
 ## Features
 
-- **语音合成 (TTS)**: server-side proxy for `qwen-audio-3.0-tts-plus`, returning playable MP3/WAV audio.
-- **声音克隆**: server-side DashScope TTS v2 voice enrollment (`VoiceEnrollmentService`) creates reusable `voice_id` values; the browser never sees provider credentials.
+- **语音合成 (TTS)**: server-side proxy for `qwen-audio-3.0-tts-plus`, returning playable MP3/WAV audio when the model provider key is configured.
+- **本地声音复刻**: signed-in users can upload or record an authorized reference audio sample, enter new text, and run a one-shot VoiceClone/IndexTTS-2.5 job through a local sidecar. The browser receives a playable/downloadable result for the current job only; no voice profile or generated-audio history is saved. See [声音复刻使用指南](docs/voice-cloning.md).
 - **实时对话**: 独立的豆包式语音对话页；browser WebSocket -> FastAPI proxy -> Qwen Realtime，支持服务端模型列表、VAD、流式文字、24 kHz PCM 播放、自然打断、对话历史和 Markdown 导出。
 - **会议记录首页**: mobile-first recording surface with live transcript, waveform, pause/resume, and finish flow. Audio is used for realtime transcription; the product saves text and summaries, not recording files.
 - **暂停整理**: pausing a recording commits the current ASR window so pending live/rewrite text can be finalized before continuing.
@@ -143,11 +143,15 @@ Use one service process (`--workers 1`) with SQLite. For high-concurrency produc
 
 `GET /api/heartbeat` 是轻量服务心跳，用来判断 Web 服务、SQLite 只读探测和 ASR 状态是否正常；`asr.status` 会返回 `ready`、`processing` 或 `degraded`，并包含 FunASR 模型是否已热、最近一次识别成功/失败、耗时和输出长度。录音 WebSocket 也会发 `asr.stream.processing` / `asr.stream.heartbeat`，前端会显示“模型加载中/识别处理中/失败原因”，不再静默录音无文字。
 
-- `GET /api/status`: redacted backend status, models, ASR channels, and route shapes.
+- `GET /api/status`: redacted backend status, models, ASR channels, sidecar configuration, and route shapes.
 - `GET /api/heartbeat`: lightweight service/database/ASR heartbeat with model warm-up, processing, and recent error/success state.
 - `POST /api/tts`: JSON `{text, voice, format}` -> `audio/mpeg` or `audio/wav`.
-- `POST /api/voice-cloning/create`: JSON `{audio_url, prefix, target_model, language_hints}` -> server-created `voice_id`.
-- `GET /api/voice-cloning/list`: list server-side voice enrollment ids by prefix.
+- `GET /api/voice-clone/status`: redacted local VoiceClone sidecar status.
+- `POST /api/voice-clone/jobs`: authenticated multipart `{text, lang, duration_factor, reference_audio}` -> one-shot local clone job.
+- `GET /api/voice-clone/jobs/<id>`: authenticated job polling with progress/stage/ETA.
+- `GET /api/voice-clone/jobs/<id>/audio`: authenticated generated audio download/preview.
+- `POST /api/voice-cloning/create`: legacy DashScope enrollment endpoint for reusable `voice_id` creation; not the primary browser Voice Studio flow.
+- `GET /api/voice-cloning/list`: legacy list of server-side voice enrollment ids by prefix.
 - `GET /api/asr/channels`: available ASR channels.
 - `POST /api/asr`: programmatic/smoke multipart upload endpoint with `channel=api-server|funasr-gpu|funasr-cpu|stub-local`.
 - `WS /ws/asr/stream`: bounded PCM16 stream used by the recorder.

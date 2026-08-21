@@ -275,7 +275,11 @@ def test_voice_studio_uses_local_one_shot_clone_flow_instead_of_voice_id_enrollm
     assert "record-clone-reference" in studio_markup
     assert "clone-consent" in studio_markup
     assert "生成复刻试听" in studio_markup
-    assert "只用于生成当前试听，不保存为音色档案" in studio_markup
+    assert "完整流程" in studio_markup
+    assert "声音复刻步骤" in studio_markup
+    assert "播放对比" in studio_markup
+    assert "不保存为音色档案" in studio_markup
+    assert "不保存为音色库或历史资产" in studio_markup
     assert "参考音频公网 URL" not in studio_markup
     assert "clone-audio-url" not in studio_markup
     assert "clone-prefix" not in studio_markup

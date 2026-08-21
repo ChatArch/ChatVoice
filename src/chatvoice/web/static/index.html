@@ -209,6 +209,9 @@
     .download-voice { width: 100%; height: 38px; margin-top: 9px; border: 1px solid rgba(255,255,255,.15); border-radius: 11px; background: rgba(255,255,255,.09); color: #fff; font-size: 9px; font-weight: 680; }
     .clone-card { margin-top: 14px; padding: 24px; }
     .clone-copy { max-width: 620px; margin: 8px 0 0; color: #8b8d93; font-size: 9px; line-height: 1.7; }
+    .clone-steps { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 11px; }
+    .clone-steps span { display: inline-flex; align-items: center; gap: 5px; padding: 6px 8px; border-radius: 999px; background: #f4f6f8; color: #5f636b; font-size: 8px; font-weight: 720; }
+    .clone-steps b { color: #202126; font-size: 8px; }
     .capability-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 9px; border-radius: 9px; background: #fff5e6; color: #b56d17; font-size: 8px; font-weight: 700; }
     .capability-badge::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
     .capability-badge.ready { background: #eaf8f1; color: var(--green); }
@@ -931,7 +934,7 @@
 
       <section class="studio-card clone-card" aria-labelledby="clone-title">
         <header class="studio-card-header">
-          <div><h2 id="clone-title">本地复刻 · 一次性生成</h2><p class="clone-copy">登录后上传或录制 10–20 秒干净、单人、无背景音乐的参考音频。本次只用于生成当前试听，不保存为音色档案。</p></div>
+          <div><h2 id="clone-title">本地复刻 · 一次性生成</h2><p class="clone-copy">完整流程：上传或录制一段授权参考音频，再输入希望它重新说出的新文本，最后生成本次试听；不保存为音色档案。</p><div class="clone-steps" aria-label="声音复刻步骤"><span><b>1</b> 参考音频</span><span><b>2</b> 新文本</span><span><b>3</b> 生成试听</span><span><b>4</b> 播放对比</span></div></div>
           <span class="capability-badge" id="clone-capability">检查本地复刻服务…</span>
         </header>
         <div class="clone-form local-clone-form">
