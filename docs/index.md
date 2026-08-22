@@ -11,6 +11,7 @@ ChatVoice 是 ChatArch 系列 Python 包，用于把 Speakr 录音、转写、�
 | 通过 PyPI 包安装并启动服务 | [部署与启动](deployment.md) |
 | 查看安装位置、运行目录和 SQLite/IndexedDB 数据结构 | [运行目录与数据结构](runtime-layout.md) |
 | 理解当前版本为什么不保存原始录音 | [录音保存边界](recording-storage.md) |
+| 使用声音工作室的一次性本地复刻 | [声音复刻使用指南](voice-cloning.md) |
 | 生成 API Token 并读取会议/摘要数据 | [API 访问](api-access.md) |
 | 回读真实命令树和命令边界 | [CLI 树](cli-tree.md) |
 | 校对当前包有哪些一等能力和边界 | [能力地图](capability-map.md) |
@@ -22,7 +23,7 @@ ChatVoice 是 ChatArch 系列 Python 包，用于把 Speakr 录音、转写、�
 
 - **部署与启动**
 
-    从 `python -m pip install "ChatVoice[web]==0.1.8"` 到 `chatvoice serve app`，说明运行目录、账号创建、ASR API provider、数据库并发边界。
+    从 `python -m pip install "ChatVoice[web]==0.1.9"` 到 `chatvoice serve app`，说明运行目录、账号创建、ASR API provider、数据库并发边界。
 
     [查看部署教程](deployment.md)
 
@@ -44,6 +45,12 @@ ChatVoice 是 ChatArch 系列 Python 包，用于把 Speakr 录音、转写、�
 
     [查看录音保存边界](recording-storage.md)
 
+- **声音复刻使用指南**
+
+    说明“上传/录制参考音频 -> 输入新文本 -> 生成复刻试听 -> 播放/下载”的完整 Voice Cloning 流程、进度条、验收标准和当前边界。
+
+    [查看声音复刻使用指南](voice-cloning.md)
+
 - **CLI 树**
 
     从命令行入口开始，记录真实已实现命令、命令状态和交互约定。
@@ -64,15 +71,16 @@ ChatVoice 是 ChatArch 系列 Python 包，用于把 Speakr 录音、转写、�
 
 </div>
 
-## 0.1.8 部署边界
+## 0.1.9 部署边界
 
 - Web 服务由 `chatvoice serve app` 启动 packaged FastAPI app。
 - Fresh start 可通过 `chatvoice accounts add` 创建受邀账号，不依赖源码根目录脚本。
 - 登录后可在页面生成 API Token；CLI 可用 token 读取会议、摘要和实时对话数据。
+- 登录后可在声音工作室上传或录制授权参考音频，通过 hitk VoiceClone sidecar + IndexTTS-2.5 一次性生成复刻试听音频。
 - 会议记录页不提供原始录音保存或下载；服务器只保存文字、摘要和元数据。
 - ASR 生产推荐通过 `api-server` 调云服务或自建 GPU ASR server。
 - `stub-local` 只用于无凭据/无 GPU 的合同 smoke。
-- v0.1.8 默认 SQLite WAL，适合单服务进程轻并发；高并发数据库迁移需单独版本。
+- v0.1.9 默认 SQLite WAL，适合单服务进程轻并发；高并发数据库迁移需单独版本。
 
 ## 本地预览文档
 

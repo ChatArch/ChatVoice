@@ -251,7 +251,6 @@ def test_raw_audio_archive_is_not_offered_in_meeting_recorder():
         "下载音频",
         "下载本机音频",
         "download-recording",
-        "MediaRecorder",
         "AUDIO_DB_NAME",
         "recording-chunks",
         "archiveOptIn",
@@ -265,6 +264,85 @@ def test_raw_audio_archive_is_not_offered_in_meeting_recorder():
     capture_body = _function_body(source, "startMicrophoneCapture")
     assert "asr.stream.append" in capture_body
     assert "MediaRecorder" not in capture_body
+
+
+def test_voice_studio_uses_local_one_shot_clone_flow_instead_of_voice_id_enrollment():
+    source = _script_source()
+    studio_markup = source[source.index('<section class="voice-studio product-view"'):source.index('<section class="realtime-chat product-view"')]
+
+    # Unified single composer: cloned voice and system voices are selectable in one list.
+    assert "选择音色" in studio_markup
+    assert "voice-options" in studio_markup
+    assert "clone-voice-card" in studio_markup
+    assert "共用下面同一个文本框" in studio_markup
+    assert "龙安灵心" in studio_markup
+    assert "龙安鲁风" in studio_markup
+    assert "我的复刻声音" in studio_markup
+    assert "clone-source-status" in studio_markup
+    assert "clone-reference-file" in studio_markup
+    assert "record-clone-reference" in studio_markup
+    assert "clone-consent" in studio_markup
+    assert "声音复刻步骤" in studio_markup
+    assert "参考音频" in studio_markup
+    assert "对比试听" in studio_markup
+    assert "欢迎使用声笺声音工作室。这是一段默认示例文本" in studio_markup
+    assert "不保存为音色库" in studio_markup
+    assert "参考音频公网 URL" not in studio_markup
+    assert "clone-audio-url" not in studio_markup
+    assert "clone-prefix" not in studio_markup
+    assert "创建复刻音色" not in studio_markup
+    assert "custom-voice-id" not in studio_markup
+    assert "create-cloned-voice" not in studio_markup
+    assert "voice-source-options" not in studio_markup
+    assert "voice-source-card" not in studio_markup
+    assert "本地复刻 · 一次性生成" not in studio_markup
+
+    configure_body = _function_body(source, "configureVoiceCloning")
+    assert "voiceclone_api" in configure_body
+    assert "refreshVoiceCloneStatus" in configure_body
+    assert "model_api_key_configured" in configure_body
+    assert "system-key-status" in configure_body
+
+    assert source.count("async function createClonedVoice") == 1
+    assert "voice-cloning/create" not in source
+    create_body = _function_body(source, "createClonedVoice")
+    submit_state_body = _function_body(source, "updateVoiceSubmitState")
+    assert "!loggedIn" not in submit_state_body
+    assert "!hasReference" not in submit_state_body
+    assert "!consent" not in submit_state_body
+    assert "本地复刻服务尚未就绪" in create_body
+    assert "请先登录账号" in create_body
+    assert "请先上传或录制参考音频" in create_body
+    assert "请先确认已获得声音本人授权" in create_body
+    assert "FormData" in create_body
+    assert "reference_audio" in create_body
+    assert "tts-text" in create_body
+    assert "'/api/voice-clone/jobs'" in create_body
+    assert "X-CSRF-Token" in create_body
+    assert "voice-cloning/create" not in create_body
+
+    synth_body = _function_body(source, "synthesizeVoice")
+    assert "voiceSource === 'clone'" in synth_body
+    assert "createClonedVoice" in synth_body
+    assert "系统音色未配置模型 Key" in synth_body
+
+    select_body = _function_body(source, "selectTtsVoice")
+    assert "voice === 'clone'" in select_body
+    assert "system-format-row" in select_body
+    assert "clone-panel" in select_body
+    assert "system-key-status" in select_body
+    assert "updateVoiceSubmitState" in select_body
+
+    record_body = _function_body(source, "toggleCloneRecording")
+    assert "MediaRecorder" in record_body
+    assert "recorded-reference.webm" in record_body
+
+    assert "voice-card').forEach((button) => button.addEventListener('click', () => selectTtsVoice(button.dataset.voice)))" in source
+    assert "clone-reference-file').addEventListener('change'" in source
+    assert "clone-consent').addEventListener('change', updateVoiceSubmitState" in source
+    assert "record-clone-reference').addEventListener('click', toggleCloneRecording" in source
+    assert "create-cloned-voice').addEventListener" not in source
+    assert "voice-source-card input')" not in source
 
 
 def test_api_token_management_uses_one_time_key_modal_pattern():
