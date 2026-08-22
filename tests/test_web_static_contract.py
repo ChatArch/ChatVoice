@@ -287,6 +287,11 @@ def test_voice_studio_uses_local_one_shot_clone_flow_instead_of_voice_id_enrollm
     assert "对比试听" in studio_markup
     assert "欢迎使用声笺声音工作室。这是一段默认示例文本" in studio_markup
     assert "不保存为音色库" in studio_markup
+    style_source = source[:source.index("</style>")]
+    assert ".clone-form { display: grid; grid-template-columns: minmax(150px" in style_source
+    assert "minmax(220px, 1fr) 140px 140px 132px" not in style_source
+    assert ".clone-reference-field { min-width: 0; }" in style_source
+    assert "clone-reference-field { min-width: 220px" not in style_source
     assert "参考音频公网 URL" not in studio_markup
     assert "clone-audio-url" not in studio_markup
     assert "clone-prefix" not in studio_markup

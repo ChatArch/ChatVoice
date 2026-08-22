@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.10 - 2026-08-22
+
+### Fixed
+
+- Fix the Voice Studio reference-audio form layout so the `录参考音` button stays inside the left composer column instead of overflowing underneath the right `试听结果` panel on medium-width screens.
+- Add a static contract assertion that the clone reference form uses flexible columns and no longer has the old fixed-width `minmax(220px, 1fr) 140px 140px 132px` layout.
+
 ## 0.1.9 - 2026-08-22
 
 ### Added
