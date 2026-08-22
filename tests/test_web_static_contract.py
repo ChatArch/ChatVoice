@@ -285,6 +285,7 @@ def test_voice_studio_uses_local_one_shot_clone_flow_instead_of_voice_id_enrollm
     assert "声音复刻步骤" in studio_markup
     assert "参考音频" in studio_markup
     assert "对比试听" in studio_markup
+    assert "欢迎使用声笺声音工作室。这是一段默认示例文本" in studio_markup
     assert "不保存为音色库" in studio_markup
     assert "参考音频公网 URL" not in studio_markup
     assert "clone-audio-url" not in studio_markup
