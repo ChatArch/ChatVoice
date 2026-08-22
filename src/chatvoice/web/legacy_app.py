@@ -244,7 +244,7 @@ def _token_plan_key() -> str:
     profile = _read_profile()
     key = profile.get("OPENAI_API_KEY") or profile.get("DASHSCOPE_API_KEY")
     if not key:
-        raise HTTPException(status_code=500, detail="Missing Token Plan API key. Set OPENAI_API_KEY or DASHSCOPE_API_KEY on the server.")
+        raise HTTPException(status_code=503, detail="系统音色未配置模型 Key：请在服务器设置 OPENAI_API_KEY 或 DASHSCOPE_API_KEY。")
     return key
 
 
@@ -1163,6 +1163,8 @@ async def tts(req: TTSRequest) -> Response:
     safe_req = TTSRequest(text=text, voice=req.voice, format=req.format)
     try:
         result = await asyncio.to_thread(_tts_blocking, safe_req)
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=502, detail={"error_type": type(exc).__name__, "message": str(exc)[:600]}) from exc
     media_type = "audio/mpeg" if req.format == "mp3" else "audio/wav"

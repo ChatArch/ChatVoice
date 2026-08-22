@@ -212,6 +212,16 @@
     .clone-steps { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 11px; }
     .clone-steps span { display: inline-flex; align-items: center; gap: 5px; padding: 6px 8px; border-radius: 999px; background: #f4f6f8; color: #5f636b; font-size: 8px; font-weight: 720; }
     .clone-steps b { color: #202126; font-size: 8px; }
+    .voice-source-options { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 15px; }
+    .voice-source-card { position: relative; display: flex; align-items: center; gap: 10px; padding: 12px 13px; border: 1px solid #e4e4e8; border-radius: 13px; cursor: pointer; background: #fff; }
+    .voice-source-card.active { border-color: var(--violet); background: #f8f5ff; box-shadow: 0 0 0 1px var(--violet); }
+    .voice-source-card input { position: absolute; opacity: 0; pointer-events: none; }
+    .voice-source-avatar { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 50%; background: #f1f2f6; color: #55575e; font-size: 14px; flex: none; }
+    .voice-source-card.active .voice-source-avatar { background: var(--violet); color: #fff; }
+    .voice-source-card strong { display: block; font-size: 10px; color: var(--ink); }
+    .voice-source-card small { display: block; margin-top: 2px; color: #8b8d93; font-size: 8px; line-height: 1.45; }
+    .clone-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+    .clone-head .clone-steps { margin-top: 0; }
     .capability-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 9px; border-radius: 9px; background: #fff5e6; color: #b56d17; font-size: 8px; font-weight: 700; }
     .capability-badge::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
     .capability-badge.ready { background: #eaf8f1; color: var(--green); }
@@ -620,6 +630,7 @@
       .clone-form { grid-template-columns: 1fr 1fr; }
       .clone-field:first-child, .clone-consent-row { grid-column: 1 / -1; }
       .clone-submit { width: 100%; }
+      .voice-source-options { grid-template-columns: 1fr; }
       .realtime-chat { width: 100%; height: calc(100dvh - 60px); min-height: 570px; margin: 0; border: 0; border-radius: 0; box-shadow: none; }
       .conversation-header { height: 64px; padding: 0 14px 0 17px; }
       .conversation-title-mark { width: 31px; height: 31px; }
@@ -880,34 +891,62 @@
 
       <div class="studio-grid">
         <section class="studio-card studio-composer" aria-labelledby="tts-composer-title">
-          <header class="studio-card-header"><h2 id="tts-composer-title">文字与声音</h2><span class="studio-step">01</span></header>
-          <div class="studio-text-wrap">
-            <textarea id="tts-text" maxlength="800" aria-label="需要合成的文字" placeholder="输入要转换成语音的内容……">欢迎使用声笺声音工作室。把文字交给一个恰当的声音，让表达更自然，也更有温度。</textarea>
-            <span class="studio-count"><b id="tts-char-count">0</b> / 800</span>
+          <header class="studio-card-header"><h2 id="tts-composer-title">生成声音</h2><span class="studio-step">01</span></header>
+
+          <div class="studio-label"><span>选择声音来源</span><small>系统音色，或你自己的复刻声音，共用下面同一个文本框</small></div>
+          <div class="voice-source-options" id="voice-source-options" role="radiogroup" aria-label="选择声音来源">
+            <label class="voice-source-card active">
+              <input type="radio" name="voice-source" value="system" checked />
+              <span class="voice-source-avatar">♪</span>
+              <span><strong>系统音色</strong><small id="system-voice-status">龙安灵心 / 龙安鲁风</small></span>
+            </label>
+            <label class="voice-source-card">
+              <input type="radio" name="voice-source" value="clone" />
+              <span class="voice-source-avatar">●</span>
+              <span><strong>我的复刻声音</strong><small id="clone-source-status">上传或录制参考音频</small></span>
+            </label>
           </div>
 
-          <div class="studio-label"><span>选择音色</span><small>系统音色可直接使用</small></div>
-          <div class="voice-options" id="voice-options">
-            <button class="voice-card active" data-voice="longanlingxin" type="button">
-              <span class="voice-avatar">灵</span><span><strong>龙安灵心</strong><small>温暖 · 细腻 · 女声</small></span><i class="voice-check"></i>
-            </button>
-            <button class="voice-card" data-voice="longanlufeng" type="button">
-              <span class="voice-avatar">风</span><span><strong>龙安鲁风</strong><small>明亮 · 开朗 · 男声</small></span><i class="voice-check"></i>
-            </button>
-          </div>
-
-          <div class="studio-label"><span>自定义音色</span><small>粘贴已创建的 voice id</small></div>
-          <div class="custom-voice-row">
-            <input id="custom-voice-id" maxlength="80" list="cloned-voice-list" aria-label="自定义音色 ID" placeholder="qwen-audio-3.0-tts-plus-…" />
-            <datalist id="cloned-voice-list"></datalist>
-            <button class="voice-list-button" id="refresh-voices" type="button" disabled>读取复刻音色</button>
-          </div>
-
-          <footer class="studio-footer">
+          <div id="system-voice-panel">
+            <div class="studio-label"><span>选择音色</span><small>系统音色可直接使用</small></div>
+            <div class="voice-options" id="voice-options">
+              <button class="voice-card active" data-voice="longanlingxin" type="button">
+                <span class="voice-avatar">灵</span><span><strong>龙安灵心</strong><small>温暖 · 细腻 · 女声</small></span><i class="voice-check"></i>
+              </button>
+              <button class="voice-card" data-voice="longanlufeng" type="button">
+                <span class="voice-avatar">风</span><span><strong>龙安鲁风</strong><small>明亮 · 开朗 · 男声</small></span><i class="voice-check"></i>
+              </button>
+            </div>
+            <div class="studio-label"><span>音频格式</span><small>输出 MP3 或 WAV</small></div>
             <div class="format-toggle" aria-label="音频格式">
               <button class="format-button active" data-format="mp3" type="button">MP3</button>
               <button class="format-button" data-format="wav" type="button">WAV</button>
             </div>
+          </div>
+
+          <div id="clone-panel" hidden>
+            <div class="clone-head">
+              <span class="capability-badge" id="clone-capability">检查本地复刻服务…</span>
+              <span class="clone-steps" aria-label="声音复刻步骤"><span><b>1</b> 参考音频</span><span><b>2</b> 文本</span><span><b>3</b> 生成</span><span><b>4</b> 对比试听</span></span>
+            </div>
+            <div class="clone-form local-clone-form">
+              <div class="clone-field clone-reference-field"><label for="clone-reference-file">参考音频（10–20 秒干净人声）</label><input id="clone-reference-file" type="file" accept="audio/*" /></div>
+              <div class="clone-field"><label for="clone-language">语言</label><select id="clone-language"><option value="zh">中文</option><option value="en">English</option><option value="ja">日本語</option><option value="es">Español</option><option value="ar">العربية</option></select></div>
+              <div class="clone-field"><label for="clone-duration-factor">语速</label><select id="clone-duration-factor"><option value="1">正常</option><option value="0.85">慢一点</option><option value="1.15">快一点</option></select></div>
+              <button class="clone-submit secondary" id="record-clone-reference" type="button">录参考音</button>
+            </div>
+            <label class="clone-consent-row"><input id="clone-consent" type="checkbox" /> <span>我确认已获得声音本人授权，仅用于本会话生成与试听。</span></label>
+            <audio class="clone-reference-preview" id="clone-reference-preview" controls preload="metadata" hidden></audio>
+            <div class="clone-progress" id="clone-progress" hidden><span id="clone-progress-bar"></span></div>
+            <p class="clone-help" id="clone-help">上传或录制参考音频后，可以在本页面反复改文本、反复生成，直到离开页面；不保存为音色库。</p>
+          </div>
+
+          <div class="studio-text-wrap">
+            <textarea id="tts-text" maxlength="800" aria-label="需要合成的文字" placeholder="输入要让这个声音说出来的内容……"></textarea>
+            <span class="studio-count"><b id="tts-char-count">0</b> / 800</span>
+          </div>
+
+          <footer class="studio-footer">
             <button class="primary-studio-button" id="synthesize-voice" type="button">生成声音&nbsp; →</button>
           </footer>
         </section>
@@ -931,24 +970,6 @@
           </div>
         </section>
       </div>
-
-      <section class="studio-card clone-card" aria-labelledby="clone-title">
-        <header class="studio-card-header">
-          <div><h2 id="clone-title">本地复刻 · 一次性生成</h2><p class="clone-copy">完整流程：上传或录制一段授权参考音频，再输入希望它重新说出的新文本，最后生成本次试听；不保存为音色档案。</p><div class="clone-steps" aria-label="声音复刻步骤"><span><b>1</b> 参考音频</span><span><b>2</b> 新文本</span><span><b>3</b> 生成试听</span><span><b>4</b> 播放对比</span></div></div>
-          <span class="capability-badge" id="clone-capability">检查本地复刻服务…</span>
-        </header>
-        <div class="clone-form local-clone-form">
-          <div class="clone-field clone-reference-field"><label for="clone-reference-file">参考音频</label><input id="clone-reference-file" type="file" accept="audio/*" /></div>
-          <div class="clone-field"><label for="clone-language">语言</label><select id="clone-language"><option value="zh">中文</option><option value="en">English</option><option value="ja">日本語</option><option value="es">Español</option><option value="ar">العربية</option></select></div>
-          <div class="clone-field"><label for="clone-duration-factor">语速</label><select id="clone-duration-factor"><option value="1">正常</option><option value="0.85">慢一点</option><option value="1.15">快一点</option></select></div>
-          <button class="clone-submit secondary" id="record-clone-reference" type="button">录参考音</button>
-          <label class="clone-consent-row"><input id="clone-consent" type="checkbox" /> <span>我确认已获得声音本人授权，仅用于本次调试生成。</span></label>
-          <button class="clone-submit" id="create-cloned-voice" type="button" disabled>生成复刻试听</button>
-        </div>
-        <audio class="clone-reference-preview" id="clone-reference-preview" controls preload="metadata" hidden></audio>
-        <div class="clone-progress" id="clone-progress" hidden><span id="clone-progress-bar"></span></div>
-        <p class="clone-help" id="clone-help">参考音频和生成结果只做临时任务文件，默认不保存为音色库或历史资产。生成完成后会出现在上方试听结果里。</p>
-      </section>
     </section>
 
     <section class="realtime-chat product-view" id="realtime-chat" data-product-view="conversation" data-state="idle" hidden>
@@ -1174,6 +1195,8 @@
     let activeProductView = 'meeting';
     let selectedTtsVoice = 'longanlingxin';
     let selectedTtsFormat = 'mp3';
+    let voiceSource = 'system';
+    let systemTtsKeyConfigured = true;
     let ttsAudioUrl = null;
     let generatedAudioExtension = 'mp3';
     let voiceCloningConfigured = false;
@@ -1291,12 +1314,22 @@
 
     function selectTtsVoice(voice) {
       selectedTtsVoice = voice;
-      $('custom-voice-id').value = '';
       document.querySelectorAll('.voice-card').forEach((card) => card.classList.toggle('active', card.dataset.voice === voice));
     }
 
     function selectedVoiceId() {
-      return $('custom-voice-id').value.trim() || selectedTtsVoice;
+      return selectedTtsVoice;
+    }
+
+    function selectVoiceSource(source) {
+      voiceSource = source === 'clone' ? 'clone' : 'system';
+      document.querySelectorAll('.voice-source-card').forEach((card) => {
+        card.classList.toggle('active', card.querySelector('input').value === voiceSource);
+      });
+      $('system-voice-panel').hidden = voiceSource !== 'system';
+      $('clone-panel').hidden = voiceSource !== 'clone';
+      $('synthesize-voice').innerHTML = voiceSource === 'clone' ? '用复刻声音生成&nbsp; →' : '生成声音&nbsp; →';
+      updateVoiceSubmitState();
     }
 
     function updateTtsCount() {
@@ -1717,6 +1750,8 @@
     }
 
     async function synthesizeVoice() {
+      if (voiceSource === 'clone') { await createClonedVoice(); return; }
+      if (!systemTtsKeyConfigured) { showToast('系统音色未配置模型 Key（OPENAI_API_KEY/DASHSCOPE_API_KEY）'); return; }
       const text = $('tts-text').value.trim();
       const voice = selectedVoiceId();
       if (!text) { showToast('请先输入要生成的文字'); return; }
@@ -1766,31 +1801,21 @@
       return [...output];
     }
 
-    async function loadClonedVoices() {
-      if (!voiceCloningConfigured) return;
-      $('refresh-voices').disabled = true;
-      $('refresh-voices').textContent = '读取中…';
-      try {
-        const response = await fetch('/api/voice-cloning/list');
-        if (!response.ok) throw new Error(await responseError(response, '读取复刻音色失败'));
-        const ids = collectVoiceIds(await response.json());
-        $('cloned-voice-list').innerHTML = ids.map((id) => `<option value="${escapeHtml(id)}"></option>`).join('');
-        $('refresh-voices').textContent = ids.length ? `已读取 ${ids.length} 个` : '暂无复刻音色';
-        if (!ids.length) showToast('当前账号还没有复刻音色');
-      } catch (error) {
-        $('refresh-voices').textContent = '读取失败';
-        showToast(error.message || String(error));
-      } finally {
-        $('refresh-voices').disabled = !voiceCloningConfigured;
+    function updateVoiceSubmitState() {
+      const cloneReady = Boolean(localVoiceCloneStatus && localVoiceCloneStatus.configured && localVoiceCloneStatus.ok);
+      const btn = $('synthesize-voice');
+      if (voiceSource === 'clone') {
+        btn.disabled = cloneGenerating || !cloneReady;
+        btn.title = cloneReady ? '用当前复刻声音生成（需已选参考音频并确认授权）' : '本地复刻服务尚未就绪';
+      } else {
+        btn.disabled = ttsGenerating || !systemTtsKeyConfigured;
+        btn.title = systemTtsKeyConfigured ? '用系统音色生成' : '系统音色未配置模型 Key（OPENAI_API_KEY/DASHSCOPE_API_KEY）';
       }
+      $('record-clone-reference').disabled = cloneGenerating || !cloneReady;
     }
 
-    function updateCloneSubmitState() {
-      const ready = Boolean(localVoiceCloneStatus && localVoiceCloneStatus.configured && localVoiceCloneStatus.ok);
-      $('create-cloned-voice').disabled = cloneGenerating || !ready;
-      $('record-clone-reference').disabled = cloneGenerating || !ready;
-      $('create-cloned-voice').title = ready ? '检查登录、参考音频、授权确认和文本后提交生成' : '本地复刻服务尚未就绪';
-      $('record-clone-reference').title = ready ? '登录后可直接录制参考音频' : '本地复刻服务尚未就绪';
+    function resetVoiceButtonLabel() {
+      $('synthesize-voice').innerHTML = voiceSource === 'clone' ? '用复刻声音生成&nbsp; →' : '生成声音&nbsp; →';
     }
 
     function setCloneProgress(progress = 0, message = '') {
@@ -1815,9 +1840,10 @@
         ? '本地复刻服务离线'
         : '待配置本地复刻服务';
       $('clone-help').textContent = ready
-        ? '上传或录制参考音频后生成本次试听；参考音频和输出只作为临时任务文件。'
-        : 'TTS 已可正常使用；本地声音复刻需要 hitk 上的 VoiceClone sidecar。';
-      updateCloneSubmitState();
+        ? '上传或录制参考音频后，可以在本页面反复改文本、反复生成，直到离开页面；不保存为音色库。'
+        : '本地声音复刻需要 hitk 上的 VoiceClone sidecar。';
+      if (!cloneReferenceBlob) $('clone-source-status').textContent = ready ? '上传或录制参考音频' : '本地复刻服务离线';
+      updateVoiceSubmitState();
       return localVoiceCloneStatus;
     }
 
@@ -1825,7 +1851,11 @@
       const keys = status?.api_keys || {};
       const localConfigured = Boolean(status?.voiceclone_api?.url_configured);
       voiceCloningConfigured = localConfigured || Boolean(keys.voice_cloning_key_configured || status === true);
-      $('refresh-voices').disabled = !keys.voice_cloning_key_configured;
+      systemTtsKeyConfigured = Boolean(keys.model_api_key_configured);
+      $('system-voice-status').textContent = systemTtsKeyConfigured
+        ? '龙安灵心 / 龙安鲁风'
+        : '未配置模型 Key，暂不可用';
+      updateVoiceSubmitState();
       refreshVoiceCloneStatus();
     }
 
@@ -1836,10 +1866,13 @@
       cloneReferenceUrl = blob ? URL.createObjectURL(blob) : null;
       $('clone-reference-preview').hidden = !cloneReferenceUrl;
       if (cloneReferenceUrl) $('clone-reference-preview').src = cloneReferenceUrl;
+      $('clone-source-status').textContent = blob
+        ? `已选：${cloneReferenceName}（本会话可复用）`
+        : '上传或录制参考音频';
       $('clone-help').textContent = blob
-        ? `已选择参考音频：${cloneReferenceName} · ${humanBytes(blob.size)}`
+        ? `已选择参考音频：${cloneReferenceName} · ${humanBytes(blob.size)}；本会话可反复改文本再生成。`
         : '上传或录制 10–20 秒参考音频后即可生成。';
-      updateCloneSubmitState();
+      updateVoiceSubmitState();
     }
 
     async function toggleCloneRecording() {
@@ -1894,17 +1927,17 @@
           setCloneProgress(1, '生成完成。结果只保留为临时任务文件，按需下载。');
           showToast('复刻声音已经生成');
           cloneGenerating = false;
-          updateCloneSubmitState();
-          $('create-cloned-voice').textContent = '生成复刻试听';
+          resetVoiceButtonLabel();
+          updateVoiceSubmitState();
           return;
         }
         if (job.status === 'failed') throw new Error(`${job.error_type || 'VoiceCloneError'}：${job.error_message || '生成失败'}`);
         cloneJobPollTimer = setTimeout(() => pollCloneJob(jobId), 1200);
       } catch (error) {
         cloneGenerating = false;
-        $('create-cloned-voice').textContent = '生成复刻试听';
+        resetVoiceButtonLabel();
         setCloneProgress(0, `生成失败：${error.message || String(error)}`);
-        updateCloneSubmitState();
+        updateVoiceSubmitState();
       }
     }
 
@@ -1917,8 +1950,8 @@
       const text = $('tts-text').value.trim();
       if (!text) { showToast('请先输入要生成的文字'); return; }
       cloneGenerating = true;
-      updateCloneSubmitState();
-      $('create-cloned-voice').textContent = '提交中…';
+      updateVoiceSubmitState();
+      $('synthesize-voice').textContent = '提交中…';
       setCloneProgress(0.05, '正在提交本地复刻任务…');
       const form = new FormData();
       form.append('text', text);
@@ -1929,13 +1962,13 @@
         const response = await fetch('/api/voice-clone/jobs', { method: 'POST', headers: csrfToken ? { 'X-CSRF-Token': csrfToken } : {}, body: form });
         if (!response.ok) throw new Error(await responseError(response, '创建复刻任务失败'));
         const job = await response.json();
-        $('create-cloned-voice').textContent = '生成中…';
+        $('synthesize-voice').textContent = '生成中…';
         await pollCloneJob(job.job_id);
       } catch (error) {
         cloneGenerating = false;
-        $('create-cloned-voice').textContent = '生成复刻试听';
+        resetVoiceButtonLabel();
         setCloneProgress(0, `生成失败：${error.message || String(error)}`);
-        updateCloneSubmitState();
+        updateVoiceSubmitState();
       }
     }
 
@@ -2744,7 +2777,7 @@
       cancelSummaryWork();
       $('entry-dialog').close();
       updateAccountUi();
-      updateCloneSubmitState();
+      updateVoiceSubmitState();
       resetSession({ announce: false, persist: false });
       $('meeting-title').value = '新录音';
       await Promise.all([fetchMeetingIndex(), fetchConversationIndex()]);
@@ -3612,18 +3645,14 @@
       document.querySelectorAll('.format-button').forEach((item) => item.classList.toggle('active', item === button));
     }));
     $('tts-text').addEventListener('input', updateTtsCount);
-    $('custom-voice-id').addEventListener('input', () => {
-      if ($('custom-voice-id').value.trim()) document.querySelectorAll('.voice-card').forEach((card) => card.classList.remove('active'));
-    });
     $('synthesize-voice').addEventListener('click', synthesizeVoice);
-    $('refresh-voices').addEventListener('click', loadClonedVoices);
+    document.querySelectorAll('.voice-source-card input').forEach((radio) => radio.addEventListener('change', () => selectVoiceSource(radio.value)));
     $('clone-reference-file').addEventListener('change', () => {
       const file = $('clone-reference-file').files && $('clone-reference-file').files[0];
       if (file) setCloneReference(file, file.name || 'reference.wav');
     });
-    $('clone-consent').addEventListener('change', updateCloneSubmitState);
+    $('clone-consent').addEventListener('change', updateVoiceSubmitState);
     $('record-clone-reference').addEventListener('click', toggleCloneRecording);
-    $('create-cloned-voice').addEventListener('click', createClonedVoice);
     $('download-voice').addEventListener('click', () => {
       if (!ttsAudioUrl) return;
       const link = document.createElement('a');

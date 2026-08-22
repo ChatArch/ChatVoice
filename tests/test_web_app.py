@@ -61,6 +61,27 @@ def test_status_exposes_sanitized_server_side_api_key_configuration(monkeypatch,
         sys.modules.pop(module_name, None)
 
 
+def test_tts_returns_503_without_model_key_instead_of_500(monkeypatch, tmp_path):
+    import importlib
+    import sys
+
+    module_name = "chatvoice.web.legacy_app"
+    sys.modules.pop(module_name, None)
+    monkeypatch.setenv("CHATARCH_HOME", str(tmp_path / "chatarch-home"))
+    monkeypatch.setenv("CHATVOICE_ASR_CHANNEL", "stub-local")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("DASHSCOPE_API_KEY", raising=False)
+    try:
+        legacy_app = importlib.import_module(module_name)
+        from fastapi.testclient import TestClient
+
+        response = TestClient(legacy_app.app).post("/api/tts", json={"text": "测试", "voice": "longanlingxin", "format": "mp3"})
+        assert response.status_code == 503
+        assert "OPENAI_API_KEY" in response.json()["detail"]
+    finally:
+        sys.modules.pop(module_name, None)
+
+
 def test_heartbeat_exposes_asr_health_without_secret_values(monkeypatch, tmp_path):
     import importlib
     import sys

@@ -15,7 +15,7 @@ The former `qwen-audio-demo.public.wzhecnu.cn` entry is retired and returns HTTP
 ## Features
 
 - **语音合成 (TTS)**: server-side proxy for `qwen-audio-3.0-tts-plus`, returning playable MP3/WAV audio when the model provider key is configured.
-- **本地声音复刻**: signed-in users can upload or record an authorized reference audio sample, enter new text, and run a one-shot VoiceClone/IndexTTS-2.5 job through a local sidecar. The browser receives a playable/downloadable result for the current job only; no voice profile or generated-audio history is saved. See [声音复刻使用指南](docs/voice-cloning.md).
+- **本地声音复刻**: Voice Studio is one unified panel: choose **系统音色** (built-in TTS voices) or **我的复刻声音** (upload/record an authorized reference audio sample) and share the same text box. The clone path runs a one-shot VoiceClone/IndexTTS-2.5 job through a local sidecar; the browser receives a playable/downloadable result for the current job only. Within a session the reference audio is kept so the cloned voice can be reused for new text until the page is left. No voice profile or generated-audio history is saved. See [声音复刻使用指南](docs/voice-cloning.md).
 - **实时对话**: 独立的豆包式语音对话页；browser WebSocket -> FastAPI proxy -> Qwen Realtime，支持服务端模型列表、VAD、流式文字、24 kHz PCM 播放、自然打断、对话历史和 Markdown 导出。
 - **会议记录首页**: mobile-first recording surface with live transcript, waveform, pause/resume, and finish flow. Audio is used for realtime transcription; the product saves text and summaries, not recording files.
 - **暂停整理**: pausing a recording commits the current ASR window so pending live/rewrite text can be finalized before continuing.
