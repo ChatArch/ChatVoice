@@ -164,10 +164,13 @@
     .studio-count { position: absolute; right: 14px; bottom: 11px; color: #a0a2a7; font-size: 8px; }
     .studio-label { display: flex; align-items: center; justify-content: space-between; margin: 20px 1px 10px; color: #65676e; font-size: 9px; font-weight: 700; }
     .studio-label small { color: #a0a2a7; font-size: 8px; font-weight: 500; }
-    .voice-options { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+    .voice-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
     .voice-card { min-width: 0; display: grid; grid-template-columns: 36px 1fr 16px; align-items: center; gap: 10px; padding: 11px; border: 1px solid #e4e4e7; border-radius: 14px; background: #fff; text-align: left; }
     .voice-card:hover { border-color: #c6c6e9; }
     .voice-card.active { border-color: #9999ec; background: #fafaff; box-shadow: inset 0 0 0 1px #9999ec; }
+    .clone-voice-card .voice-avatar { background: linear-gradient(145deg, #efe8ff, #faf6ff); color: #6a5acd; }
+    .voice-note { margin: 9px 1px 0; color: #b56d17; font-size: 8px; line-height: 1.6; }
+    .voice-note.ok { color: var(--green); }
     .voice-avatar { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 12px; background: linear-gradient(145deg, #d0d0ff, #f0f0ff); color: #6465d9; font-size: 11px; font-weight: 760; }
     .voice-card:nth-child(2) .voice-avatar { background: linear-gradient(145deg, #c9ebdc, #effaf4); color: #28865f; }
     .voice-card strong, .voice-card small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -212,14 +215,6 @@
     .clone-steps { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 11px; }
     .clone-steps span { display: inline-flex; align-items: center; gap: 5px; padding: 6px 8px; border-radius: 999px; background: #f4f6f8; color: #5f636b; font-size: 8px; font-weight: 720; }
     .clone-steps b { color: #202126; font-size: 8px; }
-    .voice-source-options { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 15px; }
-    .voice-source-card { position: relative; display: flex; align-items: center; gap: 10px; padding: 12px 13px; border: 1px solid #e4e4e8; border-radius: 13px; cursor: pointer; background: #fff; }
-    .voice-source-card.active { border-color: var(--violet); background: #f8f5ff; box-shadow: 0 0 0 1px var(--violet); }
-    .voice-source-card input { position: absolute; opacity: 0; pointer-events: none; }
-    .voice-source-avatar { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 50%; background: #f1f2f6; color: #55575e; font-size: 14px; flex: none; }
-    .voice-source-card.active .voice-source-avatar { background: var(--violet); color: #fff; }
-    .voice-source-card strong { display: block; font-size: 10px; color: var(--ink); }
-    .voice-source-card small { display: block; margin-top: 2px; color: #8b8d93; font-size: 8px; line-height: 1.45; }
     .clone-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
     .clone-head .clone-steps { margin-top: 0; }
     .capability-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 9px; border-radius: 9px; background: #fff5e6; color: #b56d17; font-size: 8px; font-weight: 700; }
@@ -630,7 +625,6 @@
       .clone-form { grid-template-columns: 1fr 1fr; }
       .clone-field:first-child, .clone-consent-row { grid-column: 1 / -1; }
       .clone-submit { width: 100%; }
-      .voice-source-options { grid-template-columns: 1fr; }
       .realtime-chat { width: 100%; height: calc(100dvh - 60px); min-height: 570px; margin: 0; border: 0; border-radius: 0; box-shadow: none; }
       .conversation-header { height: 64px; padding: 0 14px 0 17px; }
       .conversation-title-mark { width: 31px; height: 31px; }
@@ -893,30 +887,21 @@
         <section class="studio-card studio-composer" aria-labelledby="tts-composer-title">
           <header class="studio-card-header"><h2 id="tts-composer-title">生成声音</h2><span class="studio-step">01</span></header>
 
-          <div class="studio-label"><span>选择声音来源</span><small>系统音色，或你自己的复刻声音，共用下面同一个文本框</small></div>
-          <div class="voice-source-options" id="voice-source-options" role="radiogroup" aria-label="选择声音来源">
-            <label class="voice-source-card active">
-              <input type="radio" name="voice-source" value="system" checked />
-              <span class="voice-source-avatar">♪</span>
-              <span><strong>系统音色</strong><small id="system-voice-status">龙安灵心 / 龙安鲁风</small></span>
-            </label>
-            <label class="voice-source-card">
-              <input type="radio" name="voice-source" value="clone" />
-              <span class="voice-source-avatar">●</span>
-              <span><strong>我的复刻声音</strong><small id="clone-source-status">上传或录制参考音频</small></span>
-            </label>
+          <div class="studio-label"><span>选择音色</span><small>系统音色或你的复刻声音，共用下面同一个文本框</small></div>
+          <div class="voice-options" id="voice-options">
+            <button class="voice-card active" data-voice="longanlingxin" type="button">
+              <span class="voice-avatar">灵</span><span><strong>龙安灵心</strong><small>温暖 · 细腻 · 女声</small></span><i class="voice-check"></i>
+            </button>
+            <button class="voice-card" data-voice="longanlufeng" type="button">
+              <span class="voice-avatar">风</span><span><strong>龙安鲁风</strong><small>明亮 · 开朗 · 男声</small></span><i class="voice-check"></i>
+            </button>
+            <button class="voice-card clone-voice-card" id="clone-voice-card" data-voice="clone" type="button">
+              <span class="voice-avatar">●</span><span><strong>我的复刻声音</strong><small id="clone-source-status">上传或录制参考音频</small></span><i class="voice-check"></i>
+            </button>
           </div>
+          <p class="voice-note" id="system-key-status" hidden></p>
 
-          <div id="system-voice-panel">
-            <div class="studio-label"><span>选择音色</span><small>系统音色可直接使用</small></div>
-            <div class="voice-options" id="voice-options">
-              <button class="voice-card active" data-voice="longanlingxin" type="button">
-                <span class="voice-avatar">灵</span><span><strong>龙安灵心</strong><small>温暖 · 细腻 · 女声</small></span><i class="voice-check"></i>
-              </button>
-              <button class="voice-card" data-voice="longanlufeng" type="button">
-                <span class="voice-avatar">风</span><span><strong>龙安鲁风</strong><small>明亮 · 开朗 · 男声</small></span><i class="voice-check"></i>
-              </button>
-            </div>
+          <div id="system-format-row">
             <div class="studio-label"><span>音频格式</span><small>输出 MP3 或 WAV</small></div>
             <div class="format-toggle" aria-label="音频格式">
               <button class="format-button active" data-format="mp3" type="button">MP3</button>
@@ -1313,23 +1298,22 @@
     }
 
     function selectTtsVoice(voice) {
-      selectedTtsVoice = voice;
+      if (voice === 'clone') {
+        voiceSource = 'clone';
+      } else {
+        voiceSource = 'system';
+        selectedTtsVoice = voice;
+      }
       document.querySelectorAll('.voice-card').forEach((card) => card.classList.toggle('active', card.dataset.voice === voice));
+      $('system-format-row').hidden = voiceSource !== 'system';
+      $('clone-panel').hidden = voiceSource !== 'clone';
+      $('system-key-status').hidden = voiceSource !== 'system' || systemTtsKeyConfigured;
+      $('synthesize-voice').innerHTML = voiceSource === 'clone' ? '用复刻声音生成&nbsp; →' : '生成声音&nbsp; →';
+      updateVoiceSubmitState();
     }
 
     function selectedVoiceId() {
       return selectedTtsVoice;
-    }
-
-    function selectVoiceSource(source) {
-      voiceSource = source === 'clone' ? 'clone' : 'system';
-      document.querySelectorAll('.voice-source-card').forEach((card) => {
-        card.classList.toggle('active', card.querySelector('input').value === voiceSource);
-      });
-      $('system-voice-panel').hidden = voiceSource !== 'system';
-      $('clone-panel').hidden = voiceSource !== 'clone';
-      $('synthesize-voice').innerHTML = voiceSource === 'clone' ? '用复刻声音生成&nbsp; →' : '生成声音&nbsp; →';
-      updateVoiceSubmitState();
     }
 
     function updateTtsCount() {
@@ -1852,9 +1836,12 @@
       const localConfigured = Boolean(status?.voiceclone_api?.url_configured);
       voiceCloningConfigured = localConfigured || Boolean(keys.voice_cloning_key_configured || status === true);
       systemTtsKeyConfigured = Boolean(keys.model_api_key_configured);
-      $('system-voice-status').textContent = systemTtsKeyConfigured
-        ? '龙安灵心 / 龙安鲁风'
-        : '未配置模型 Key，暂不可用';
+      const note = $('system-key-status');
+      note.textContent = systemTtsKeyConfigured
+        ? '系统音色已配置，可直接生成。'
+        : '系统音色未配置模型 Key（OPENAI_API_KEY/DASHSCOPE_API_KEY），暂不可用；可改用“我的复刻声音”。';
+      note.classList.toggle('ok', systemTtsKeyConfigured);
+      note.hidden = voiceSource !== 'system' || systemTtsKeyConfigured;
       updateVoiceSubmitState();
       refreshVoiceCloneStatus();
     }
@@ -3646,7 +3633,6 @@
     }));
     $('tts-text').addEventListener('input', updateTtsCount);
     $('synthesize-voice').addEventListener('click', synthesizeVoice);
-    document.querySelectorAll('.voice-source-card input').forEach((radio) => radio.addEventListener('change', () => selectVoiceSource(radio.value)));
     $('clone-reference-file').addEventListener('change', () => {
       const file = $('clone-reference-file').files && $('clone-reference-file').files[0];
       if (file) setCloneReference(file, file.name || 'reference.wav');

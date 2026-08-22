@@ -270,12 +270,15 @@ def test_voice_studio_uses_local_one_shot_clone_flow_instead_of_voice_id_enrollm
     source = _script_source()
     studio_markup = source[source.index('<section class="voice-studio product-view"'):source.index('<section class="realtime-chat product-view"')]
 
-    # Unified single composer: voice source selector shares one text box.
-    assert "选择声音来源" in studio_markup
-    assert "voice-source-options" in studio_markup
+    # Unified single composer: cloned voice and system voices are selectable in one list.
+    assert "选择音色" in studio_markup
+    assert "voice-options" in studio_markup
+    assert "clone-voice-card" in studio_markup
     assert "共用下面同一个文本框" in studio_markup
-    assert "系统音色" in studio_markup
+    assert "龙安灵心" in studio_markup
+    assert "龙安鲁风" in studio_markup
     assert "我的复刻声音" in studio_markup
+    assert "clone-source-status" in studio_markup
     assert "clone-reference-file" in studio_markup
     assert "record-clone-reference" in studio_markup
     assert "clone-consent" in studio_markup
@@ -289,13 +292,15 @@ def test_voice_studio_uses_local_one_shot_clone_flow_instead_of_voice_id_enrollm
     assert "创建复刻音色" not in studio_markup
     assert "custom-voice-id" not in studio_markup
     assert "create-cloned-voice" not in studio_markup
+    assert "voice-source-options" not in studio_markup
+    assert "voice-source-card" not in studio_markup
     assert "本地复刻 · 一次性生成" not in studio_markup
 
     configure_body = _function_body(source, "configureVoiceCloning")
     assert "voiceclone_api" in configure_body
     assert "refreshVoiceCloneStatus" in configure_body
     assert "model_api_key_configured" in configure_body
-    assert "system-voice-status" in configure_body
+    assert "system-key-status" in configure_body
 
     assert source.count("async function createClonedVoice") == 1
     assert "voice-cloning/create" not in source
@@ -320,20 +325,23 @@ def test_voice_studio_uses_local_one_shot_clone_flow_instead_of_voice_id_enrollm
     assert "createClonedVoice" in synth_body
     assert "系统音色未配置模型 Key" in synth_body
 
-    source_select_body = _function_body(source, "selectVoiceSource")
-    assert "system-voice-panel" in source_select_body
-    assert "clone-panel" in source_select_body
-    assert "updateVoiceSubmitState" in source_select_body
+    select_body = _function_body(source, "selectTtsVoice")
+    assert "voice === 'clone'" in select_body
+    assert "system-format-row" in select_body
+    assert "clone-panel" in select_body
+    assert "system-key-status" in select_body
+    assert "updateVoiceSubmitState" in select_body
 
     record_body = _function_body(source, "toggleCloneRecording")
     assert "MediaRecorder" in record_body
     assert "recorded-reference.webm" in record_body
 
-    assert "voice-source-card input').forEach((radio) => radio.addEventListener('change'" in source
+    assert "voice-card').forEach((button) => button.addEventListener('click', () => selectTtsVoice(button.dataset.voice)))" in source
     assert "clone-reference-file').addEventListener('change'" in source
     assert "clone-consent').addEventListener('change', updateVoiceSubmitState" in source
     assert "record-clone-reference').addEventListener('click', toggleCloneRecording" in source
     assert "create-cloned-voice').addEventListener" not in source
+    assert "voice-source-card input')" not in source
 
 
 def test_api_token_management_uses_one_time_key_modal_pattern():
