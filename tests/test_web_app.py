@@ -38,7 +38,8 @@ def test_status_exposes_sanitized_server_side_api_key_configuration(monkeypatch,
     monkeypatch.setenv("CHATVOICE_ASR_CHANNEL", "api-server")
     monkeypatch.setenv("CHATVOICE_ASR_API_URL", "https://asr.example.test/v1/transcribe")
     monkeypatch.setenv("CHATVOICE_ASR_API_KEY", "secret-asr-key")
-    monkeypatch.setenv("DASHSCOPE_API_KEY", "secret-model-key")
+    monkeypatch.setenv("OPENAI_API_BASE", "https://token-plan.example.test/compatible-mode/v1")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-sp-test-token-plan-key")
     try:
         legacy_app = importlib.import_module(module_name)
         from fastapi.testclient import TestClient
@@ -50,13 +51,14 @@ def test_status_exposes_sanitized_server_side_api_key_configuration(monkeypatch,
         assert payload["api_keys"] == {
             "asr_api_key_configured": True,
             "model_api_key_configured": True,
-            "voice_cloning_key_configured": True,
+            "model_api_key_is_token_plan": True,
+            "voice_cloning_key_configured": False,
         }
         assert payload["asr_api"]["url_configured"] is True
         assert payload["asr_api"]["endpoint_host"] == "asr.example.test"
         assert payload["asr_api"]["api_key_configured"] is True
         assert "secret-asr-key" not in response.text
-        assert "secret-model-key" not in response.text
+        assert "sk-sp-test-token-plan-key" not in response.text
     finally:
         sys.modules.pop(module_name, None)
 
@@ -70,7 +72,6 @@ def test_tts_returns_503_without_model_key_instead_of_500(monkeypatch, tmp_path)
     monkeypatch.setenv("CHATARCH_HOME", str(tmp_path / "chatarch-home"))
     monkeypatch.setenv("CHATVOICE_ASR_CHANNEL", "stub-local")
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    monkeypatch.delenv("DASHSCOPE_API_KEY", raising=False)
     try:
         legacy_app = importlib.import_module(module_name)
         from fastapi.testclient import TestClient
@@ -78,6 +79,64 @@ def test_tts_returns_503_without_model_key_instead_of_500(monkeypatch, tmp_path)
         response = TestClient(legacy_app.app).post("/api/tts", json={"text": "测试", "voice": "longanlingxin", "format": "mp3"})
         assert response.status_code == 503
         assert "OPENAI_API_KEY" in response.json()["detail"]
+    finally:
+        sys.modules.pop(module_name, None)
+
+
+def test_tts_rejects_usage_billed_openai_key(monkeypatch, tmp_path):
+    import importlib
+    import sys
+
+    module_name = "chatvoice.web.legacy_app"
+    sys.modules.pop(module_name, None)
+    monkeypatch.setenv("CHATARCH_HOME", str(tmp_path / "chatarch-home"))
+    monkeypatch.setenv("CHATVOICE_ASR_CHANNEL", "stub-local")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-usage-billed-key")
+    try:
+        legacy_app = importlib.import_module(module_name)
+        from fastapi.testclient import TestClient
+
+        response = TestClient(legacy_app.app).post("/api/tts", json={"text": "测试", "voice": "longanlingxin", "format": "mp3"})
+        assert response.status_code == 503
+        detail = response.json()["detail"]
+        assert "sk-sp" in detail
+        assert "避免按量扣费" in detail
+        assert "sk-usage-billed-key" not in response.text
+    finally:
+        sys.modules.pop(module_name, None)
+
+
+def test_status_reads_token_plan_key_from_chatenv_chatvoice_profile(monkeypatch, tmp_path):
+    import importlib
+    import sys
+
+    from chatenv import EnvStore, get_paths
+
+    from chatvoice.config import ChatVoiceConfig
+
+    module_name = "chatvoice.web.legacy_app"
+    sys.modules.pop(module_name, None)
+    monkeypatch.setenv("CHATARCH_HOME", str(tmp_path / "chatarch-home"))
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    store = EnvStore(get_paths(tmp_path / "chatarch-home").envs_dir)
+    store.save_active(
+        ChatVoiceConfig,
+        {
+            "OPENAI_API_BASE": "https://token-plan.example.test/compatible-mode/v1",
+            "OPENAI_API_KEY": "sk-sp-from-chatenv-profile",
+            "OPENAI_API_MODEL": "qwen3.7-plus",
+        },
+    )
+    try:
+        legacy_app = importlib.import_module(module_name)
+        from fastapi.testclient import TestClient
+
+        payload = TestClient(legacy_app.app).get("/api/status").json()
+        assert payload["profile"] == "ChatEnv ChatVoice active profile + process env override"
+        assert payload["chatenv_storage"] == "ChatVoice"
+        assert payload["api_keys"]["model_api_key_configured"] is True
+        assert payload["api_keys"]["model_api_key_is_token_plan"] is True
+        assert "sk-sp-from-chatenv-profile" not in str(payload)
     finally:
         sys.modules.pop(module_name, None)
 
@@ -90,7 +149,6 @@ def test_heartbeat_exposes_asr_health_without_secret_values(monkeypatch, tmp_pat
     sys.modules.pop(module_name, None)
     monkeypatch.setenv("CHATVOICE_HOME", str(tmp_path / "chatvoice-home"))
     monkeypatch.setenv("CHATVOICE_ASR_CHANNEL", "stub-local")
-    monkeypatch.setenv("DASHSCOPE_API_KEY", "secret-model-key")
     (tmp_path / "chatvoice-home" / "data").mkdir(parents=True)
     try:
         legacy_app = importlib.import_module(module_name)
@@ -107,7 +165,6 @@ def test_heartbeat_exposes_asr_health_without_secret_values(monkeypatch, tmp_pat
         assert payload["database"]["ok"] is True
         assert payload["asr"]["default_channel"] == "stub-local"
         assert payload["asr"]["status"] == "ready"
-        assert "secret-model-key" not in response.text
     finally:
         sys.modules.pop(module_name, None)
 
@@ -119,6 +176,7 @@ def test_voice_clone_status_reports_not_configured_without_secret_values(monkeyp
     module_name = "chatvoice.web.legacy_app"
     sys.modules.pop(module_name, None)
     monkeypatch.setenv("CHATVOICE_HOME", str(tmp_path / "chatvoice-home"))
+    monkeypatch.setenv("CHATARCH_HOME", str(tmp_path / "chatarch-home"))
     monkeypatch.delenv("CHATVOICE_VOICECLONE_URL", raising=False)
     try:
         legacy_app = importlib.import_module(module_name)

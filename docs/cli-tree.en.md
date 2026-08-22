@@ -71,7 +71,7 @@ chatvoice
 ## Fresh-start service entry
 
 ```bash
-python -m pip install "ChatVoice[web]==0.1.9"
+python -m pip install "ChatVoice[web]==0.1.10"
 chatvoice service plan --ensure-dirs --json
 chatvoice serve app --host 127.0.0.1 --port 18087
 ```

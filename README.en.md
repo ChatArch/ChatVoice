@@ -29,7 +29,7 @@ Documentation entry: <https://arch.gh.wzhecnu.cn/ChatVoice/en/>
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "ChatVoice[web]==0.1.9"
+python -m pip install "ChatVoice[web]==0.1.10"
 
 chatvoice --tree
 chatvoice --tree-brief
@@ -94,13 +94,13 @@ Meeting summary generation is also a server-side model boundary: configure the n
 
 ## Database and concurrency
 
-v0.1.9 defaults to SQLite WAL under:
+v0.1.10 defaults to SQLite WAL under:
 
 ```text
 <chatarch-home>/chatvoice/data/meetings.sqlite3
 ```
 
-Use one service process with SQLite (`--workers 1`). High-concurrency production should migrate the storage layer to Postgres/MySQL before scaling workers or nodes. An external database URL setting is detected in `chatvoice doctor` / `chatvoice service plan`, but the v0.1.9 packaged legacy storage layer still supports SQLite only.
+Use one service process with SQLite (`--workers 1`). High-concurrency production should migrate the storage layer to Postgres/MySQL before scaling workers or nodes. An external database URL setting is detected in `chatvoice doctor` / `chatvoice service plan`, but the v0.1.10 packaged legacy storage layer still supports SQLite only.
 
 
 ## Runtime layout and data structure
@@ -116,7 +116,7 @@ After `pip install`, package code lives under the active Python `site-packages/c
 └── model-cache/
 ```
 
-The backend SQLite `meetings.sqlite3` currently contains `accounts`, `auth_sessions`, `api_tokens`, `meeting_records`, and `conversation_records`. Transcripts, summary content, and realtime messages are stored as JSON strings; raw audio is not stored in the backend database. Guest mode still uses browser IndexedDB for local meeting text and summaries, not recording chunks. High-concurrency Postgres/MySQL migration is tracked as TODO; `0.1.9` still supports SQLite WAL + one service process only. See [Runtime Layout and Data Structure](docs/runtime-layout.en.md) and [Recording Storage Boundary](docs/recording-storage.en.md).
+The backend SQLite `meetings.sqlite3` currently contains `accounts`, `auth_sessions`, `api_tokens`, `meeting_records`, and `conversation_records`. Transcripts, summary content, and realtime messages are stored as JSON strings; raw audio is not stored in the backend database. Guest mode still uses browser IndexedDB for local meeting text and summaries, not recording chunks. High-concurrency Postgres/MySQL migration is tracked as TODO; `0.1.10` still supports SQLite WAL + one service process only. See [Runtime Layout and Data Structure](docs/runtime-layout.en.md) and [Recording Storage Boundary](docs/recording-storage.en.md).
 
 ## CLI contract
 

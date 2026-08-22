@@ -6,50 +6,7 @@ import json as jsonlib
 import os
 
 import click
-try:
-    from chatstyle import add_tree_option
-except Exception:  # pragma: no cover - supports older public ChatStyle wheels.
-    def add_tree_option(renderer_options=None):  # type: ignore[no-redef]
-        def decorator(target):
-            root = (renderer_options or {}).get("root_name", "chatvoice")
-
-            def _print_tree(ctx, _param, value):
-                if not value or ctx.resilient_parsing:
-                    return None
-                click.echo(
-                    f"{root}\n"
-                    "├── --help  # Show this message and exit.\n"
-                    "├── --version  # Show the version and exit.\n"
-                    "├── --tree  # Print the registered CLI tree and exit.\n"
-                    "├── --tree-brief  # Print the registered CLI tree without parameter signatures and exit.\n"
-                    "├── accounts\n"
-                    "│   ├── add  # Create one invited account.\n"
-                    "│   └── list  # List invited account metadata.\n"
-                    "├── asr-channels  # List ASR channel readiness.\n"
-                    "├── data\n"
-                    "│   ├── conversation  # Read one realtime conversation.\n"
-                    "│   ├── conversations  # Read realtime conversation metadata.\n"
-                    "│   ├── meeting  # Read one meeting detail.\n"
-                    "│   └── meetings  # Read meeting metadata.\n"
-                    "├── doctor  # Check local service readiness.\n"
-                    "├── health\n"
-                    "│   └── status  # Read /api/status.\n"
-                    "├── paths  # Show resolved runtime paths.\n"
-                    "├── service\n"
-                    "│   └── plan  # Show a service start plan.\n"
-                    "├── serve\n"
-                    "│   └── app  # Start the Speakr web app.\n"
-                    "└── tokens\n"
-                    "    ├── create  # Create a remote token.\n"
-                    "    ├── list  # List remote token metadata.\n"
-                    "    └── revoke  # Revoke a remote token."
-                )
-                ctx.exit()
-
-            target = click.option("--tree-brief", is_flag=True, expose_value=False, callback=_print_tree, is_eager=True)(target)
-            target = click.option("--tree", is_flag=True, expose_value=False, callback=_print_tree, is_eager=True)(target)
-            return target
-        return decorator
+from chatstyle import add_tree_option
 
 from chatvoice import __version__
 from chatvoice.accounts import AccountRuntimeError, create_account, list_accounts

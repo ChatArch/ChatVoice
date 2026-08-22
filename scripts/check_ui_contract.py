@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-HTML = PROJECT_ROOT / "app" / "static" / "index.html"
+HTML = PROJECT_ROOT / "src" / "chatvoice" / "web" / "static" / "index.html"
 text = HTML.read_text(encoding="utf-8")
 
 checks: dict[str, object] = {}
@@ -42,8 +42,12 @@ checks["voice_studio_tts_is_wired"] = all(
 )
 checks["voice_clone_is_configuration_aware"] = all(
     marker in text
-    for marker in ('id="clone-capability"', 'id="create-cloned-voice"', "status.voice_cloning_configured", "fetch('/api/voice-cloning/create'", "DASHSCOPE_VOICE_API_KEY")
+    for marker in ('id="clone-capability"', 'id="clone-voice-card"', "voiceCloningConfigured", "fetch('/api/voice-clone/jobs'", "CHATVOICE_VOICECLONE_URL")
 )
+checks["token_plan_key_status_is_openai_compatible"] = all(
+    marker in text
+    for marker in ("OPENAI_API_KEY", "sk-sp", "model_api_key_is_token_plan")
+) and "DASHSCOPE_API_KEY" not in text
 checks["studio_switch_guards_active_recording"] = (
     "请先结束当前录音，再切换功能" in text
     and "['connecting', 'recording', 'paused', 'finishing'].includes(recorderState)" in text
@@ -90,7 +94,7 @@ checks["transcript_revision_is_supported"] = all(marker in text for marker in ("
 checks["waveform_is_damped"] = "height * .38" in text and "previous * .76 + target * .24" in text
 checks["real_asr_websocket_is_used"] = "/ws/asr/stream" in text and "asr.stream.start" in text and "asr.stream.append" in text and "asr.stream.finish" in text
 checks["browser_microphone_capture_exists"] = "navigator.mediaDevices.getUserMedia" in text and "createScriptProcessor" in text and "pcm" in text
-checks["local_archive_recording_exists"] = "new MediaRecorder" in text and "download-recording" in text and "recordingUrl" in text
+checks["recording_audio_is_not_persisted"] = "服务器不保存录音" in text and 'id="download-recording"' not in text and "recordingUrl" not in text
 checks["recording_states_are_explicit"] = all(state in text for state in ("connecting", "recording", "paused", "finishing", "ended", "error"))
 checks["asr_channel_is_server_driven"] = "/api/asr/channels" in text and 'id="asr-channel"' in text
 checks["summary_endpoint_is_used"] = "/api/meeting-notes/polish" in text and 'id="generate-summary"' in text
@@ -122,7 +126,7 @@ checks["manual_title_has_priority"] = all(
     marker in text
     for marker in ("function markMeetingTitleManual", "meetingTitleMode === 'manual'", "titleAbortController.abort()")
 )
-checks["no_api_key_in_browser"] = all(name not in text for name in ("OPENAI_API_KEY", "DASHSCOPE_API_KEY", "Authorization: Bearer"))
+checks["no_raw_api_key_in_browser"] = all(marker not in text for marker in ("Authorization: Bearer", "sk-sp-", "OPENAI_API_KEY=", "OPENAI_API_KEY ="))
 checks["legacy_model_labs_are_not_primary_tabs"] = "语音转写</button>" not in text
 checks["contract_helpers_exist"] = all(name in text for name in ("__demoInjectAsrScenario", "__demoInjectSummary", "__demoGetState"))
 checks["permission_error_is_handled"] = "NotAllowedError" in text and "未获得麦克风权限" in text
@@ -142,15 +146,15 @@ checks["confirmed_transcript_is_monotonic"] = all(
     marker in text for marker in ("window.TranscriptState.planRevision", "transcriptSegments.push", "识别回退，已保留上一版")
 )
 pause_block = text.split("function pauseRecording()", 1)[1].split("function resumeRecording()", 1)[0]
-checks["pause_preserves_transcript"] = all(marker in pause_block for marker in ("mediaRecorder.pause()", "updateRecorderUi('paused')", "scheduleMeetingSave(0)")) and all(
-    marker not in pause_block for marker in ("resetSession(", "transcriptSegments = []", "settlePendingTranscript()")
+checks["pause_preserves_transcript"] = all(marker in pause_block for marker in ("updateRecorderUi('paused'", "requestAsrWindowCommit({ reason: 'pause', allowPaused: true })", "scheduleMeetingSave(0)")) and all(
+    marker not in pause_block for marker in ("resetSession(", "transcriptSegments = []")
 )
 checks["ended_recording_can_continue_same_meeting"] = all(
     marker in text for marker in ("const continuingMeeting", "beginTranscriptPass();", "正在继续当前会议", "'继续录音'")
 )
 checks["finishing_preserves_live_text"] = "['recording', 'connecting', 'paused', 'finishing'].includes(recorderState)" in text and "settlePendingTranscript()" in text
 checks["recording_limits_are_explicit"] = all(
-    marker in text for marker in ('id="record-limit-status"', 'id="record-limit-remaining"', "访客试用 · 每个录音段最长 10 分钟", "登录模式 · 当前录音段最长")
+    marker in text for marker in ('id="record-limit-status"', 'id="record-limit-remaining"', "访客试用 · 每段最长 10 分钟", "payload.max_connection_seconds", "channelsData.stream_policy")
 )
 checks["pause_does_not_consume_pass_time"] = "if (recorderState !== 'recording') return;\n        elapsedSeconds += 1;\n        recordingPassSeconds += 1;" in text
 checks["long_meeting_rollover_is_wired"] = all(
@@ -159,12 +163,10 @@ checks["long_meeting_rollover_is_wired"] = all(
 checks["server_policy_controls_frontend_limit"] = all(
     marker in text for marker in ("payload.max_connection_seconds", "channelsData.stream_policy", "recordingPassSeconds >= asrPassLimitSeconds")
 )
-checks["long_recording_audio_uses_indexeddb"] = all(
-    marker in text for marker in ("voicenote-audio-v1", "recording-chunks", "putAudioArchiveChunk", "mediaRecorder.start(1000)", "downloadCurrentArchive")
-)
-checks["audio_archive_has_memory_fallback"] = all(
-    marker in text for marker in ("archiveStorageDegraded = true", "archiveChunks.push({ index, blob })", "部分分片暂存在内存")
-)
+checks["long_recording_uses_stream_windows_not_audio_archive"] = all(
+    marker in text for marker in ("function requestAsrWindowCommit", "recordingPassSeconds - lastAsrWindowCommitAt >= 42", "长会议窗口已无感衔接")
+) and "downloadCurrentArchive" not in text
+checks["audio_archive_is_not_persisted"] = all(marker in text for marker in ("服务器不保存录音", "音频只用于实时识别"))
 
 checks["ok"] = all(bool(value) for key, value in checks.items() if key != "ok")
 print(json.dumps(checks, ensure_ascii=False, indent=2))

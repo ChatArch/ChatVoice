@@ -23,7 +23,7 @@ ChatVoice 是 ChatArch 系列 Python 包，用于把 Speakr 录音、转写、�
 
 - **部署与启动**
 
-    从 `python -m pip install "ChatVoice[web]==0.1.9"` 到 `chatvoice serve app`，说明运行目录、账号创建、ASR API provider、数据库并发边界。
+    从 `python -m pip install "ChatVoice[web]==0.1.10"` 到 `chatvoice serve app`，说明运行目录、账号创建、ASR API provider、数据库并发边界。
 
     [查看部署教程](deployment.md)
 
@@ -71,7 +71,7 @@ ChatVoice 是 ChatArch 系列 Python 包，用于把 Speakr 录音、转写、�
 
 </div>
 
-## 0.1.9 部署边界
+## 0.1.10 部署边界
 
 - Web 服务由 `chatvoice serve app` 启动 packaged FastAPI app。
 - Fresh start 可通过 `chatvoice accounts add` 创建受邀账号，不依赖源码根目录脚本。
@@ -80,7 +80,7 @@ ChatVoice 是 ChatArch 系列 Python 包，用于把 Speakr 录音、转写、�
 - 会议记录页不提供原始录音保存或下载；服务器只保存文字、摘要和元数据。
 - ASR 生产推荐通过 `api-server` 调云服务或自建 GPU ASR server。
 - `stub-local` 只用于无凭据/无 GPU 的合同 smoke。
-- v0.1.9 默认 SQLite WAL，适合单服务进程轻并发；高并发数据库迁移需单独版本。
+- v0.1.10 默认 SQLite WAL，适合单服务进程轻并发；高并发数据库迁移需单独版本。
 
 ## 本地预览文档
 

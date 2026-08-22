@@ -1,6 +1,6 @@
 # 运行目录与数据结构
 
-这一页说明 `pip install "ChatVoice[web]==0.1.9"` 之后，代码安装在哪里、运行数据默认写到哪里，以及 SQLite / 浏览器侧分别保存什么。
+这一页说明 `pip install "ChatVoice[web]==0.1.10"` 之后，代码安装在哪里、运行数据默认写到哪里，以及 SQLite / 浏览器侧分别保存什么。
 
 ## 代码安装位置
 
@@ -104,13 +104,14 @@ Settings 页面只显示服务端 API key 是否已配置，不会在浏览器�
 ```bash
 export CHATVOICE_ASR_CHANNEL=api-server
 export CHATVOICE_ASR_API_URL="https://<asr-service>/v1/transcribe"
-# export CHATVOICE_ASR_API_KEY in server-side secret storage
-# export DASHSCOPE_API_KEY or OPENAI_API_KEY in server-side secret storage
+# Store CHATVOICE_ASR_API_KEY in ChatEnv ChatVoice profile when the ASR endpoint requires it.
+# Store OPENAI_API_BASE / OPENAI_API_KEY / OPENAI_API_MODEL in ChatEnv ChatVoice profile.
+# Production OPENAI_API_KEY should be a Token Plan sk-sp... key, not a usage-billed sk-... key.
 ```
 
 ## 高并发 TODO
 
-`0.1.9` 的 packaged legacy storage 仍只支持 SQLite WAL，适合单服务进程、轻并发和内部受控使用：
+`0.1.10` 的 packaged legacy storage 仍只支持 SQLite WAL，适合单服务进程、轻并发和内部受控使用：
 
 ```bash
 chatvoice serve app --workers 1

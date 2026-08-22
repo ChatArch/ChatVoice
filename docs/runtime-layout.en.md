@@ -1,6 +1,6 @@
 # Runtime Layout and Data Structure
 
-This page documents where `pip install "ChatVoice[web]==0.1.9"` installs code, where runtime data is written by default, and which data lives in SQLite versus the browser.
+This page documents where `pip install "ChatVoice[web]==0.1.10"` installs code, where runtime data is written by default, and which data lives in SQLite versus the browser.
 
 ## Code install location
 
@@ -104,13 +104,14 @@ The Settings page shows only whether server-side API keys are configured. It nev
 ```bash
 export CHATVOICE_ASR_CHANNEL=api-server
 export CHATVOICE_ASR_API_URL="https://<asr-service>/v1/transcribe"
-# export CHATVOICE_ASR_API_KEY in server-side secret storage
-# export DASHSCOPE_API_KEY or OPENAI_API_KEY in server-side secret storage
+# Store CHATVOICE_ASR_API_KEY in the ChatEnv ChatVoice profile when the ASR endpoint requires it.
+# Store OPENAI_API_BASE / OPENAI_API_KEY / OPENAI_API_MODEL in the ChatEnv ChatVoice profile.
+# Production OPENAI_API_KEY should be a Token Plan sk-sp... key, not a usage-billed sk-... key.
 ```
 
 ## High-concurrency TODO
 
-The `0.1.9` packaged legacy storage still supports SQLite WAL only. It is suitable for one service process, light concurrency, and controlled internal use:
+The `0.1.10` packaged legacy storage still supports SQLite WAL only. It is suitable for one service process, light concurrency, and controlled internal use:
 
 ```bash
 chatvoice serve app --workers 1

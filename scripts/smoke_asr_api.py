@@ -17,7 +17,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 
 def wait_port(port: int, timeout: float = 20) -> None:
@@ -79,7 +79,7 @@ def multipart(field_name: str, filename: str, content: bytes, extra: dict[str, s
 
 
 def smoke_asr_stream_contract() -> dict:
-    import app.main as main
+    from chatvoice.web import legacy_app as main
 
     client = TestClient(main.app)
     pcm = make_pcm()
@@ -111,7 +111,7 @@ def main() -> int:
     wav_path = PROJECT_ROOT / "playground" / "asr-temp" / "smoke-stub.wav"
     make_wav(wav_path)
     proc = subprocess.Popen(
-        [sys.executable, "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", str(args.port)],
+        [sys.executable, "-m", "uvicorn", "chatvoice.web.server:create_app", "--factory", "--host", "127.0.0.1", "--port", str(args.port)],
         cwd=str(PROJECT_ROOT),
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,

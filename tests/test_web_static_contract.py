@@ -59,7 +59,9 @@ def test_settings_panel_surfaces_server_side_api_key_status_without_browser_secr
     assert "api-key-config-title" in settings_markup
     assert "服务端 API Key" in settings_markup
     assert "CHATVOICE_ASR_API_KEY" in settings_markup
-    assert "DASHSCOPE_API_KEY" in settings_markup
+    assert "OPENAI_API_KEY" in settings_markup
+    assert "sk-sp" in settings_markup
+    assert "DASHSCOPE_API_KEY" not in settings_markup
     assert "api-key-status-list" in settings_markup
     assert "type=\"password\"" not in settings_markup
 
@@ -68,7 +70,10 @@ def test_settings_panel_surfaces_server_side_api_key_status_without_browser_secr
     assert "api_keys" in status_body
     assert "asr_api_key_configured" in status_body
     assert "model_api_key_configured" in status_body
-    assert "voice_cloning_key_configured" in status_body
+    assert "model_api_key_is_token_plan" in status_body
+    assert "voiceclone.url_configured" in status_body
+    assert "voice_cloning_key_configured" not in status_body
+    assert "DASHSCOPE_API_KEY" not in status_body
 
     refresh_body = _function_body(source, "refreshStatus")
     assert "renderServerKeyStatus" in refresh_body
@@ -287,6 +292,11 @@ def test_voice_studio_uses_local_one_shot_clone_flow_instead_of_voice_id_enrollm
     assert "对比试听" in studio_markup
     assert "欢迎使用声笺声音工作室。这是一段默认示例文本" in studio_markup
     assert "不保存为音色库" in studio_markup
+    style_source = source[:source.index("</style>")]
+    assert ".clone-form { display: grid; grid-template-columns: minmax(150px" in style_source
+    assert "minmax(220px, 1fr) 140px 140px 132px" not in style_source
+    assert ".clone-reference-field { min-width: 0; }" in style_source
+    assert "clone-reference-field { min-width: 220px" not in style_source
     assert "参考音频公网 URL" not in studio_markup
     assert "clone-audio-url" not in studio_markup
     assert "clone-prefix" not in studio_markup
@@ -324,7 +334,7 @@ def test_voice_studio_uses_local_one_shot_clone_flow_instead_of_voice_id_enrollm
     synth_body = _function_body(source, "synthesizeVoice")
     assert "voiceSource === 'clone'" in synth_body
     assert "createClonedVoice" in synth_body
-    assert "系统音色未配置模型 Key" in synth_body
+    assert "系统音色未配置 Token Plan OPENAI_API_KEY" in synth_body
 
     select_body = _function_body(source, "selectTtsVoice")
     assert "voice === 'clone'" in select_body

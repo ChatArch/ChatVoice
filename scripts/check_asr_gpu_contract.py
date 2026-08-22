@@ -13,9 +13,9 @@ from fastapi.testclient import TestClient
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 import sys
-sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-import app.main as main  # noqa: E402
+from chatvoice.web import legacy_app as main  # noqa: E402
 
 
 def make_test_wav(duration_seconds: float = 0.1, sample_rate: int = 16000) -> bytes:
@@ -214,10 +214,8 @@ checks["stub_still_available"] = bool(stub.get("board_event") and base64.b64enco
 original_profile = main._read_profile
 original_env = os.environ.copy()
 try:
-    for key in ("QWEN_MEETING_NOTES_MODEL", "QWEN_CODING_PLAN_MODEL"):
-        os.environ.pop(key, None)
-    main._read_profile = lambda: {"OPENAI_API_MODEL": "qwen3.7-plus"}
-    checks["meeting_notes_model_prefers_profile"] = main._meeting_notes_model() == "qwen3.7-plus"
+    main._read_profile = lambda: {"OPENAI_API_MODEL": "deepseek-v4-pro-0813"}
+    checks["meeting_notes_model_prefers_profile"] = main._meeting_notes_model() == "deepseek-v4-pro-0813"
 finally:
     main._read_profile = original_profile
     os.environ.clear()

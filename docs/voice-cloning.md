@@ -126,18 +126,27 @@
 - 播放验证：`readyState=4`，可正常播放；
 - Console：无 JS error。
 
-第三轮（合并音色选择版，当前）：
+第三轮（合并音色选择版）：
 
 - 页面：<https://speakr.public.wzhecnu.cn/?preview=voiceclone-merged-selector>
 - 登录：临时验收账号，验收后删除。
 - **选择音色** 是同一个卡片列表：龙安灵心 / 龙安鲁风 / **我的复刻声音**，三张卡片在同一处勾选切换，共用同一文本框；
-- 系统音色未配置 Key 时，生成按钮禁用并显示提示 **系统音色未配置模型 Key…可改用“我的复刻声音”**；
 - 点击 **我的复刻声音** 卡片后复刻区域展开，按钮变 **用复刻声音生成 →**；
 - 上传 `merged-reference.wav`（约 467 KB），复刻卡片显示 **已选：merged-reference.wav（本会话可复用）**；
 - 输入文本 → 勾授权 → 点击生成 → 完成（约 390 KB）；
 - 切到龙安灵心再切回 **我的复刻声音**，参考音频不丢失；换文本再次生成成功（约 389 KB）；
 - 播放验证：`readyState=4`，可正常播放；
 - Console：无 JS error。
+
+第四轮（0.1.10 当前）：
+
+- 页面：<https://speakr.public.wzhecnu.cn/?verify=0110-final-layout>
+- 服务端配置统一读取 ChatEnv `ChatVoice` active profile；模型 key 为 Token Plan `sk-sp...`，状态只显示布尔值，不显示 key。
+- 系统音色状态显示 **系统音色已接入 Token Plan（sk-sp），可直接生成**；`/api/tts` 真实生成 MP3（本次验收约 42 KB，HTTP 200）。
+- `OPENAI_API_MODEL=deepseek-v4-pro-0813` 已由 ChatEnv profile 读入，会议标题/纪要模型默认跟随该值。
+- **录参考音** 按钮不再被右侧 **试听结果** 面板遮挡；浏览器命中检测显示按钮中心命中 `#record-clone-reference`，页面横向溢出为 0。
+
+![0.1.10 合并音色列表与录参考音布局](assets/voice-studio-record-button-layout-0.1.10.png)
 
 截图留档：
 
@@ -149,6 +158,7 @@
 - 合并音色选择（复刻完成，gateway 缓存）：`browser_screenshot_b652998a155a45509c72b4d0811acf5b.png`
 - 默认开场文本 + 合并音色列表（开场态，访客视角，系统音色未配置 Key）：`browser_screenshot_4b8ebfb3dba94422925d8ab263f7f233.png`
 - 复刻面板展开 + 默认文本（未登录点击生成提示“请先登录账号”）：`browser_screenshot_dc6a742f92e9461c893e8a90ad5c8be9.png`
+- 0.1.10 录参考音布局修复 + Token Plan 已接入：`assets/voice-studio-record-button-layout-0.1.10.png`
 
 ## 常见问题
 
@@ -161,7 +171,7 @@
 - `请先确认已获得声音本人授权`
 - `请先输入要生成的文字`
 - `本地复刻服务尚未就绪`
-- `系统音色未配置模型 Key（OPENAI_API_KEY/DASHSCOPE_API_KEY）`
+- `系统音色未接入 Token Plan OPENAI_API_KEY（sk-sp...）`
 
 如果仍然无响应，打开浏览器 console；不应出现 `clone-audio-url`、`clone-prefix` 或 `voice-cloning/create` 相关错误。
 
@@ -171,7 +181,7 @@
 
 ### 系统音色和我的复刻声音有什么区别？
 
-- **龙安灵心 / 龙安鲁风**：系统内置音色，做普通 TTS，需要服务器配置 `OPENAI_API_KEY` 或 `DASHSCOPE_API_KEY`。
+- **龙安灵心 / 龙安鲁风**：系统内置音色，做普通 TTS，需要服务端 ChatEnv `ChatVoice` profile 配置 Token Plan 的 `OPENAI_API_BASE` / `OPENAI_API_KEY` / `OPENAI_API_MODEL`；其中 `OPENAI_API_KEY` 必须是 `sk-sp...`，避免普通按量 `sk-...` 误扣费。
 - **我的复刻声音**：使用本次上传/录制的参考音频做本地 one-shot 复刻，不依赖云 TTS Key，只依赖 hitk 上的 VoiceClone sidecar。
 
 两者在同一个 **选择音色** 列表里勾选切换。如果只验证 Voice Cloning，请勾选 **我的复刻声音** 并使用 **用复刻声音生成**。
