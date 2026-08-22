@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.1.9 - 2026-08-22
+
+### Added
+
+- Voice Studio is now one unified `生成声音` panel: system voices (龙安灵心 / 龙安鲁风) and **我的复刻声音** are selectable voice cards in the same list, sharing one text box.
+- Local one-shot voice cloning via the VoiceClone sidecar: upload or record an authorized reference audio sample, enter new text, and generate a temporary preview audio with progress, playback, and download.
+- The cloned voice is reusable within the session: switching between system voices and the cloned voice keeps the reference audio, and new text can be generated repeatedly without re-uploading.
+- The studio text box now ships with a pre-filled default example so the flow can be tested without typing first.
+- New authenticated APIs: `GET /api/voice-clone/status`, `POST /api/voice-clone/jobs`, `GET /api/voice-clone/jobs/{id}`, `GET /api/voice-clone/jobs/{id}/audio`, `DELETE /api/voice-clone/jobs/{id}`.
+- New user guide: `docs/voice-cloning.md` / `docs/voice-cloning.en.md`.
+
+### Changed
+
+- System TTS without a model key now shows a clear `未配置模型 Key` disabled state and `/api/tts` returns `503` instead of `500`.
+- Removed the separate "文字与声音" composer and the separate "本地复刻 · 一次性生成" card; legacy custom voice-id enrollment UI is removed from Voice Studio.
+- `chatvoice.cli` keeps working with older public ChatStyle wheels via a fallback `add_tree_option`.
+
 ## 0.1.8 - 2026-08-22
 
 ### Changed
