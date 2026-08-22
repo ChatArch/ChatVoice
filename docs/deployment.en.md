@@ -81,7 +81,7 @@ export CHATVOICE_ASR_API_URL="https://<asr-service>/v1/transcribe"
 chatvoice serve app --host 127.0.0.1 --port 18087
 ```
 
-The browser **Settings → Server-side API Key** panel shows whether `CHATVOICE_ASR_API_KEY`, the summary/realtime model key, and the voice-cloning key are configured. It displays status only and never stores raw key values in the browser. Model/summary keys belong in server-side protected environment or config storage, such as `DASHSCOPE_API_KEY` / `OPENAI_API_KEY`.
+The browser **Settings → Server-side API Key** panel shows whether `CHATVOICE_ASR_API_KEY`, the Token Plan `OPENAI_API_KEY`, and the local VoiceClone sidecar are configured. It displays status only and never stores raw key values in the browser. Server configuration is stored in the ChatEnv `ChatVoice` profile: `OPENAI_API_BASE` / `OPENAI_API_KEY` / `OPENAI_API_MODEL`. Production accepts `sk-sp...` Token Plan keys by default to avoid accidental usage-billed `sk-...` calls.
 
 ChatVoice sends uploaded audio to `CHATVOICE_ASR_API_URL` as multipart field `file` and reads `corrected_text`, `text`, `transcript`, `raw_text`, `data.text`, or `result.text` from the ASR JSON response.
 

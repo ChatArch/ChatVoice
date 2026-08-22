@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Token Plan TTS probe using the official DashScope websocket path.
+"""Token Plan TTS probe using the OpenAI-compatible ChatEnv model key.
 
-Reads OPENAI_API_KEY / DASHSCOPE_API_KEY from the server environment, or from
-QWEN_TOKEN_PLAN_ENV_FILE. Prints only sanitized metadata.
+Reads OPENAI_API_KEY from the active process/ChatEnv-derived environment.
+The key must be a Token Plan sk-sp key. Prints only sanitized metadata.
 """
 from __future__ import annotations
 
@@ -28,13 +28,11 @@ def read_env_file(path: str | None) -> dict[str, str]:
 
 
 def load_key() -> str:
-    env = read_env_file(os.getenv("QWEN_TOKEN_PLAN_ENV_FILE"))
-    for key_name in ("OPENAI_API_KEY", "DASHSCOPE_API_KEY"):
-        if os.getenv(key_name):
-            env[key_name] = os.environ[key_name]
-    key = env.get("OPENAI_API_KEY") or env.get("DASHSCOPE_API_KEY")
+    key = os.getenv("OPENAI_API_KEY", "").strip()
     if not key:
-        raise RuntimeError("No OPENAI_API_KEY/DASHSCOPE_API_KEY found")
+        raise RuntimeError("No OPENAI_API_KEY found in the ChatEnv-derived process environment")
+    if not key.startswith("sk-sp"):
+        raise RuntimeError("OPENAI_API_KEY must be a Token Plan sk-sp key")
     return key
 
 
@@ -46,7 +44,7 @@ def main() -> int:
         "probe": "token-plan-tts-dashscope-ws-sdk",
         "model": "qwen-audio-3.0-tts-plus",
         "voice": "longanlingxin",
-        "api_key_sha256_12": hashlib.sha256(key.encode()).hexdigest()[:12],
+        "api_key_is_token_plan": True,
     }
     try:
         import dashscope

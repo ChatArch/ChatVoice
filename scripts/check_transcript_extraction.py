@@ -6,10 +6,10 @@ import sys
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+if str(PROJECT_ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from app.main import extract_realtime_transcript_events
+from chatvoice.web.legacy_app import extract_realtime_transcript_events
 
 CASES = [
     (
@@ -44,7 +44,7 @@ for event, expected in CASES:
     result.append({"source": event["type"], "normalized": {k: got[k] for k in ("role", "phase", "text", "source_type")}})
 
 assert extract_realtime_transcript_events({"type": "session.updated", "session": {}}) == []
-main_source = (PROJECT_ROOT / "app" / "main.py").read_text(encoding="utf-8")
+main_source = (PROJECT_ROOT / "src" / "chatvoice" / "web" / "legacy_app.py").read_text(encoding="utf-8")
 assert '"demo_event": "audio.delta"' in main_source
 assert '"sample_rate": 24000' in main_source
 assert "MAX_ASR_STREAM_JSON_FRAME_BYTES" in main_source

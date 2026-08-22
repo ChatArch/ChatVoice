@@ -28,12 +28,14 @@ from typing import Any
 from urllib.parse import urlparse
 
 import dashscope
+from chatenv import EnvStore, get_paths
 from dashscope.audio.tts_v2 import AudioFormat, SpeechSynthesizer
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
 
 from chatvoice import __version__
+from chatvoice.config import ChatVoiceConfig
 from chatvoice.paths import state_paths
 from pydantic import BaseModel, Field
 
@@ -43,29 +45,57 @@ except Exception:  # pragma: no cover
     websockets = None
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _load_chatvoice_env_values() -> dict[str, str]:
+    """Load the active ChatVoice ChatEnv profile plus process-env overrides."""
+
+    try:
+        profile_values = EnvStore(get_paths().envs_dir).load_active(ChatVoiceConfig)
+    except Exception:
+        profile_values = {}
+    ChatVoiceConfig.load_from_sources(env_values=profile_values)
+    loaded: dict[str, str] = {}
+    for field in ChatVoiceConfig.get_fields().values():
+        value = field.value
+        if value is not None and str(value).strip():
+            loaded[field.env_key] = str(value).strip()
+    return loaded
+
+
+_CHATVOICE_ENV = _load_chatvoice_env_values()
+
+
+def _env_value(*names: str, default: str = "") -> str:
+    for name in names:
+        if os.getenv(name):
+            return os.environ[name].strip()
+        value = _CHATVOICE_ENV.get(name)
+        if value:
+            return value.strip()
+    return default
+
+
 _RUNTIME_PATHS = state_paths()
 RUNTIME_ROOT = _RUNTIME_PATHS.root
 PROJECT_ROOT = RUNTIME_ROOT
-STATIC_DIR = Path(os.getenv("CHATVOICE_STATIC_DIR", str(Path(__file__).resolve().parent / "static"))).expanduser()
-PROFILE_ENV_FILE = os.getenv("QWEN_TOKEN_PLAN_ENV_FILE", "").strip()
-PROFILE_PATH = Path(PROFILE_ENV_FILE).expanduser() if PROFILE_ENV_FILE else None
+STATIC_DIR = Path(_env_value("CHATVOICE_STATIC_DIR", default=str(Path(__file__).resolve().parent / "static"))).expanduser()
 TOKEN_PLAN_TTS_WS = "wss://token-plan.cn-beijing.maas.aliyuncs.com/api-ws/v1/inference"
 TOKEN_PLAN_REALTIME_WS = "wss://token-plan.cn-beijing.maas.aliyuncs.com/api-ws/v1/realtime"
-DASHSCOPE_HTTP_API_BASE = os.getenv("DASHSCOPE_HTTP_API_BASE", "https://dashscope.aliyuncs.com/api/v1").rstrip("/")
 REALTIME_MODEL = "qwen-audio-3.0-realtime-plus"
 TTS_MODEL = "qwen-audio-3.0-tts-plus"
 DEFAULT_VOICE = "longanlingxin"
-FUNASR_MODEL = os.getenv("FUNASR_MODEL", "iic/SenseVoiceSmall")
-FUNASR_GPU_DEVICE = os.getenv("FUNASR_GPU_DEVICE", "cuda:0")
-ASR_API_URL = os.getenv("CHATVOICE_ASR_API_URL", os.getenv("ASR_API_URL", "")).strip()
-ASR_API_KEY = os.getenv("CHATVOICE_ASR_API_KEY", os.getenv("ASR_API_KEY", "")).strip()
-ASR_API_TIMEOUT_SECONDS = float(os.getenv("CHATVOICE_ASR_API_TIMEOUT_SECONDS", "120"))
-VOICECLONE_API_URL = os.getenv("CHATVOICE_VOICECLONE_URL", os.getenv("VOICECLONE_API_URL", "")).strip().rstrip("/")
-VOICECLONE_API_TIMEOUT_SECONDS = float(os.getenv("CHATVOICE_VOICECLONE_TIMEOUT_SECONDS", "180"))
-MAX_VOICECLONE_REFERENCE_BYTES = int(os.getenv("CHATVOICE_VOICECLONE_MAX_REFERENCE_BYTES", str(50 * 1024 * 1024)))
-DEFAULT_ASR_CHANNEL = os.getenv("CHATVOICE_ASR_CHANNEL", os.getenv("DEFAULT_ASR_CHANNEL", "")).strip() or ("api-server" if ASR_API_URL else "stub-local")
-MEETING_NOTES_MODEL = os.getenv("QWEN_MEETING_NOTES_MODEL", os.getenv("QWEN_CODING_PLAN_MODEL", "qwen3.7-plus"))
-MEETING_TITLE_MODEL = os.getenv("QWEN_MEETING_TITLE_MODEL", "qwen3.6-flash")
+FUNASR_MODEL = _env_value("FUNASR_MODEL", default="iic/SenseVoiceSmall")
+FUNASR_GPU_DEVICE = _env_value("FUNASR_GPU_DEVICE", default="cuda:0")
+ASR_API_URL = _env_value("CHATVOICE_ASR_API_URL", "ASR_API_URL").strip()
+ASR_API_KEY = _env_value("CHATVOICE_ASR_API_KEY", "ASR_API_KEY").strip()
+ASR_API_TIMEOUT_SECONDS = float(_env_value("CHATVOICE_ASR_API_TIMEOUT_SECONDS", default="120"))
+VOICECLONE_API_URL = _env_value("CHATVOICE_VOICECLONE_URL", "VOICECLONE_API_URL").strip().rstrip("/")
+VOICECLONE_API_TIMEOUT_SECONDS = float(_env_value("CHATVOICE_VOICECLONE_TIMEOUT_SECONDS", default="180"))
+MAX_VOICECLONE_REFERENCE_BYTES = int(_env_value("CHATVOICE_VOICECLONE_MAX_REFERENCE_BYTES", default=str(50 * 1024 * 1024)))
+DEFAULT_ASR_CHANNEL = _env_value("CHATVOICE_ASR_CHANNEL", "DEFAULT_ASR_CHANNEL").strip() or ("api-server" if ASR_API_URL else "stub-local")
+MEETING_NOTES_MODEL = _env_value("CHATVOICE_MEETING_NOTES_MODEL", "OPENAI_API_MODEL", default="qwen3.7-plus")
+MEETING_TITLE_MODEL = _env_value("CHATVOICE_MEETING_TITLE_MODEL", default="qwen3.6-flash")
 ALLOWED_ASR_STREAM_SAMPLE_RATES = {8000, 16000, 24000, 48000}
 MIN_ASR_STREAM_CHUNK_SECONDS = 0.5
 MAX_ASR_STREAM_CHUNK_SECONDS = 10.0
@@ -225,26 +255,28 @@ class ApiTokenCreateRequest(BaseModel):
 
 
 def _read_profile() -> dict[str, str]:
-    data: dict[str, str] = {}
-    if PROFILE_PATH and PROFILE_PATH.exists():
-        for raw in PROFILE_PATH.read_text(encoding="utf-8").splitlines():
-            line = raw.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            key, value = line.split("=", 1)
-            data[key] = value.strip().strip('"').strip("'")
-    # Allow explicit env override for a temporary shell session, but never expose it.
-    for key in ("OPENAI_API_KEY", "OPENAI_API_BASE", "DASHSCOPE_API_KEY", "DASHSCOPE_VOICE_API_KEY"):
-        if os.getenv(key):
-            data[key] = os.environ[key]
-    return data
+    """Return ChatVoice's active ChatEnv/process configuration.
+
+    Canonical model settings use OpenAI-compatible names only. The process
+    environment can override the active ChatEnv profile for one-shot service
+    sessions, but ChatVoice no longer reads package-local dotenv files or
+    Qwen/DashScope-specific key variables.
+    """
+
+    return dict(_CHATVOICE_ENV)
+
+
+def _is_token_plan_key(key: str) -> bool:
+    return key.strip().startswith("sk-sp")
 
 
 def _token_plan_key() -> str:
     profile = _read_profile()
-    key = profile.get("OPENAI_API_KEY") or profile.get("DASHSCOPE_API_KEY")
+    key = (profile.get("OPENAI_API_KEY") or "").strip()
     if not key:
-        raise HTTPException(status_code=503, detail="系统音色未配置模型 Key：请在服务器设置 OPENAI_API_KEY 或 DASHSCOPE_API_KEY。")
+        raise HTTPException(status_code=503, detail="系统音色未配置模型 Key：请在 ChatEnv ChatVoice profile 设置 Token Plan 的 OPENAI_API_KEY（sk-sp...）。")
+    if not _is_token_plan_key(key):
+        raise HTTPException(status_code=503, detail="系统音色拒绝使用非 Token Plan Key：OPENAI_API_KEY 必须是 sk-sp...，避免按量扣费。")
     return key
 
 
@@ -253,31 +285,18 @@ def _token_plan_base() -> str:
     return profile.get("OPENAI_API_BASE", "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1").rstrip("/")
 
 
-def _voice_cloning_key() -> str:
-    profile = _read_profile()
-    key = profile.get("DASHSCOPE_VOICE_API_KEY") or profile.get("DASHSCOPE_API_KEY")
-    if not key:
-        raise HTTPException(
-            status_code=503,
-            detail="Voice cloning is not configured. Set DASHSCOPE_VOICE_API_KEY on the server.",
-        )
-    return key
-
-
 def _meeting_notes_model(req_model: str | None = None) -> str:
     if req_model:
         return req_model
     profile = _read_profile()
-    return (
-        os.getenv("QWEN_MEETING_NOTES_MODEL")
-        or os.getenv("QWEN_CODING_PLAN_MODEL")
-        or profile.get("OPENAI_API_MODEL")
-        or MEETING_NOTES_MODEL
-    )
+    return profile.get("CHATVOICE_MEETING_NOTES_MODEL") or profile.get("OPENAI_API_MODEL") or MEETING_NOTES_MODEL
 
 
 def _meeting_title_model(req_model: str | None = None) -> str:
-    return req_model or os.getenv("QWEN_MEETING_TITLE_MODEL") or MEETING_TITLE_MODEL
+    if req_model:
+        return req_model
+    profile = _read_profile()
+    return profile.get("CHATVOICE_MEETING_TITLE_MODEL") or profile.get("OPENAI_API_MODEL") or MEETING_TITLE_MODEL
 
 
 def _utc_timestamp(epoch: float | None = None) -> str:
@@ -360,22 +379,24 @@ def _database_health_summary() -> dict[str, Any]:
 
 def _safe_profile_summary() -> dict[str, Any]:
     profile = _read_profile()
-    key = profile.get("OPENAI_API_KEY") or profile.get("DASHSCOPE_API_KEY") or ""
+    key = (profile.get("OPENAI_API_KEY") or "").strip()
     base = profile.get("OPENAI_API_BASE", "")
     parsed = urlparse(base) if base else None
-    voice_key_configured = bool(profile.get("DASHSCOPE_VOICE_API_KEY") or profile.get("DASHSCOPE_API_KEY"))
+    token_plan_key = _is_token_plan_key(key) if key else False
     return {
-        "profile": "env-or-optional-file",
-        "profile_file_exists": bool(PROFILE_PATH and PROFILE_PATH.exists()),
+        "profile": "ChatEnv ChatVoice active profile + process env override",
+        "chatenv_storage": "ChatVoice",
         "base_host": parsed.netloc if parsed else None,
         "base_path": parsed.path if parsed else None,
         "key_present": bool(key),
-        "voice_cloning_configured": voice_key_configured or bool(VOICECLONE_API_URL),
-        "voice_cloning_provider": "dashscope-direct+local-sidecar" if VOICECLONE_API_URL else "dashscope-direct",
+        "token_plan_key": token_plan_key,
+        "voice_cloning_configured": bool(VOICECLONE_API_URL),
+        "voice_cloning_provider": "local-sidecar",
         "api_keys": {
             "asr_api_key_configured": bool(ASR_API_KEY),
             "model_api_key_configured": bool(key),
-            "voice_cloning_key_configured": voice_key_configured,
+            "model_api_key_is_token_plan": token_plan_key,
+            "voice_cloning_key_configured": False,
         },
         "asr_api": {
             "url_configured": bool(ASR_API_URL),
@@ -414,7 +435,7 @@ def _fetch_models() -> dict[str, Any]:
 def _realtime_model_allowed(model: str) -> bool:
     if not re.fullmatch(r"qwen-audio-[A-Za-z0-9._-]*realtime[A-Za-z0-9._-]*", model):
         return False
-    configured = [value.strip() for value in os.getenv("QWEN_REALTIME_MODELS", "").split(",") if value.strip()]
+    configured = [value.strip() for value in _env_value("CHATVOICE_REALTIME_MODELS").split(",") if value.strip()]
     return not configured or model in configured
 
 
@@ -1181,58 +1202,20 @@ async def tts(req: TTSRequest) -> Response:
     return Response(content=result["audio"], media_type=media_type, headers=headers)
 
 
-def _validate_public_audio_url(url: str) -> str:
-    parsed = urlparse(url)
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        raise ValueError("audio_url must be an http(s) URL accessible by Qwen voice enrollment")
-    return url
-
-
-def _create_voice_blocking(req: VoiceCloneRequest) -> dict[str, Any]:
-    key = _voice_cloning_key()
-    _validate_public_audio_url(req.audio_url)
-    dashscope.api_key = key
-    dashscope.base_http_api_url = DASHSCOPE_HTTP_API_BASE
-    from dashscope.audio.tts_v2 import VoiceEnrollmentService
-
-    service = VoiceEnrollmentService(api_key=key)
-    voice_id = service.create_voice(
-        target_model=req.target_model,
-        prefix=req.prefix,
-        url=req.audio_url,
-        language_hints=req.language_hints or None,
-        max_prompt_audio_length=req.max_prompt_audio_length,
-    )
-    return {"voice_id": voice_id, "target_model": req.target_model, "request_id": service.get_last_request_id()}
-
-
 @app.post("/api/voice-cloning/create")
 async def voice_cloning_create(req: VoiceCloneRequest) -> JSONResponse:
-    try:
-        result = await asyncio.to_thread(_create_voice_blocking, req)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except HTTPException:
-        raise
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail={"error_type": type(exc).__name__, "message": str(exc)[:700]}) from exc
-    return JSONResponse(result)
+    raise HTTPException(
+        status_code=410,
+        detail="Legacy direct voice enrollment has been removed. Use /api/voice-clone/jobs with the local VoiceClone sidecar.",
+    )
 
 
 @app.get("/api/voice-cloning/list")
 def voice_cloning_list(prefix: str | None = None) -> JSONResponse:
-    try:
-        key = _voice_cloning_key()
-        dashscope.base_http_api_url = DASHSCOPE_HTTP_API_BASE
-        from dashscope.audio.tts_v2 import VoiceEnrollmentService
-
-        service = VoiceEnrollmentService(api_key=key)
-        voices = service.list_voices(prefix=prefix)
-    except HTTPException:
-        raise
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail={"error_type": type(exc).__name__, "message": str(exc)[:700]}) from exc
-    return JSONResponse({"voices": voices})
+    raise HTTPException(
+        status_code=410,
+        detail="Legacy direct voice enrollment has been removed. Use /api/voice-clone/status and /api/voice-clone/jobs.",
+    )
 
 
 def _voiceclone_url(path: str) -> str:

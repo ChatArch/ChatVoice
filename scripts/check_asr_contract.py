@@ -10,9 +10,9 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 import sys
-sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from app.main import (  # noqa: E402
+from chatvoice.web.legacy_app import (  # noqa: E402
     ASR_CHANNELS,
     _extract_funasr_text,
     normalize_asr_result,

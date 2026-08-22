@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Minimal sanitized probes for Qwen Token Plan audio models.
+"""Minimal sanitized probes for Token Plan audio models.
 
-Reads OPENAI_API_KEY / DASHSCOPE_API_KEY from the server environment, or from
-an optional env file passed with --env-file / QWEN_TOKEN_PLAN_ENV_FILE. Prints
-only sanitized status metadata; never prints the API key or full signed audio URL.
+Reads OPENAI_API_KEY from the ChatEnv-derived process environment. The key must
+be a Token Plan sk-sp key. Prints only sanitized status metadata; never prints
+the API key or full signed audio URL.
 """
 from __future__ import annotations
 
@@ -39,16 +39,13 @@ def redact_url(url: str) -> str:
 
 
 def load_api_key(env_file: str | None = None) -> str:
-    env: dict[str, str] = {}
-    selected = env_file or os.getenv("QWEN_TOKEN_PLAN_ENV_FILE")
-    if selected:
-        env.update(read_profile(Path(selected).expanduser()))
-    for key_name in ("DASHSCOPE_API_KEY", "OPENAI_API_KEY"):
-        if os.getenv(key_name):
-            env[key_name] = os.environ[key_name]
-    key = env.get("DASHSCOPE_API_KEY") or env.get("OPENAI_API_KEY")
+    if env_file:
+        raise RuntimeError("--env-file is no longer supported; use the ChatEnv ChatVoice profile and OPENAI_API_KEY")
+    key = os.getenv("OPENAI_API_KEY", "").strip()
     if not key:
-        raise RuntimeError("No OPENAI_API_KEY/DASHSCOPE_API_KEY found in environment or env file")
+        raise RuntimeError("No OPENAI_API_KEY found in the ChatEnv-derived process environment")
+    if not key.startswith("sk-sp"):
+        raise RuntimeError("OPENAI_API_KEY must be a Token Plan sk-sp key")
     return key
 
 
@@ -226,7 +223,7 @@ def probe_realtime(args: argparse.Namespace) -> int:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("mode", choices=["tts", "realtime"])
-    ap.add_argument("--env-file", default=None, help="Optional local env file with OPENAI_API_KEY or DASHSCOPE_API_KEY")
+    ap.add_argument("--env-file", default=None, help="Deprecated; use the ChatEnv ChatVoice profile and OPENAI_API_KEY")
     ap.add_argument("--timeout", type=float, default=20)
     ap.add_argument("--outdir", default="playground/probe-output")
     ap.add_argument("--text", default="你好，这是千问语音合成的最小探针。")

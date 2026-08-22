@@ -104,8 +104,9 @@ Settings 页面只显示服务端 API key 是否已配置，不会在浏览器�
 ```bash
 export CHATVOICE_ASR_CHANNEL=api-server
 export CHATVOICE_ASR_API_URL="https://<asr-service>/v1/transcribe"
-# export CHATVOICE_ASR_API_KEY in server-side secret storage
-# export DASHSCOPE_API_KEY or OPENAI_API_KEY in server-side secret storage
+# Store CHATVOICE_ASR_API_KEY in ChatEnv ChatVoice profile when the ASR endpoint requires it.
+# Store OPENAI_API_BASE / OPENAI_API_KEY / OPENAI_API_MODEL in ChatEnv ChatVoice profile.
+# Production OPENAI_API_KEY should be a Token Plan sk-sp... key, not a usage-billed sk-... key.
 ```
 
 ## 高并发 TODO

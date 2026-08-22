@@ -2,7 +2,7 @@ from importlib.metadata import entry_points
 
 from chatenv import EnvStore, get_paths
 
-from chatvoice.config import ChatvoiceConfig
+from chatvoice.config import ChatVoiceConfig, ChatvoiceConfig
 
 
 def test_chatenv_provider_entry_point_loads_typed_config():
@@ -12,28 +12,39 @@ def test_chatenv_provider_entry_point_loads_typed_config():
     }
 
     assert providers["chatvoice"].value == "chatvoice.config"
-    assert providers["chatvoice"].load().ChatvoiceConfig is ChatvoiceConfig
+    loaded = providers["chatvoice"].load()
+    assert loaded.ChatVoiceConfig is ChatVoiceConfig
+    assert loaded.ChatvoiceConfig is ChatvoiceConfig
+    assert ChatvoiceConfig is ChatVoiceConfig
 
 
 def test_config_marks_credentials_and_database_url_sensitive():
-    fields = ChatvoiceConfig.get_fields()
+    fields = ChatVoiceConfig.get_fields()
 
     for name in (
         "CHATVOICE_ASR_API_KEY",
         "CHATVOICE_DATABASE_URL",
-        "QWEN_TOKEN_PLAN_ENV_FILE",
-        "DASHSCOPE_API_KEY",
         "OPENAI_API_KEY",
     ):
         assert fields[name].is_sensitive is True
 
+    assert "QWEN_TOKEN_PLAN_ENV_FILE" not in fields
+    assert "DASHSCOPE_API_KEY" not in fields
+    assert "DASHSCOPE_VOICE_API_KEY" not in fields
+    assert "OPENAI_API_BASE" in fields
+    assert "OPENAI_API_MODEL" in fields
+    assert "CHATVOICE_MEETING_NOTES_MODEL" in fields
+    assert "CHATVOICE_MEETING_TITLE_MODEL" in fields
+    assert "CHATVOICE_REALTIME_MODELS" in fields
+    assert fields["OPENAI_API_MODEL"].default == "qwen3.7-plus"
 
-def test_config_uses_chatenv_profile_storage_paths(tmp_path):
+
+def test_config_uses_canonical_chatenv_profile_storage_paths(tmp_path):
     store = EnvStore(get_paths(tmp_path).envs_dir)
 
-    assert store.active_path(ChatvoiceConfig) == (
-        tmp_path / "envs" / "Chatvoice" / ".env"
+    assert store.active_path(ChatVoiceConfig) == (
+        tmp_path / "envs" / "ChatVoice" / ".env"
     )
-    assert store.profile_path(ChatvoiceConfig, "example") == (
-        tmp_path / "envs" / "Chatvoice" / "example.env"
+    assert store.profile_path(ChatVoiceConfig, "example") == (
+        tmp_path / "envs" / "ChatVoice" / "example.env"
     )

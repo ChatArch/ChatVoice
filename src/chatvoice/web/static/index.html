@@ -1012,11 +1012,11 @@
       <p>页面始终使用统一转写协议。未来接入阿里、火山、讯飞或 Whisper 服务时，录音页不需要改变。</p>
       <section class="api-key-config" aria-labelledby="api-key-config-title">
         <h3 id="api-key-config-title">服务端 API Key</h3>
-        <p>这里显示密钥配置状态，不在浏览器保存或提交密钥明文。请在服务端环境或受保护配置文件中设置 <code>CHATVOICE_ASR_API_KEY</code>、<code>DASHSCOPE_API_KEY</code> 或专用复刻密钥。</p>
+        <p>这里显示密钥配置状态，不在浏览器保存或提交密钥明文。服务端配置统一走 ChatEnv <code>ChatVoice</code> profile：ASR 使用 <code>CHATVOICE_ASR_API_KEY</code>；模型侧使用 OpenAI-compatible <code>OPENAI_API_KEY</code>（Token Plan 必须是 <code>sk-sp...</code>）。</p>
         <ul class="api-key-status-list" id="api-key-status-list">
           <li><span>ASR API Key</span><b>读取中…</b></li>
-          <li><span>摘要/实时模型 Key</span><b>读取中…</b></li>
-          <li><span>声音复刻 Key</span><b>读取中…</b></li>
+          <li><span>Token Plan OPENAI_API_KEY</span><b>读取中…</b></li>
+          <li><span>本地声音复刻</span><b>读取中…</b></li>
         </ul>
       </section>
       <section class="api-key-config" aria-labelledby="asr-health-title">
@@ -1735,7 +1735,7 @@
 
     async function synthesizeVoice() {
       if (voiceSource === 'clone') { await createClonedVoice(); return; }
-      if (!systemTtsKeyConfigured) { showToast('系统音色未配置模型 Key（OPENAI_API_KEY/DASHSCOPE_API_KEY）'); return; }
+      if (!systemTtsKeyConfigured) { showToast('系统音色未配置 Token Plan OPENAI_API_KEY（sk-sp...）'); return; }
       const text = $('tts-text').value.trim();
       const voice = selectedVoiceId();
       if (!text) { showToast('请先输入要生成的文字'); return; }
@@ -1793,7 +1793,7 @@
         btn.title = cloneReady ? '用当前复刻声音生成（需已选参考音频并确认授权）' : '本地复刻服务尚未就绪';
       } else {
         btn.disabled = ttsGenerating || !systemTtsKeyConfigured;
-        btn.title = systemTtsKeyConfigured ? '用系统音色生成' : '系统音色未配置模型 Key（OPENAI_API_KEY/DASHSCOPE_API_KEY）';
+        btn.title = systemTtsKeyConfigured ? '用系统音色生成' : '系统音色未配置 Token Plan OPENAI_API_KEY（sk-sp...）';
       }
       $('record-clone-reference').disabled = cloneGenerating || !cloneReady;
     }
@@ -1835,11 +1835,11 @@
       const keys = status?.api_keys || {};
       const localConfigured = Boolean(status?.voiceclone_api?.url_configured);
       voiceCloningConfigured = localConfigured || Boolean(keys.voice_cloning_key_configured || status === true);
-      systemTtsKeyConfigured = Boolean(keys.model_api_key_configured);
+      systemTtsKeyConfigured = Boolean(keys.model_api_key_configured && keys.model_api_key_is_token_plan);
       const note = $('system-key-status');
       note.textContent = systemTtsKeyConfigured
-        ? '系统音色已配置，可直接生成。'
-        : '系统音色未配置模型 Key（OPENAI_API_KEY/DASHSCOPE_API_KEY），暂不可用；可改用“我的复刻声音”。';
+        ? '系统音色已接入 Token Plan（sk-sp），可直接生成。'
+        : '系统音色未接入 Token Plan OPENAI_API_KEY（sk-sp...），暂不可用；可改用“我的复刻声音”。';
       note.classList.toggle('ok', systemTtsKeyConfigured);
       note.hidden = voiceSource !== 'system' || systemTtsKeyConfigured;
       updateVoiceSubmitState();
@@ -1966,8 +1966,8 @@
       const voiceclone = status.voiceclone_api || {};
       const rows = [
         ['ASR API Key', keys.asr_api_key_configured || asr.api_key_configured, asr.url_configured ? `已配置 endpoint：${asr.endpoint_host || 'server'}` : '等待 CHATVOICE_ASR_API_URL'],
-        ['摘要/实时模型 Key', keys.model_api_key_configured, 'DASHSCOPE_API_KEY / OPENAI_API_KEY'],
-        ['本地声音复刻', voiceclone.url_configured || keys.voice_cloning_key_configured, voiceclone.url_configured ? `VoiceClone sidecar：${voiceclone.endpoint_host || 'local'}` : '等待 CHATVOICE_VOICECLONE_URL'],
+        ['Token Plan OPENAI_API_KEY', keys.model_api_key_configured && keys.model_api_key_is_token_plan, keys.model_api_key_is_token_plan ? 'ChatEnv ChatVoice profile · sk-sp' : '等待 ChatEnv ChatVoice profile 的 sk-sp key'],
+        ['本地声音复刻', voiceclone.url_configured, voiceclone.url_configured ? `VoiceClone sidecar：${voiceclone.endpoint_host || 'local'}` : '等待 CHATVOICE_VOICECLONE_URL'],
       ];
       $('api-key-status-list').innerHTML = rows.map(([label, ready, note]) => `
         <li><span>${escapeHtml(label)}<small> · ${escapeHtml(note)}</small></span><b class="${ready ? 'ready' : ''}">${ready ? '已配置' : '未配置'}</b></li>

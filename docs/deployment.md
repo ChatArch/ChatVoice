@@ -81,7 +81,7 @@ export CHATVOICE_ASR_API_URL="https://<asr-service>/v1/transcribe"
 chatvoice serve app --host 127.0.0.1 --port 18087
 ```
 
-Web 的 **识别设置 → 服务端 API Key** 会显示 `CHATVOICE_ASR_API_KEY`、摘要/实时模型 key、声音复刻 key 是否已配置；这里只显示状态，不在浏览器保存密钥明文。模型/摘要 key 放在服务端受保护环境或配置中，例如 `DASHSCOPE_API_KEY` / `OPENAI_API_KEY`。
+Web 的 **识别设置 → 服务端 API Key** 会显示 `CHATVOICE_ASR_API_KEY`、Token Plan `OPENAI_API_KEY` 和本地 VoiceClone sidecar 是否已配置；这里只显示状态，不在浏览器保存密钥明文。服务端配置统一放在 ChatEnv `ChatVoice` profile：`OPENAI_API_BASE` / `OPENAI_API_KEY` / `OPENAI_API_MODEL`。生产默认只接受 `sk-sp...` Token Plan key，避免普通按量 `sk-...` 误扣费。
 
 ChatVoice 会把上传音频以 multipart `file` 字段 POST 到 `CHATVOICE_ASR_API_URL`，并从 ASR JSON 响应里读取 `corrected_text`、`text`、`transcript`、`raw_text`、`data.text` 或 `result.text`。
 

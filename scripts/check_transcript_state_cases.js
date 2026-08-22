@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 const assert = require('assert').strict;
-const { splitSentences, planRevision } = require('../app/static/transcript-state.js');
+const { splitSentences, planRevision } = require('../src/chatvoice/web/static/transcript-state.js');
 
 function createHarness(existing = []) {
   return { confirmed: [...existing], rewrite: [], live: '', confirmedCount: 0 };
