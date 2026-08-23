@@ -1,6 +1,6 @@
 # 部署与启动
 
-这一页说明 v0.1.11 发布后，如何只通过 Python 包搭起一套 ChatVoice / Speakr 服务流程：安装、创建账号、启动服务、生成 API Token、读取会议/摘要数据。
+这一页说明 v0.1.12 发布后，如何只通过 Python 包搭起一套 ChatVoice / Speakr 服务流程：安装、创建账号、启动服务、生成 API Token、读取会议/摘要数据。
 
 ## 最小安装
 
@@ -8,7 +8,7 @@
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "ChatVoice[web]==0.1.11"
+python -m pip install "ChatVoice[web]==0.1.12"
 ```
 
 安装后先回读真实 CLI 树和运行目录：
@@ -66,7 +66,7 @@ http://127.0.0.1:18087/
 
 ## ASR provider：API 优先
 
-v0.1.11 的生产推荐方式是 **ChatVoice 后端通过 API 调用 ASR 服务**。这个 ASR 服务可以是：
+v0.1.12 的生产推荐方式是 **ChatVoice 后端通过 API 调用 ASR 服务**。这个 ASR 服务可以是：
 
 - 云服务 API，凭 API key 调用；
 - 自建 GPU ASR server，对外暴露 HTTP API；
@@ -85,7 +85,7 @@ Web 的 **识别设置 → 服务端 API Key** 会显示 `CHATVOICE_ASR_API_KEY`
 
 ChatVoice 会把上传音频以 multipart `file` 字段 POST 到 `CHATVOICE_ASR_API_URL`，并从 ASR JSON 响应里读取 `corrected_text`、`text`、`transcript`、`raw_text`、`data.text` 或 `result.text`。
 
-`funasr-gpu` / `funasr-cpu` 仍保留为兼容通道，但不作为默认部署建议。更灵活的做法是把 GPU runtime 独立成 ASR API server，然后让 ChatVoice 用 `api-server` 调它。
+`funasr-gpu` / `funasr-cpu` 仍保留为兼容通道，但不作为默认部署建议。0.1.12 起，生产默认要求 FunASR 在 ChatVoice 主服务进程内持久加载，并在启动时预热；短命 subprocess worker 默认禁用，因为它会每次请求/分片重新加载 GPU 模型并造成反复冷启动。只有调试时才显式设置 `CHATVOICE_FUNASR_ALLOW_SUBPROCESS_WORKER=1`。更灵活的做法是把 GPU runtime 独立成 ASR API server，然后让 ChatVoice 用 `api-server` 调它。
 
 Meeting summary 生成同样是 server-side model 边界：会议纪要模型/provider 只在服务端环境或配置存储中设置，浏览器和数据 API 只读取已保存的 summary 文本。
 
@@ -110,7 +110,7 @@ chatvoice data conversations --url http://127.0.0.1:18087 --token-env CHATVOICE_
 
 ## 数据库与并发边界
 
-v0.1.11 packaged Web app 默认使用 SQLite WAL：
+v0.1.12 packaged Web app 默认使用 SQLite WAL：
 
 ```text
 <chatarch-home>/chatvoice/data/meetings.sqlite3

@@ -1,6 +1,6 @@
 # Deployment and Startup
 
-This page explains how to run a ChatVoice / Speakr service from the released Python package in v0.1.11: install, create an account, start the service, generate an API token, and read meeting/summary data.
+This page explains how to run a ChatVoice / Speakr service from the released Python package in v0.1.12: install, create an account, start the service, generate an API token, and read meeting/summary data.
 
 ## Minimal install
 
@@ -8,7 +8,7 @@ This page explains how to run a ChatVoice / Speakr service from the released Pyt
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "ChatVoice[web]==0.1.11"
+python -m pip install "ChatVoice[web]==0.1.12"
 ```
 
 Read back the real CLI tree and runtime paths first:
@@ -66,7 +66,7 @@ For production, put the service behind a controlled reverse proxy. API keys stay
 
 ## ASR provider: API first
 
-The recommended production shape in v0.1.11 is **ChatVoice calls ASR through an API provider**. That provider can be:
+The recommended production shape in v0.1.12 is **ChatVoice calls ASR through an API provider**. That provider can be:
 
 - a managed cloud ASR API with an API key;
 - a self-hosted GPU ASR server exposing HTTP;
@@ -85,7 +85,7 @@ The browser **Settings → Server-side API Key** panel shows whether `CHATVOICE_
 
 ChatVoice sends uploaded audio to `CHATVOICE_ASR_API_URL` as multipart field `file` and reads `corrected_text`, `text`, `transcript`, `raw_text`, `data.text`, or `result.text` from the ASR JSON response.
 
-`funasr-gpu` and `funasr-cpu` remain as compatibility channels, but they are not the recommended default deployment shape. For flexible operations, run the GPU runtime as a separate ASR API server and let ChatVoice call it through `api-server`.
+`funasr-gpu` / `funasr-cpu` remain compatibility channels, but they are not the default recommended deployment. Starting with 0.1.12, production requires FunASR to load persistently inside the ChatVoice service process and prewarm during startup by default; the short-lived subprocess worker is disabled by default because it reloads the GPU model per request/chunk and causes repeated cold starts. Enable `CHATVOICE_FUNASR_ALLOW_SUBPROCESS_WORKER=1` only for explicit debugging. A more flexible approach is to run the GPU runtime as an ASR API server and let ChatVoice call it through `api-server`.
 
 Meeting summary generation is also a server-side model boundary: configure the notes model/provider in server-side environment or config storage, and let the browser/API read only the saved summary text.
 
@@ -110,7 +110,7 @@ See [API Access](api-access.md) for details.
 
 ## Database and concurrency boundary
 
-The v0.1.11 packaged web app uses SQLite WAL by default:
+The v0.1.12 packaged web app uses SQLite WAL by default:
 
 ```text
 <chatarch-home>/chatvoice/data/meetings.sqlite3

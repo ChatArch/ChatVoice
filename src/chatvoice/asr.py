@@ -57,9 +57,9 @@ def get_asr_channels() -> dict[str, object]:
             "funasr-gpu": {
                 "label": "FunASR GPU local worker",
                 "engine": "funasr",
-                "status": "optional-local-worker",
+                "status": "persistent-prewarm",
                 "device": os.getenv("FUNASR_GPU_DEVICE", "cuda:0"),
-                "notes": "Optional compatibility mode. Prefer api-server for flexible GPU deployment.",
+                "notes": "Compatibility mode: use only when FunASR/torch are installed in the main service process or when an explicit ASR API server is not available. Do not rely on short-lived workers in production.",
             },
             "funasr-cpu": {
                 "label": "FunASR CPU fallback",
