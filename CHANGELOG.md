@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.13 - 2026-08-23
+
+### Fixed
+
+- Destructive recorder actions now interrupt active recording resources before clearing or switching records. Clearing the current session, creating a new meeting, and deleting the active meeting close the live ASR WebSocket, stop microphone tracks, close the audio graph, clear timers and pending ASR commits, and ignore late ASR events from the interrupted stream.
+- Add regression coverage for recorder boundary cases that previously allowed recording to continue after delete/clear/new-meeting actions.
+
 ## 0.1.12 - 2026-08-23
 
 ### Fixed

@@ -1,6 +1,6 @@
 # Runtime Layout and Data Structure
 
-This page documents where `pip install "ChatVoice[web]==0.1.12"` installs code, where runtime data is written by default, and which data lives in SQLite versus the browser.
+This page documents where `pip install "ChatVoice[web]==0.1.13"` installs code, where runtime data is written by default, and which data lives in SQLite versus the browser.
 
 ## Code install location
 
@@ -121,7 +121,7 @@ chatvoice data import backup.sqlite3 --yes --json
 
 ## High-concurrency TODO
 
-The `0.1.12` packaged storage supports SQLite WAL. It is suitable for one service process, light concurrency, and controlled internal use:
+The `0.1.13` packaged storage supports SQLite WAL. It is suitable for one service process, light concurrency, and controlled internal use:
 
 ```bash
 chatvoice serve app --workers 1

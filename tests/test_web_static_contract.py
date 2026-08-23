@@ -137,11 +137,71 @@ def test_title_refresh_quick_new_and_reset_confirmation_are_exposed():
     reset_body = _function_body(source, "requestResetSession")
     assert "confirm(" in reset_body
     assert "确定清空这一次录音/会议内容吗" in reset_body
+    assert "interruptActiveRecording({ reason: 'reset'" in reset_body
     assert "resetSession()" in reset_body
 
     assert "refresh-title').addEventListener('click', refreshMeetingTitle" in source
     assert "quick-new-meeting').addEventListener('click', () => createNewMeeting()" in source
     assert "reset-recording').addEventListener('click', requestResetSession" in source
+
+
+def test_destructive_meeting_actions_interrupt_active_recording_resources_first():
+    source = _script_source()
+    active_guard = "['connecting', 'recording', 'paused', 'finishing'].includes(recorderState)"
+
+    assert "function interruptActiveRecording" in source
+    interrupt_body = _function_body(source, "interruptActiveRecording")
+    for marker in [
+        "contentEpoch += 1",
+        "clearTimeout(finishFallbackTimer)",
+        "stopTimer()",
+        "sendingAudio = false",
+        "asrWindowCommitPending = false",
+        "pauseCommitPending = false",
+        "asrStreamWs.onmessage = null",
+        "asrStreamWs.onclose = null",
+        "asrStreamWs.onerror = null",
+        "asrStreamWs.close(",
+        "stopCaptureGraph()",
+        "updateRecorderUi('idle'",
+    ]:
+        assert marker in interrupt_body
+
+    reset_body = _function_body(source, "resetSession")
+    assert "interruptActiveRecording({ reason: 'reset-session'" in reset_body
+    assert reset_body.index("interruptActiveRecording({ reason: 'reset-session'") < reset_body.index("transcriptSegments = []")
+
+    request_reset_body = _function_body(source, "requestResetSession")
+    assert "interruptActiveRecording({ reason: 'reset'" in request_reset_body
+    assert request_reset_body.index("interruptActiveRecording({ reason: 'reset'") < request_reset_body.index("resetSession()")
+
+    create_body = _function_body(source, "createNewMeeting")
+    assert "请先结束当前录音" not in create_body
+    assert active_guard in create_body
+    assert "interruptActiveRecording({ reason: 'new-meeting'" in create_body
+    assert create_body.index("interruptActiveRecording({ reason: 'new-meeting'") < create_body.index("if (activeMeetingId && !showingDemo) await saveActiveMeeting()")
+
+    delete_body = _function_body(source, "deleteMeetingRecord")
+    assert active_guard in delete_body
+    assert "interruptActiveRecording({ reason: 'delete-meeting'" in delete_body
+    assert delete_body.index("interruptActiveRecording({ reason: 'delete-meeting'") < delete_body.index("await removeStoredMeeting")
+
+
+def test_late_asr_events_are_ignored_after_destructive_recording_interrupt():
+    source = _script_source()
+
+    assert "let activeAsrSessionToken" in source
+    start_body = _function_body(source, "startRecordingSession")
+    assert "const streamToken = ++activeAsrSessionToken" in start_body
+    assert "if (streamToken !== activeAsrSessionToken) return" in start_body
+
+    interrupt_body = _function_body(source, "interruptActiveRecording")
+    assert "activeAsrSessionToken += 1" in interrupt_body
+
+    handler_body = _function_body(source, "handleAsrEvent")
+    assert "if (payload.session_token" in handler_body
+    assert "payload.session_token !== activeAsrSessionToken" in handler_body
+    assert "return" in handler_body.split("payload.session_token !== activeAsrSessionToken", 1)[1].split(";", 1)[0] + ";"
 
 
 def test_homepage_toolbar_uses_left_history_menu_and_right_settings_menu_only():
