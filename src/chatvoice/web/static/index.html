@@ -1141,6 +1141,7 @@
     let lastAsrWindowCommitAt = 0;
     let sessionStartedAt = null;
     let asrStreamWs = null;
+    let activeAsrSessionToken = 0;
     let audioContext = null;
     let audioSource = null;
     let audioProcessor = null;
@@ -2682,10 +2683,10 @@
       }
     }
 
-    async function createNewMeeting({ announce = true } = {}) {
-      if (['recording', 'paused', 'connecting', 'finishing'].includes(recorderState)) {
-        showToast('请先结束当前录音');
-        return;
+    async function createNewMeeting(options) {
+      const { announce = true } = options || {};
+      if (['connecting', 'recording', 'paused', 'finishing'].includes(recorderState)) {
+        interruptActiveRecording({ reason: 'new-meeting', message: '录音已中断，正在建立新会议…' });
       }
       if (!storageMode) return showEntryDialog();
       if (activeMeetingId && !showingDemo) await saveActiveMeeting();
@@ -2707,6 +2708,9 @@
         if (activeMeetingId === meetingId) {
           clearTimeout(meetingSaveTimer);
           meetingSaveTimer = null;
+          if (['connecting', 'recording', 'paused', 'finishing'].includes(recorderState)) {
+            interruptActiveRecording({ reason: 'delete-meeting', message: '录音已中断，正在删除这条会议…' });
+          }
           await meetingSaveChain.catch(() => {});
         }
         await removeStoredMeeting(meetingId);
@@ -3147,6 +3151,7 @@
     }
 
     function handleAsrEvent(payload) {
+      if (payload.session_token && payload.session_token !== activeAsrSessionToken) return;
       if (payload.demo_event === 'asr.stream.ready' || payload.demo_event === 'asr.stream.started') {
         if (storageMode === 'guest' && Number(payload.max_connection_seconds) > 0) asrPassLimitSeconds = Number(payload.max_connection_seconds);
         updateRecordingLimitUi();
@@ -3195,7 +3200,36 @@
       }
     }
 
-    function resetSession({ announce = true, persist = true } = {}) {
+    function interruptActiveRecording(options) {
+      const { reason = 'interrupt', message = '' } = options || {};
+      const wasActive = ['connecting', 'recording', 'paused', 'finishing'].includes(recorderState);
+      activeAsrSessionToken += 1;
+      contentEpoch += 1;
+      cancelSummaryWork();
+      clearTimeout(finishFallbackTimer);
+      finishFallbackTimer = null;
+      stopTimer();
+      sendingAudio = false;
+      asrWindowCommitPending = false;
+      pauseCommitPending = false;
+      lastAsrWindowCommitAt = 0;
+      if (asrStreamWs) {
+        asrStreamWs.onmessage = null;
+        asrStreamWs.onclose = null;
+        asrStreamWs.onerror = null;
+        try {
+          if (asrStreamWs.readyState === WebSocket.OPEN || asrStreamWs.readyState === WebSocket.CONNECTING) asrStreamWs.close(1000, reason);
+        } catch (_) {}
+        asrStreamWs = null;
+      }
+      stopCaptureGraph();
+      if (wasActive) updateRecorderUi('idle', message || '录音已中断，麦克风和识别连接已关闭');
+      return wasActive;
+    }
+
+    function resetSession(options) {
+      const { announce = true, persist = true } = options || {};
+      interruptActiveRecording({ reason: 'reset-session', message: announce ? '内容已清空，可以开始新录音' : '正在准备新录音…' });
       cancelSummaryWork();
       clearTimeout(finishFallbackTimer);
       finishFallbackTimer = null;
@@ -3244,6 +3278,7 @@
         const ok = confirm('确定清空这一次录音/会议内容吗？已显示的文字和摘要会从当前页面移除。');
         if (!ok) return;
       }
+      interruptActiveRecording({ reason: 'reset', message: '录音已中断，正在清空内容…' });
       resetSession();
     }
 
@@ -3309,23 +3344,36 @@
       $('created-at').textContent = new Intl.DateTimeFormat('zh-CN', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(activeMeetingCreatedAt));
       $('live-text').innerHTML = '<span class="typing-caret"></span>';
       updateRecorderUi('connecting', continuingMeeting ? '正在继续当前会议…' : undefined);
+      const streamToken = ++activeAsrSessionToken;
       asrStreamWs = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/asr/stream`);
       asrStreamWs.onopen = async () => {
+        if (streamToken !== activeAsrSessionToken) return;
         try {
           asrStreamWs.send(JSON.stringify({ type: 'asr.stream.start', channel: $('asr-channel').value || 'funasr-gpu', sample_rate: 16000, chunk_seconds: 3 }));
           await startMicrophoneCapture();
+          if (streamToken !== activeAsrSessionToken) {
+            stopCaptureGraph();
+            return;
+          }
           sendingAudio = true;
           updateRecorderUi('recording');
           startTimer();
         } catch (error) {
+          if (streamToken !== activeAsrSessionToken) return;
           stopCaptureGraph();
           if (asrStreamWs && asrStreamWs.readyState === WebSocket.OPEN) asrStreamWs.close();
           updateRecorderUi('error', error && error.name === 'NotAllowedError' ? '未获得麦克风权限，请在浏览器设置中允许' : '无法打开麦克风，请检查输入设备');
         }
       };
-      asrStreamWs.onmessage = (event) => { try { handleAsrEvent(JSON.parse(event.data)); } catch (_) {} };
-      asrStreamWs.onerror = () => updateRecorderUi('error', '无法连接实时转写服务');
-      asrStreamWs.onclose = () => { if (recorderState === 'recording' || recorderState === 'connecting') updateRecorderUi('error', '实时转写连接已断开'); };
+      asrStreamWs.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+          payload.session_token = streamToken;
+          handleAsrEvent(payload);
+        } catch (_) {}
+      };
+      asrStreamWs.onerror = () => { if (streamToken === activeAsrSessionToken) updateRecorderUi('error', '无法连接实时转写服务'); };
+      asrStreamWs.onclose = () => { if (streamToken === activeAsrSessionToken && (recorderState === 'recording' || recorderState === 'connecting')) updateRecorderUi('error', '实时转写连接已断开'); };
     }
 
     function pauseRecording() {
