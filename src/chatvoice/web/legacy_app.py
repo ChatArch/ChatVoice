@@ -76,6 +76,11 @@ def _env_value(*names: str, default: str = "") -> str:
     return default
 
 
+def _env_bool(*names: str, default: bool = False) -> bool:
+    raw = _env_value(*names, default="1" if default else "")
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
 _RUNTIME_PATHS = state_paths()
 RUNTIME_ROOT = _RUNTIME_PATHS.root
 PROJECT_ROOT = RUNTIME_ROOT
@@ -87,6 +92,8 @@ TTS_MODEL = "qwen-audio-3.0-tts-plus"
 DEFAULT_VOICE = "longanlingxin"
 FUNASR_MODEL = _env_value("FUNASR_MODEL", default="iic/SenseVoiceSmall")
 FUNASR_GPU_DEVICE = _env_value("FUNASR_GPU_DEVICE", default="cuda:0")
+ASR_PREWARM = _env_bool("CHATVOICE_ASR_PREWARM", default=True)
+ALLOW_FUNASR_SUBPROCESS_WORKER = _env_bool("CHATVOICE_FUNASR_ALLOW_SUBPROCESS_WORKER", "ALLOW_FUNASR_SUBPROCESS_WORKER")
 ASR_API_URL = _env_value("CHATVOICE_ASR_API_URL", "ASR_API_URL").strip()
 ASR_API_KEY = _env_value("CHATVOICE_ASR_API_KEY", "ASR_API_KEY").strip()
 ASR_API_TIMEOUT_SECONDS = float(_env_value("CHATVOICE_ASR_API_TIMEOUT_SECONDS", default="120"))
@@ -123,8 +130,8 @@ ASR_CHANNELS: dict[str, dict[str, Any]] = {
         "label": "FunASR GPU（CUDA PyTorch + SenseVoiceSmall）",
         "engine": "funasr",
         "device": FUNASR_GPU_DEVICE,
-        "status": "lazy-load",
-        "notes": "默认真实 ASR 通道；通过 .venv-asr-gpu worker 使用 CUDA PyTorch/FunASR。",
+        "status": "persistent-prewarm" if DEFAULT_ASR_CHANNEL == "funasr-gpu" and ASR_PREWARM else "persistent-required",
+        "notes": "真实 ASR 通道；生产要求 FunASR 在 ChatVoice 主服务进程内持久加载并启动预热。短命 subprocess worker 默认禁用。",
     },
     "funasr-cpu": {
         "label": "FunASR CPU（fallback / debug）",
@@ -1675,6 +1682,33 @@ def _get_cached_funasr_model(model_name: str, device: str) -> tuple[Any, threadi
     return model, model_lock
 
 
+def _prewarm_asr_if_configured() -> dict[str, Any]:
+    """Load the default persistent ASR model during service startup when configured."""
+
+    if not ASR_PREWARM:
+        return {"prewarmed": False, "reason": "CHATVOICE_ASR_PREWARM disabled"}
+    if DEFAULT_ASR_CHANNEL not in {"funasr-gpu", "funasr-cpu"}:
+        return {"prewarmed": False, "reason": f"channel={DEFAULT_ASR_CHANNEL}"}
+    device = FUNASR_GPU_DEVICE if DEFAULT_ASR_CHANNEL == "funasr-gpu" else "cpu"
+    started = time.monotonic()
+    _get_cached_funasr_model(FUNASR_MODEL, device)
+    elapsed_ms = round((time.monotonic() - started) * 1000)
+    logger.info("FunASR startup prewarm complete channel=%s model=%s device=%s elapsed_ms=%d", DEFAULT_ASR_CHANNEL, FUNASR_MODEL, device, elapsed_ms)
+    return {"prewarmed": True, "channel": DEFAULT_ASR_CHANNEL, "model": FUNASR_MODEL, "device": device, "elapsed_ms": elapsed_ms}
+
+
+@app.on_event("startup")
+def _startup_prewarm_asr() -> None:
+    try:
+        result = _prewarm_asr_if_configured()
+        if result.get("prewarmed"):
+            logger.info("ASR persistent model prewarmed: %s", result)
+    except Exception as exc:
+        logger.exception("ASR persistent model prewarm failed: %s", type(exc).__name__)
+        if DEFAULT_ASR_CHANNEL in {"funasr-gpu", "funasr-cpu"} and not ALLOW_FUNASR_SUBPROCESS_WORKER:
+            raise
+
+
 def _funasr_asr(audio_bytes: bytes, filename: str, channel: str, device: str) -> dict[str, Any]:
     source_path = _write_upload_to_temp(audio_bytes, filename)
     try:
@@ -1700,6 +1734,14 @@ def _funasr_asr(audio_bytes: bytes, filename: str, channel: str, device: str) ->
         except Exception as inproc_exc:
             worker_python = _funasr_worker_python(device)
             worker = Path(os.getenv("CHATVOICE_FUNASR_WORKER", str(PACKAGE_ROOT / "scripts" / "funasr_worker.py"))).expanduser()
+            if not ALLOW_FUNASR_SUBPROCESS_WORKER:
+                raise RuntimeError(
+                    f"Persistent FunASR model is not available in the ChatVoice service process for {channel}. "
+                    "Install CUDA PyTorch/FunASR into the main service venv or configure CHATVOICE_ASR_CHANNEL=api-server. "
+                    "The short-lived subprocess worker is disabled by default because it reloads the GPU model per request/chunk and causes repeated cold starts. "
+                    "Set CHATVOICE_FUNASR_ALLOW_SUBPROCESS_WORKER=1 only for explicit debugging/compatibility. "
+                    f"In-process error: {type(inproc_exc).__name__}: {str(inproc_exc)[:200]}"
+                ) from inproc_exc
             if worker_python is None:
                 raise RuntimeError(
                     f"FunASR {channel} worker is not ready. Create .venv-asr-gpu with CUDA PyTorch/FunASR "

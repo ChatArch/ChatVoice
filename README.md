@@ -46,7 +46,7 @@ The former `qwen-audio-demo.public.wzhecnu.cn` entry is retired and returns HTTP
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "ChatVoice[web]==0.1.11"
+python -m pip install "ChatVoice[web]==0.1.12"
 
 chatvoice --tree
 chatvoice --tree-brief
@@ -115,7 +115,7 @@ chatvoice data conversations --url http://127.0.0.1:18087 --token-env CHATVOICE_
 
 ## Database and concurrency
 
-The packaged v0.1.11 web app stores service data in one SQLite WAL file at:
+The packaged v0.1.12 web app stores service data in one SQLite WAL file at:
 
 ```text
 <chatarch-home>/chatvoice/data/meetings.sqlite3
@@ -137,7 +137,7 @@ Use one service process (`--workers 1`) with SQLite. Back up and move data with 
 └── model-cache/
 ```
 
-后端 SQLite `meetings.sqlite3` 目前包含 `accounts`、`auth_sessions`、`api_tokens`、`meeting_records`、`conversation_records`。转写、summary、实时对话消息以 JSON 字符串保存；原始音频不进后端数据库。访客模式仍使用浏览器 IndexedDB 保存本地会议文字和摘要，不保存录音分片。当前 `0.1.11` 支持 SQLite WAL + 单服务进程；数据备份/迁移使用 CLI 单文件 dump/restore。高并发 Postgres/MySQL 是未来单独 storage-layer migration。详见 [运行目录与数据结构](docs/runtime-layout.md) 和 [录音保存边界](docs/recording-storage.md)。
+后端 SQLite `meetings.sqlite3` 目前包含 `accounts`、`auth_sessions`、`api_tokens`、`meeting_records`、`conversation_records`。转写、summary、实时对话消息以 JSON 字符串保存；原始音频不进后端数据库。访客模式仍使用浏览器 IndexedDB 保存本地会议文字和摘要，不保存录音分片。当前 `0.1.12` 支持 SQLite WAL + 单服务进程；数据备份/迁移使用 CLI 单文件 dump/restore。高并发 Postgres/MySQL 是未来单独 storage-layer migration。详见 [运行目录与数据结构](docs/runtime-layout.md) 和 [录音保存边界](docs/recording-storage.md)。
 
 ## API surface
 

@@ -1,4 +1,19 @@
+import io
+import wave
+
+import pytest
+
 from chatvoice import __version__
+
+
+def _tiny_wav_bytes() -> bytes:
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(16000)
+        wav.writeframes(b"\0\0" * 1600)
+    return buffer.getvalue()
 
 
 def test_packaged_web_app_factory_exposes_core_routes(monkeypatch, tmp_path):
@@ -165,6 +180,69 @@ def test_heartbeat_exposes_asr_health_without_secret_values(monkeypatch, tmp_pat
         assert payload["database"]["ok"] is True
         assert payload["asr"]["default_channel"] == "stub-local"
         assert payload["asr"]["status"] == "ready"
+    finally:
+        sys.modules.pop(module_name, None)
+
+
+def test_funasr_gpu_requires_persistent_model_by_default(monkeypatch, tmp_path):
+    """Do not silently fall back to a short-lived worker that reloads GPU ASR per chunk."""
+    import importlib
+    import sys
+
+    module_name = "chatvoice.web.legacy_app"
+    sys.modules.pop(module_name, None)
+    monkeypatch.setenv("CHATVOICE_HOME", str(tmp_path / "chatvoice-home"))
+    monkeypatch.setenv("CHATVOICE_ASR_CHANNEL", "funasr-gpu")
+    monkeypatch.delenv("CHATVOICE_FUNASR_ALLOW_SUBPROCESS_WORKER", raising=False)
+    fake_worker_python = tmp_path / "asr-venv" / "bin" / "python"
+    fake_worker_python.parent.mkdir(parents=True)
+    fake_worker_python.write_text("#!/usr/bin/env python\n", encoding="utf-8")
+    monkeypatch.setenv("ASR_GPU_VENV", str(tmp_path / "asr-venv"))
+    (tmp_path / "chatvoice-home" / "data").mkdir(parents=True)
+    try:
+        legacy_app = importlib.import_module(module_name)
+
+        def fail_in_process(*_args, **_kwargs):
+            raise ImportError("funasr missing from service venv")
+
+        def forbidden_subprocess(*_args, **_kwargs):
+            raise AssertionError("short-lived FunASR subprocess worker was spawned")
+
+        monkeypatch.setattr(legacy_app, "_get_cached_funasr_model", fail_in_process)
+        monkeypatch.setattr(legacy_app.subprocess, "run", forbidden_subprocess)
+
+        with pytest.raises(RuntimeError) as exc_info:
+            legacy_app._funasr_asr(_tiny_wav_bytes(), "coldstart.wav", "funasr-gpu", "cuda:0")
+
+        message = str(exc_info.value)
+        assert "persistent" in message.lower()
+        assert "CHATVOICE_FUNASR_ALLOW_SUBPROCESS_WORKER" in message
+    finally:
+        sys.modules.pop(module_name, None)
+
+
+def test_startup_prewarms_default_funasr_gpu_model(monkeypatch, tmp_path):
+    import importlib
+    import sys
+
+    module_name = "chatvoice.web.legacy_app"
+    sys.modules.pop(module_name, None)
+    monkeypatch.setenv("CHATVOICE_HOME", str(tmp_path / "chatvoice-home"))
+    monkeypatch.setenv("CHATVOICE_ASR_CHANNEL", "funasr-gpu")
+    monkeypatch.delenv("CHATVOICE_ASR_PREWARM", raising=False)
+    (tmp_path / "chatvoice-home" / "data").mkdir(parents=True)
+    try:
+        legacy_app = importlib.import_module(module_name)
+        calls = []
+
+        def fake_get_cached(model_name, device):
+            calls.append((model_name, device))
+            return object(), object()
+
+        monkeypatch.setattr(legacy_app, "_get_cached_funasr_model", fake_get_cached)
+        legacy_app._prewarm_asr_if_configured()
+
+        assert calls == [(legacy_app.FUNASR_MODEL, legacy_app.FUNASR_GPU_DEVICE)]
     finally:
         sys.modules.pop(module_name, None)
 

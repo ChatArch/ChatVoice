@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.12 - 2026-08-23
+
+### Fixed
+
+- Stop silently falling back from in-process FunASR to a short-lived subprocess worker by default. The subprocess compatibility path reloads the GPU ASR model per request/chunk and can cause repeated one-minute cold starts.
+- Add startup prewarming for persistent FunASR channels (`CHATVOICE_ASR_PREWARM=1` by default), so the model loads during service startup rather than when the user starts a recording.
+- Add explicit `CHATVOICE_FUNASR_ALLOW_SUBPROCESS_WORKER=0` production guidance; enable it only for debugging/compatibility.
+
 ## 0.1.11 - 2026-08-22
 
 ### Changed

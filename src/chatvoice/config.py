@@ -37,6 +37,16 @@ class ChatVoiceConfig(BaseEnvConfig):
         desc="Optional ASR API bearer token",
         is_sensitive=True,
     )
+    CHATVOICE_ASR_PREWARM = EnvField(
+        "CHATVOICE_ASR_PREWARM",
+        default="1",
+        desc="Preload persistent FunASR model during service startup when a FunASR channel is selected.",
+    )
+    CHATVOICE_FUNASR_ALLOW_SUBPROCESS_WORKER = EnvField(
+        "CHATVOICE_FUNASR_ALLOW_SUBPROCESS_WORKER",
+        default="0",
+        desc="Compatibility/debug only: allow short-lived FunASR subprocess workers that reload models per request. Keep disabled in production.",
+    )
     CHATVOICE_HOME = EnvField(
         "CHATVOICE_HOME",
         desc="Override ChatVoice runtime root. Defaults to $CHATARCH_HOME/chatvoice or ~/.chatarch/chatvoice.",
