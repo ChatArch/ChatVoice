@@ -20,6 +20,7 @@ The former `qwen-audio-demo.public.wzhecnu.cn` entry is retired and returns HTTP
 - **会议记录首页**: mobile-first recording surface with live transcript, waveform, pause/resume, and finish flow. Audio is used for realtime transcription; the product saves text and summaries, not recording files.
 - **暂停整理**: pausing a recording commits the current ASR window so pending live/rewrite text can be finalized before continuing.
 - **标题刷新与新建快捷入口**: the recorder header includes direct `刷新标题` and `新建` buttons for full-session title regeneration and faster mobile topic creation.
+- **会议标签**: the recorder header includes a compact `#` tag picker. Meetings default to no tags, support multi-select `thought` / `diary` presets plus repeated custom tags, and expose tags through web storage and API-token data reads.
 - **清空防误触**: resetting a meeting with existing text/summary state requires confirmation.
 - **原始录音不保存**: 当前会议记录功能不提供“保存录音”或“下载录音”。服务器只保存文字、摘要和会议元数据；访客模式只在浏览器保存文字/摘要。详见 [录音保存边界](docs/recording-storage.md)。
 - **语音转写**: the recorder streams microphone PCM16 to the ASR WebSocket and appends normalized final segments to the timeline.
@@ -46,7 +47,7 @@ The former `qwen-audio-demo.public.wzhecnu.cn` entry is retired and returns HTTP
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "ChatVoice[web]==0.1.13"
+python -m pip install "ChatVoice[web]==0.1.14"
 
 chatvoice --tree
 chatvoice --tree-brief
@@ -115,7 +116,7 @@ chatvoice data conversations --url http://127.0.0.1:18087 --token-env CHATVOICE_
 
 ## Database and concurrency
 
-The packaged v0.1.13 web app stores service data in one SQLite WAL file at:
+The packaged v0.1.14 web app stores service data in one SQLite WAL file at:
 
 ```text
 <chatarch-home>/chatvoice/data/meetings.sqlite3
@@ -137,7 +138,7 @@ Use one service process (`--workers 1`) with SQLite. Back up and move data with 
 └── model-cache/
 ```
 
-后端 SQLite `meetings.sqlite3` 目前包含 `accounts`、`auth_sessions`、`api_tokens`、`meeting_records`、`conversation_records`。转写、summary、实时对话消息以 JSON 字符串保存；原始音频不进后端数据库。访客模式仍使用浏览器 IndexedDB 保存本地会议文字和摘要，不保存录音分片。当前 `0.1.13` 支持 SQLite WAL + 单服务进程；数据备份/迁移使用 CLI 单文件 dump/restore。高并发 Postgres/MySQL 是未来单独 storage-layer migration。详见 [运行目录与数据结构](docs/runtime-layout.md) 和 [录音保存边界](docs/recording-storage.md)。
+后端 SQLite `meetings.sqlite3` 目前包含 `accounts`、`auth_sessions`、`api_tokens`、`meeting_records`、`conversation_records`。转写、summary、会议标签、实时对话消息以 JSON 字符串保存；原始音频不进后端数据库。访客模式仍使用浏览器 IndexedDB 保存本地会议文字、标签和摘要，不保存录音分片。当前 `0.1.14` 支持 SQLite WAL + 单服务进程；数据备份/迁移使用 CLI 单文件 dump/restore。高并发 Postgres/MySQL 是未来单独 storage-layer migration。详见 [运行目录与数据结构](docs/runtime-layout.md) 和 [录音保存边界](docs/recording-storage.md)。
 
 ## API surface
 
@@ -160,10 +161,10 @@ Use one service process (`--workers 1`) with SQLite. Back up and move data with 
 - `POST /api/meeting-notes/polish`: Qwen-compatible chat completion endpoint for transcript polish + realtime summary structure.
 - `POST /api/auth/register`: intentionally returns `403`; self-registration is disabled.
 - `POST /api/auth/login`, `GET /api/auth/session`, `POST /api/auth/logout`: invited-account session lifecycle.
-- `GET|PUT|DELETE /api/meetings[/<id>]`: authenticated meeting record storage. Writes require the session CSRF token.
+- `GET|PUT|DELETE /api/meetings[/<id>]`: authenticated meeting record storage, including optional `tags: string[]` metadata. Writes require the session CSRF token.
 - `GET|PUT|DELETE /api/conversations[/<id>]`: authenticated text-only Realtime conversation storage. Writes require the session CSRF token.
 - `GET|POST /api/tokens`, `DELETE /api/tokens/<id>`: signed-in session token management.
-- `GET /api/data/meetings[/<id>]`, `GET /api/data/conversations[/<id>]`: bearer-token data export for meetings, summaries, and realtime conversations.
+- `GET /api/data/meetings[/<id>]`, `GET /api/data/conversations[/<id>]`: bearer-token data export for meetings, tags, summaries, and realtime conversations.
 
 ## Verification
 

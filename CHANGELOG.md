@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.14 - 2026-08-26
+
+### Added
+
+- Add meeting tags to the Speakr recorder: signed-in and guest meetings now carry a `tags` metadata list, with default empty tags for existing records.
+- Add a compact `#` tag picker in the meeting header with multi-select `thought` / `diary` presets, a `None` clear action, removable selected chips, and repeated custom tag entry.
+- Expose meeting tags through authenticated meeting storage and bearer-token data exports so `chatvoice data meetings --json` and `chatvoice data meeting <id> --json` include tag metadata.
+
+### Changed
+
+- Extend the SQLite `meeting_records` schema with a non-destructive `tags_json TEXT NOT NULL DEFAULT '[]'` migration; existing databases remain readable and old meetings default to `[]`.
+
 ## 0.1.13 - 2026-08-23
 
 ### Fixed

@@ -171,6 +171,9 @@ _MEETING_DB_LOCK = threading.Lock()
 AUTH_COOKIE_NAME = "meeting_session"
 AUTH_SESSION_DAYS = 30
 PASSWORD_ITERATIONS = 310_000
+MAX_MEETING_TAGS = 24
+MAX_MEETING_TAG_LENGTH = 40
+MEETING_TAG_FORBIDDEN_CHARS = set('<>"`\\')
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://127.0.0.1", "http://localhost", "http://127.0.0.1:18087", "http://localhost:18087"],
@@ -229,6 +232,7 @@ class MeetingRecordInput(BaseModel):
     created_at: str = Field(..., min_length=1, max_length=64)
     updated_at: str = Field(..., min_length=1, max_length=64)
     duration_seconds: int = Field(0, ge=0, le=24 * 60 * 60)
+    tags: list[str] = Field(default_factory=list, max_length=MAX_MEETING_TAGS)
     transcript_segments: list[StoredTranscriptSegment] = Field(default_factory=list, max_length=500)
     summary_title: str = Field("", max_length=500)
     summary_content: str = Field("", max_length=20000)
@@ -540,6 +544,44 @@ def _validated_record_key(value: str, label: str) -> str:
     return normalized
 
 
+def _normalize_meeting_tag_value(value: object) -> str:
+    normalized = " ".join(str(value or "").strip().split())
+    if not normalized or normalized.casefold() == "none":
+        return ""
+    if len(normalized) > MAX_MEETING_TAG_LENGTH:
+        raise HTTPException(status_code=400, detail=f"meeting tag must be {MAX_MEETING_TAG_LENGTH} characters or fewer")
+    if any(char in MEETING_TAG_FORBIDDEN_CHARS for char in normalized):
+        raise HTTPException(status_code=400, detail="meeting tag contains unsupported characters")
+    return normalized.casefold() if normalized.isascii() else normalized
+
+
+def _normalize_meeting_tags(values: list[str] | tuple[str, ...] | None) -> list[str]:
+    tags: list[str] = []
+    seen: set[str] = set()
+    for raw in values or []:
+        tag = _normalize_meeting_tag_value(raw)
+        if not tag:
+            continue
+        key = tag.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        tags.append(tag)
+        if len(tags) > MAX_MEETING_TAGS:
+            raise HTTPException(status_code=400, detail=f"meeting tags are limited to {MAX_MEETING_TAGS} values")
+    return tags
+
+
+def _meeting_tags_from_row(row: sqlite3.Row) -> list[str]:
+    if "tags_json" not in row.keys():
+        return []
+    try:
+        raw = json.loads(row["tags_json"])
+        return _normalize_meeting_tags(raw if isinstance(raw, list) else [])
+    except Exception:
+        return []
+
+
 def _normalized_account(value: str) -> str:
     account = value.strip().casefold()
     if not re.fullmatch(r"[a-z0-9][a-z0-9_.+@-]{2,79}", account):
@@ -652,6 +694,8 @@ def _meeting_db() -> sqlite3.Connection:
         connection.execute("ALTER TABLE meeting_records ADD COLUMN summary_customized INTEGER NOT NULL DEFAULT 0")
     if "summary_chat_json" not in meeting_columns:
         connection.execute("ALTER TABLE meeting_records ADD COLUMN summary_chat_json TEXT NOT NULL DEFAULT '[]'")
+    if "tags_json" not in meeting_columns:
+        connection.execute("ALTER TABLE meeting_records ADD COLUMN tags_json TEXT NOT NULL DEFAULT '[]'")
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS conversation_records (
@@ -925,6 +969,7 @@ def _meeting_row_payload(row: sqlite3.Row, include_content: bool) -> dict[str, A
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
         "duration_seconds": row["duration_seconds"],
+        "tags": _meeting_tags_from_row(row),
         "preview": row["preview"],
     }
     if include_content:
@@ -993,6 +1038,7 @@ def upsert_meeting(meeting_id: str, record: MeetingRecordInput, request: Request
     record_id = _validated_record_key(meeting_id, "meeting id")
     segments = [segment.model_dump() for segment in record.transcript_segments]
     summary_chat_messages = [message.model_dump() for message in record.summary_chat_messages]
+    tags = _normalize_meeting_tags(record.tags)
     preview = " ".join(segment["text"] for segment in segments)[:120]
     with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
         connection.execute(
@@ -1000,8 +1046,8 @@ def upsert_meeting(meeting_id: str, record: MeetingRecordInput, request: Request
             INSERT INTO meeting_records (
                 owner_id, meeting_id, title, created_at, updated_at, duration_seconds,
                 transcript_json, summary_title, summary_content, summary_customized,
-                summary_chat_json, preview
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                summary_chat_json, tags_json, preview
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(owner_id, meeting_id) DO UPDATE SET
                 title = excluded.title,
                 updated_at = excluded.updated_at,
@@ -1011,6 +1057,7 @@ def upsert_meeting(meeting_id: str, record: MeetingRecordInput, request: Request
                 summary_content = excluded.summary_content,
                 summary_customized = excluded.summary_customized,
                 summary_chat_json = excluded.summary_chat_json,
+                tags_json = excluded.tags_json,
                 preview = excluded.preview
             """,
             (
@@ -1025,6 +1072,7 @@ def upsert_meeting(meeting_id: str, record: MeetingRecordInput, request: Request
                 record.summary_content,
                 int(record.summary_customized),
                 json.dumps(summary_chat_messages, ensure_ascii=False),
+                json.dumps(tags, ensure_ascii=False),
                 preview,
             ),
         )

@@ -1,6 +1,6 @@
 # API 访问
 
-ChatVoice 0.1.13 提供从 packaged service 读取会议和对话数据的闭环：先用受邀账号登录，再生成 API Token，最后用 bearer token 调 `/api/data/...` 或 `chatvoice data ...`。
+ChatVoice 0.1.14 提供从 packaged service 读取会议和对话数据的闭环：先用受邀账号登录，再生成 API Token，最后用 bearer token 调 `/api/data/...` 或 `chatvoice data ...`。
 
 ## 访问模型
 
@@ -8,7 +8,7 @@ ChatVoice 0.1.13 提供从 packaged service 读取会议和对话数据的闭环
 | --- | --- | --- |
 | 浏览器登录 | HttpOnly session cookie + CSRF token | 保存会议、对话、网页创建/撤销 API Token |
 | 浏览器声音复刻 | HttpOnly session cookie + CSRF token | 上传参考音频并创建一次性 VoiceClone job |
-| API Token | Bearer token | 自动化读取会议转写、会议摘要和实时对话文本 |
+| API Token | Bearer token | 自动化读取会议标签、转写、会议摘要和实时对话文本 |
 | 游客模式 | 浏览器 IndexedDB | 本机试用；不写后端数据库，也不能生成 API Token |
 
 Token 明文只在创建时返回一次。后端 SQLite 只保存 hash、prefix、scope、创建时间、过期时间、撤销时间和最近使用时间。
@@ -21,7 +21,7 @@ Token 明文只在创建时返回一次。后端 SQLite 只保存 hash、prefix�
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "ChatVoice[web]==0.1.13"
+python -m pip install "ChatVoice[web]==0.1.14"
 chatvoice service plan --ensure-dirs --json
 export CHATVOICE_ASR_CHANNEL=stub-local
 chatvoice serve app --host 127.0.0.1 --port 18087
@@ -80,7 +80,7 @@ GET /api/data/conversations
 GET /api/data/conversations/{conversation_id}
 ```
 
-列表接口只返回 metadata / preview；详情接口才返回会议 transcript、summary 或实时对话 messages，避免普通轮询把完整文本打进日志。
+会议列表接口返回 metadata / preview，其中包含 `tags: string[]`；会议详情接口也返回 `tags`，并额外返回 transcript、summary。对话详情接口才返回 realtime messages，避免普通轮询把完整文本打进日志。
 
 ## 声音复刻 job API
 
@@ -126,4 +126,5 @@ read:conversations
 - 创建 token 时省略 `scopes` 会使用两个默认 read scope；显式传空列表会被拒绝。
 - Token 被撤销或过期后立即不可用。
 - 详情数据读取接口会返回转写文本和摘要内容；不要把输出贴入公共日志或 PR。
+- 会议 `tags` 只保存为去重后的字符串数组；旧会议缺少标签字段时返回 `[]`。
 - 原始录音文件仍不进入后端数据库，也不通过这些数据接口返回。

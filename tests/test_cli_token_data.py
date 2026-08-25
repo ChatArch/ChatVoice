@@ -25,7 +25,7 @@ def test_cli_data_meetings_reads_token_from_named_env(monkeypatch):
 
     def fake_list_remote_meetings(base_url, token, *, timeout):
         calls.append((base_url, token, timeout))
-        return {"meetings": [{"id": "meeting_1", "title": "周会", "summary_title": "摘要", "transcript_segments": []}]}
+        return {"meetings": [{"id": "meeting_1", "title": "周会", "tags": ["thought"], "summary_title": "摘要", "transcript_segments": []}]}
 
     monkeypatch.setattr("chatvoice.cli.list_remote_meetings", fake_list_remote_meetings)
 
@@ -34,6 +34,7 @@ def test_cli_data_meetings_reads_token_from_named_env(monkeypatch):
     assert result.exit_code == 0, result.output
     assert calls == [("http://service.local", "cv_test_token", 10.0)]
     assert '"meeting_1"' in result.output
+    assert '"thought"' in result.output
     assert "cv_test_token" not in result.output
 
 

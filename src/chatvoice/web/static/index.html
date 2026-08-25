@@ -329,11 +329,34 @@
     .title-action-button.primary { border-color: #bdd8b2; background: #effbe9; color: #2f7031; box-shadow: 0 10px 24px rgba(49, 123, 51, .09); }
     .title-action-button.primary span { background: rgba(59, 135, 59, .13); }
     .title-action-button:disabled { opacity: .55; cursor: not-allowed; }
-    .meeting-meta { display: flex; align-items: center; gap: 8px; margin-top: 13px; color: var(--muted); font-size: 10px; }
+    .meeting-context-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-top: 13px; }
+    .meeting-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; color: var(--muted); font-size: 10px; }
     .meeting-meta > i { width: 3px; height: 3px; border-radius: 50%; background: #b7b8bc; }
     .title-state { padding: 3px 7px; border-radius: 7px; background: #f0f0ff; color: var(--violet); font-size: 8px; font-weight: 680; }
     .title-state.generating { background: #fff5e6; color: #b56d17; }
     .title-state.manual { background: #f1f1f2; color: #888a90; }
+    .meeting-tag-control { position: relative; flex: 0 0 auto; max-width: 288px; }
+    .tag-picker-toggle { min-height: 31px; max-width: 100%; display: inline-flex; align-items: center; gap: 7px; padding: 0 11px; border: 1px solid #dfdedf; border-radius: 999px; background: #fff; color: #565861; font-size: 9px; font-weight: 720; box-shadow: 0 8px 20px rgba(31, 32, 38, .06); }
+    .tag-picker-toggle > i { width: 18px; height: 18px; display: grid; place-items: center; border-radius: 50%; background: #f0f0ff; color: var(--violet); font-style: normal; font-size: 10px; }
+    .tag-picker-toggle > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tag-picker-toggle > b { color: #a0a2a7; font-size: 9px; }
+    .tag-picker { position: absolute; z-index: 150; right: 0; top: 39px; width: min(322px, calc(100vw - 52px)); padding: 14px; border: 1px solid #e3e3e7; border-radius: 18px; background: rgba(255,255,255,.98); box-shadow: 0 22px 65px rgba(24, 26, 38, .18); backdrop-filter: blur(18px); }
+    .tag-picker[hidden] { display: none; }
+    .tag-picker header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+    .tag-picker h3 { margin: 0; font-size: 12px; letter-spacing: -.02em; }
+    .tag-picker p { margin: 4px 0 0; color: #8d8f96; font-size: 8px; line-height: 1.6; }
+    .tag-clear { flex: none; height: 28px; padding: 0 9px; border: 1px solid #ededf0; border-radius: 999px; background: #fafafa; color: #777980; font-size: 8px; }
+    .selected-tag-list { display: flex; flex-wrap: wrap; gap: 7px; min-height: 29px; margin-top: 12px; }
+    .selected-tag, .tag-preset { min-height: 28px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid #e1e1e6; border-radius: 999px; background: #fff; color: #5f6168; font-size: 9px; font-weight: 690; }
+    .selected-tag { background: #f6f5ff; border-color: #dad7f8; color: #6059b3; }
+    .selected-tag button { width: 16px; height: 16px; border: 0; border-radius: 50%; background: rgba(96, 89, 179, .12); color: #6059b3; font-size: 11px; line-height: 1; }
+    .tag-empty { display: inline-flex; align-items: center; min-height: 28px; padding: 0 10px; border: 1px dashed #dedfe5; border-radius: 999px; color: #a0a2a7; font-size: 9px; }
+    .tag-presets { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 11px; padding-top: 11px; border-top: 1px solid #f0f0f2; }
+    .tag-preset.active { border-color: #c8dfbd; background: #effbe9; color: #2f7031; }
+    .tag-custom-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; margin-top: 11px; }
+    .tag-custom-form input { min-width: 0; height: 34px; padding: 0 11px; border: 1px solid var(--line); border-radius: 11px; outline: 0; font-size: 10px; }
+    .tag-custom-form input:focus { border-color: #c8c4ee; box-shadow: 0 0 0 3px rgba(97, 87, 217, .07); }
+    .tag-custom-form button { height: 34px; padding: 0 12px; border: 0; border-radius: 11px; background: var(--ink); color: #fff; font-size: 9px; font-weight: 720; }
     .clock-icon { width: 12px; height: 12px; border: 1.5px solid currentColor; border-radius: 50%; position: relative; }
     .clock-icon::before { content: ""; position: absolute; left: 5px; top: 2px; width: 1px; height: 4px; background: currentColor; }
     .clock-icon::after { content: ""; position: absolute; left: 5px; top: 5px; width: 3px; height: 1px; background: currentColor; transform: rotate(20deg); transform-origin: left center; }
@@ -586,8 +609,12 @@
       .meeting-title-actions { padding-top: 3px; flex-direction: column; }
       .title-action-button { padding: 6px 9px; font-size: 8px; }
       .title-action-button.icon-only { width: 32px; min-width: 32px; max-width: 32px; padding: 0; }
+      .meeting-context-row { flex-direction: column; gap: 10px; }
       .meeting-meta { gap: 6px; font-size: 9px; overflow: hidden; white-space: nowrap; }
       .meeting-meta span:last-child, .meeting-meta i:last-of-type { display: none; }
+      .meeting-tag-control { width: 100%; max-width: none; }
+      .tag-picker-toggle { width: 100%; justify-content: space-between; }
+      .tag-picker { left: 0; right: auto; width: min(100%, calc(100vw - 44px)); }
       .content-tabs { padding: 0 22px; gap: 30px; }
       .content-tab { font-size: 13px; }
       .content-scroll { padding: 16px 22px 190px; }
@@ -716,15 +743,37 @@
             <button class="title-action-button icon-only primary" id="quick-new-meeting" type="button" aria-label="新建会议" title="新建会议"><span aria-hidden="true">＋</span></button>
           </div>
         </div>
-        <div class="meeting-meta">
-          <span class="clock-icon"></span>
-          <span id="created-at">8 月 17 日 04:08</span>
-          <i></i>
-          <span>网页录音</span>
-          <i></i>
-          <span id="channel-label">自动选择识别服务</span>
-          <i></i>
-          <span class="title-state" id="title-state">AI 可自动命名</span>
+        <div class="meeting-context-row">
+          <div class="meeting-meta">
+            <span class="clock-icon"></span>
+            <span id="created-at">8 月 17 日 04:08</span>
+            <i></i>
+            <span>网页录音</span>
+            <i></i>
+            <span id="channel-label">自动选择识别服务</span>
+            <i></i>
+            <span class="title-state" id="title-state">AI 可自动命名</span>
+          </div>
+          <section class="meeting-tag-control" id="meeting-tags" aria-label="会议标签">
+            <button class="tag-picker-toggle" id="toggle-tag-picker" type="button" aria-haspopup="true" aria-expanded="false">
+              <i aria-hidden="true">#</i><span id="meeting-tag-summary">无标签</span><b aria-hidden="true">⌄</b>
+            </button>
+            <div class="tag-picker" id="tag-picker" hidden>
+              <header>
+                <div><h3>会议标签</h3><p>多选分类；默认无标签，也可以手写连续添加。</p></div>
+                <button class="tag-clear" id="clear-meeting-tags" type="button">None</button>
+              </header>
+              <div class="selected-tag-list" id="selected-tag-list" aria-live="polite"><span class="tag-empty">无标签</span></div>
+              <div class="tag-presets" aria-label="预设标签">
+                <button class="tag-preset" type="button" data-preset-tag="thought">thought</button>
+                <button class="tag-preset" type="button" data-preset-tag="diary">diary</button>
+              </div>
+              <form class="tag-custom-form" id="tag-custom-form">
+                <input id="custom-meeting-tag" maxlength="40" autocomplete="off" placeholder="自定义标签" aria-label="自定义会议标签" />
+                <button type="submit">添加</button>
+              </form>
+            </div>
+          </section>
         </div>
       </header>
 
@@ -1120,6 +1169,12 @@
   <script src="/assets/transcript-state.js?v=20260817-zoned"></script>
   <script>
     const $ = (id) => document.getElementById(id);
+    const MEETING_TAG_PRESETS = [
+      { value: 'thought', label: 'thought' },
+      { value: 'diary', label: 'diary' },
+    ];
+    const MEETING_TAG_LIMIT = 24;
+    const MEETING_TAG_MAX_LENGTH = 40;
     const GUEST_DB_NAME = 'voicenote-guest-v1';
     const GUEST_DB_VERSION = 2;
     const GUEST_STORE = 'meetings';
@@ -1168,6 +1223,7 @@
     let finishFallbackTimer = null;
     let waveformLevels = [];
     let meetingIndex = [];
+    let meetingTags = [];
     let activeMeetingId = null;
     let activeMeetingCreatedAt = null;
     let meetingSaveTimer = null;
@@ -1283,6 +1339,7 @@
       });
       document.title = view === 'meeting' ? '声笺 · 实时会议记录' : view === 'studio' ? '声笺 · 声音工作室' : '声笺 · 实时对话';
       $('meeting-search').value = '';
+      closeTagPicker();
       updateSidebarContext();
       closeSidebarOnSmallScreen();
       return true;
@@ -1296,6 +1353,97 @@
         if (payload.message) return payload.message;
       } catch (_) {}
       return fallback;
+    }
+
+    function meetingTagLabel(tag) {
+      return MEETING_TAG_PRESETS.find((preset) => preset.value === tag)?.label || tag;
+    }
+
+    function normalizeMeetingTag(value) {
+      let normalized = String(value || '').trim().replace(/\s+/g, ' ');
+      if (!normalized || normalized.toLowerCase() === 'none') return '';
+      if (normalized.length > MEETING_TAG_MAX_LENGTH) return '';
+      if (['<', '>', '"', '`', '\\'].some((char) => normalized.includes(char))) return '';
+      return /^[\x00-\x7F]*$/.test(normalized) ? normalized.toLowerCase() : normalized;
+    }
+
+    function normalizeMeetingTags(values) {
+      const tags = [];
+      const seen = new Set();
+      (Array.isArray(values) ? values : []).forEach((value) => {
+        const tag = normalizeMeetingTag(value);
+        if (!tag || seen.has(tag.toLowerCase()) || tags.length >= MEETING_TAG_LIMIT) return;
+        seen.add(tag.toLowerCase());
+        tags.push(tag);
+      });
+      return tags;
+    }
+
+    function renderMeetingTags() {
+      $('meeting-tag-summary').textContent = meetingTags.length ? meetingTags.map(meetingTagLabel).join(' / ') : '无标签';
+      $('selected-tag-list').innerHTML = meetingTags.length
+        ? meetingTags.map((tag) => `<span class="selected-tag">#${escapeHtml(meetingTagLabel(tag))}<button type="button" data-remove-tag="${escapeHtml(tag)}" aria-label="移除 ${escapeHtml(meetingTagLabel(tag))}">×</button></span>`).join('')
+        : '<span class="tag-empty">无标签</span>';
+      document.querySelectorAll('[data-preset-tag]').forEach((button) => {
+        const active = meetingTags.includes(normalizeMeetingTag(button.dataset.presetTag));
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
+    }
+
+    function setMeetingTags(tags, { persist = true } = {}) {
+      meetingTags = normalizeMeetingTags(tags);
+      renderMeetingTags();
+      if (!persist) return;
+      if (!storageMode) { showEntryDialog(); return; }
+      ensureActiveMeeting();
+      scheduleMeetingSave(0);
+    }
+
+    function toggleMeetingTag(tag) {
+      if (!storageMode) { showEntryDialog(); return; }
+      const normalized = normalizeMeetingTag(tag);
+      if (!normalized) return;
+      const exists = meetingTags.includes(normalized);
+      setMeetingTags(exists ? meetingTags.filter((item) => item !== normalized) : [...meetingTags, normalized]);
+    }
+
+    function removeMeetingTag(tag) {
+      setMeetingTags(meetingTags.filter((item) => item !== normalizeMeetingTag(tag)));
+    }
+
+    function clearMeetingTags() {
+      setMeetingTags([]);
+    }
+
+    function addCustomMeetingTag(event) {
+      event.preventDefault();
+      if (!storageMode) { showEntryDialog(); return; }
+      const input = $('custom-meeting-tag');
+      const tag = normalizeMeetingTag(input.value);
+      if (!tag) {
+        showToast('标签需为 1–' + MEETING_TAG_MAX_LENGTH + ' 字，且不能包含尖括号、引号或反斜杠');
+        return;
+      }
+      setMeetingTags([...meetingTags, tag]);
+      input.value = '';
+      input.focus();
+    }
+
+    function closeTagPicker() {
+      const picker = $('tag-picker');
+      const toggle = $('toggle-tag-picker');
+      picker.hidden = true;
+      toggle.setAttribute('aria-expanded', 'false');
+    }
+
+    function toggleTagPicker() {
+      const picker = $('tag-picker');
+      const toggle = $('toggle-tag-picker');
+      const nextOpen = picker.hidden;
+      picker.hidden = !nextOpen;
+      toggle.setAttribute('aria-expanded', String(nextOpen));
+      if (nextOpen) setTimeout(() => $('custom-meeting-tag').focus({ preventScroll: true }), 0);
     }
 
     function selectTtsVoice(voice) {
@@ -2544,14 +2692,21 @@
         created_at: record.created_at,
         updated_at: record.updated_at,
         duration_seconds: Number(record.duration_seconds || 0),
+        tags: normalizeMeetingTags(record.tags || []),
         preview: record.preview || '',
       };
+    }
+
+    function meetingIndexPreview(meeting) {
+      const tagText = meeting.tags && meeting.tags.length ? meeting.tags.map((tag) => `#${meetingTagLabel(tag)}`).join(' ') : '';
+      const preview = meeting.preview || `${formatTime(meeting.duration_seconds)} · 暂无文字`;
+      return tagText ? `${tagText} · ${preview}` : preview;
     }
 
     function renderMeetingIndex() {
       if (activeProductView === 'conversation') return;
       const query = $('meeting-search').value.trim().toLowerCase();
-      const filtered = meetingIndex.filter((meeting) => `${meeting.title} ${meeting.preview}`.toLowerCase().includes(query));
+      const filtered = meetingIndex.filter((meeting) => `${meeting.title} ${meeting.preview} ${(meeting.tags || []).join(' ')}`.toLowerCase().includes(query));
       if (!filtered.length) {
         $('meeting-groups').innerHTML = `<p class="meeting-empty">${query ? '没有匹配的会议记录' : '暂时没有会议记录<br />开始录音后会自动保存在这里'}</p>`;
         return;
@@ -2568,7 +2723,7 @@
             <div class="meeting-item${meeting.id === activeMeetingId ? ' active' : ''}" data-meeting-id="${escapeHtml(meeting.id)}">
               <button class="meeting-open" type="button" data-meeting-id="${escapeHtml(meeting.id)}">
                 <strong>${escapeHtml(meeting.title || '新录音')}</strong>
-                <small>${escapeHtml(meeting.preview || `${formatTime(meeting.duration_seconds)} · 暂无文字`)}</small>
+                <small>${escapeHtml(meetingIndexPreview(meeting))}</small>
               </button>
               <button class="meeting-delete" type="button" data-delete-meeting="${escapeHtml(meeting.id)}" aria-label="删除 ${escapeHtml(meeting.title || '会议')}">×</button>
             </div>
@@ -2605,6 +2760,7 @@
         created_at: activeMeetingCreatedAt || new Date().toISOString(),
         updated_at: new Date().toISOString(),
         duration_seconds: elapsedSeconds,
+        tags: meetingTags,
         transcript_segments: visibleTranscriptSegments().filter((segment) => !segment.demo).map((segment) => ({ speaker: segment.speaker, time: segment.time, text: segment.text })),
         summary_title: hasGeneratedSummary ? $('summary-title').textContent : '',
         summary_content: summaryContent(),
@@ -2655,6 +2811,7 @@
         elapsedSeconds = Number(meeting.duration_seconds || 0);
         $('elapsed').textContent = formatTime(elapsedSeconds);
         $('meeting-title').value = meeting.title || '新录音';
+        setMeetingTags(meeting.tags || [], { persist: false });
         resetMeetingTitleGeneration('manual');
         $('created-at').textContent = new Intl.DateTimeFormat('zh-CN', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(meeting.created_at));
         summaryIsDemo = false;
@@ -2696,6 +2853,7 @@
       resetMeetingTitleGeneration();
       $('created-at').textContent = new Intl.DateTimeFormat('zh-CN', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(activeMeetingCreatedAt));
       resetSession({ announce: false, persist: false });
+      setMeetingTags([], { persist: false });
       await saveActiveMeeting();
       updateRecorderUi('idle', announce ? '新会议已建立，可以开始录音' : '点击下方按钮开始录音');
       closeSidebarOnSmallScreen();
@@ -2771,6 +2929,7 @@
       updateVoiceSubmitState();
       resetSession({ announce: false, persist: false });
       $('meeting-title').value = '新录音';
+      setMeetingTags([], { persist: false });
       await Promise.all([fetchMeetingIndex(), fetchConversationIndex()]);
       if (meetingIndex.length) await openMeeting(meetingIndex[0].id);
       else await createNewMeeting({ announce: false });
@@ -3732,6 +3891,19 @@
     });
     $('sidebar-backdrop').addEventListener('click', closeSidebarOnSmallScreen);
     $('meeting-title').addEventListener('input', () => { markMeetingTitleManual(); ensureActiveMeeting(); scheduleMeetingSave(); });
+    $('toggle-tag-picker').addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      toggleTagPicker();
+    });
+    $('clear-meeting-tags').addEventListener('click', clearMeetingTags);
+    $('tag-custom-form').addEventListener('submit', addCustomMeetingTag);
+    $('meeting-tags').addEventListener('click', (event) => {
+      const removeButton = event.target.closest('[data-remove-tag]');
+      if (removeButton) { removeMeetingTag(removeButton.dataset.removeTag); return; }
+      const presetButton = event.target.closest('[data-preset-tag]');
+      if (presetButton) toggleMeetingTag(presetButton.dataset.presetTag);
+    });
     $('account-action').addEventListener('click', handleAccountAction);
     $('enter-guest').addEventListener('click', () => activateStorageMode('guest'));
     $('show-login').addEventListener('click', () => showEntryDialog('auth'));
@@ -3764,10 +3936,12 @@
     });
     document.addEventListener('click', (event) => {
       if (!event.target.closest('.toolbar-menu-wrap')) closeSettingsMenu();
+      if (!event.target.closest('.meeting-tag-control')) closeTagPicker();
     });
     document.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') {
         closeSettingsMenu();
+        closeTagPicker();
         if (!$('token-create-popover').hidden) closeTokenCreatePopover();
       }
     });
@@ -3877,12 +4051,15 @@
       summary: $('summary-output').textContent,
       summaryCanvas: $('summary-canvas').value,
       summaryCustomized,
+      tags: [...meetingTags],
       summaryChatMessages: summaryChatMessages.map(({ role, text }) => ({ role, text })),
     });
+    window.__demoSetMeetingTags = (tags) => { setMeetingTags(tags, { persist: false }); return [...meetingTags]; };
     window.__demoStudioState = () => ({ activeProductView, voice: selectedVoiceId(), format: selectedTtsFormat, cloningConfigured: voiceCloningConfigured, audioReady: Boolean(ttsAudioUrl) });
     window.__demoConversationState = () => ({ activeProductView, realtimeState, model: $('conversation-model').value, voice: $('conversation-voice').value, activeConversationId, messages: realtimeMessages.map(({ role, text, final }) => ({ role, text, final })) });
 
     updateTtsCount();
+    renderMeetingTags();
     syncSummaryContent($('summary-output').textContent, { canvasState: '示例纪要 · 修改后自动保存' });
     renderSummaryChat();
     renderApiTokens([]);

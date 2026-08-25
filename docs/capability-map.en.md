@@ -16,7 +16,11 @@ This page checks the first-class capabilities currently owned by `ChatVoice`, th
 
 - **Data read API / CLI**
 
-    `GET /api/data/...` and `chatvoice data ...` use bearer tokens to read meeting transcripts, meeting summaries, and realtime conversation text records.
+    `GET /api/data/...` and `chatvoice data ...` use bearer tokens to read meeting tags, meeting transcripts, meeting summaries, and realtime conversation text records.
+
+- **Meeting tags**
+
+    Meeting records support empty tags, multi-select `thought` / `diary` presets, and custom tags. Tags move as metadata through the web app, REST API, and CLI data reads.
 
 - **API-first ASR provider**
 
@@ -45,7 +49,8 @@ This page checks the first-class capabilities currently owned by `ChatVoice`, th
 | Packaged web startup | Implemented | `chatvoice serve app` calls `chatvoice.web.server:create_app`. |
 | Invited account CLI | Implemented | `chatvoice accounts add/list`; passwords are read from environment variables only. |
 | API token management | Implemented | Web settings panel + CLI token lifecycle; the server stores hashes only. |
-| Data read API/CLI | Implemented | Bearer token reads for meetings, summaries, and realtime conversations. |
+| Data read API/CLI | Implemented | Bearer token reads for meeting tags, summaries, and realtime conversations. |
+| Meeting tags | Implemented | Default empty tags; presets and custom tags are stored as `meeting_records.tags_json`. |
 | Local one-shot voice cloning | Implemented | `/api/voice-clone/*` proxies the VoiceClone sidecar; no voice profile or generated-audio history is saved. |
 | ASR API provider | Implemented | `CHATVOICE_ASR_CHANNEL=api-server` + the ASR API URL setting. |
 | Local contract smoke | Implemented | `CHATVOICE_ASR_CHANNEL=stub-local` starts the full path without GPU/cloud credentials. |
@@ -56,7 +61,7 @@ This page checks the first-class capabilities currently owned by `ChatVoice`, th
 ## Out of scope now
 
 - Do not bundle GPU model download, CUDA/PyTorch installation, and the web process as one default runtime.
-- Do not claim MySQL/Postgres is complete in v0.1.13; high-concurrency storage migration needs a separate release.
+- Do not claim MySQL/Postgres is complete in v0.1.14; high-concurrency storage migration needs a separate release.
 - Do not print tokens, cookies, Authorization headers, or raw recordings; full transcripts are returned only by explicit data-read commands.
 - Do not present one-shot voice cloning as a permanent voice profile; the current flow needs reference audio and target text for each generation.
 - Do not manage services with `kill` / `kill -9`; restart commands need supervisor/graceful boundaries first.

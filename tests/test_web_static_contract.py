@@ -299,6 +299,62 @@ def test_title_action_buttons_are_icon_only_to_keep_title_row_compact():
     assert "@media (hover: none)" in css_block
 
 
+def test_meeting_tag_picker_supports_presets_custom_values_and_saved_metadata():
+    source = _script_source()
+    header_markup = source[source.index('<header class="meeting-header">'):source.index('<nav class="content-tabs"')]
+    style_source = source[:source.index("</style>")]
+
+    assert "meeting-context-row" in header_markup
+    assert "id=\"meeting-tags\"" in header_markup
+    assert "id=\"toggle-tag-picker\"" in header_markup
+    assert "id=\"meeting-tag-summary\"" in header_markup
+    assert "id=\"tag-picker\"" in header_markup
+    assert "id=\"selected-tag-list\"" in header_markup
+    assert "data-preset-tag=\"thought\"" in header_markup
+    assert "data-preset-tag=\"diary\"" in header_markup
+    assert "id=\"custom-meeting-tag\"" in header_markup
+    assert "id=\"clear-meeting-tags\"" in header_markup
+    assert "None" in header_markup
+    assert "多选分类" in header_markup
+
+    assert ".meeting-context-row" in style_source
+    assert ".meeting-tag-control" in style_source
+    assert ".tag-picker" in style_source
+    assert ".tag-custom-form" in style_source
+
+    for function_name in [
+        "normalizeMeetingTag",
+        "normalizeMeetingTags",
+        "renderMeetingTags",
+        "setMeetingTags",
+        "toggleMeetingTag",
+        "addCustomMeetingTag",
+        "clearMeetingTags",
+    ]:
+        assert f"function {function_name}" in source
+
+    save_body = _function_body(source, "saveActiveMeeting")
+    assert "tags: meetingTags" in save_body
+    open_body = _function_body(source, "openMeeting")
+    assert "setMeetingTags(meeting.tags || [], { persist: false })" in open_body
+    create_body = _function_body(source, "createNewMeeting")
+    assert "setMeetingTags([], { persist: false })" in create_body
+    activate_body = _function_body(source, "activateStorageMode")
+    assert "setMeetingTags([], { persist: false })" in activate_body
+    meta_body = _function_body(source, "meetingMetaFromRecord")
+    assert "tags: normalizeMeetingTags(record.tags || [])" in meta_body
+    index_body = _function_body(source, "renderMeetingIndex")
+    assert "(meeting.tags || []).join(' ')" in index_body
+    assert "meetingIndexPreview(meeting)" in index_body
+
+    assert "toggle-tag-picker').addEventListener('click'" in source
+    assert "tag-custom-form').addEventListener('submit', addCustomMeetingTag" in source
+    assert "[data-preset-tag]" in source
+    assert "[data-remove-tag]" in source
+    assert "window.__demoSetMeetingTags" in source
+    assert "tags: [...meetingTags]" in source
+
+
 def test_raw_audio_archive_is_not_offered_in_meeting_recorder():
     source = _script_source()
     footer_markup = source[source.index('<footer class="recording-console'):source.index('</footer>', source.index('<footer class="recording-console'))]

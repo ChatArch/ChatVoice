@@ -1,6 +1,6 @@
 # 运行目录与数据结构
 
-这一页说明 `pip install "ChatVoice[web]==0.1.13"` 之后，代码安装在哪里、运行数据默认写到哪里，以及 SQLite / 浏览器侧分别保存什么。
+这一页说明 `pip install "ChatVoice[web]==0.1.14"` 之后，代码安装在哪里、运行数据默认写到哪里，以及 SQLite / 浏览器侧分别保存什么。
 
 ## 代码安装位置
 
@@ -73,10 +73,10 @@ export MEETING_DB_PATH=/srv/chatvoice/data/meetings.sqlite3
 | `accounts` | 受邀账号、显示名、password salt/hash | 不保存明文密码 |
 | `auth_sessions` | 登录 session hash、CSRF、过期时间 | cookie 只保存 session token |
 | `api_tokens` | automation token id、hash、prefix、scope、撤销/过期时间 | 明文 token 只在创建时返回一次 |
-| `meeting_records` | 会议标题、时间、时长、transcript JSON、summary、preview | 原始音频不进数据库 |
+| `meeting_records` | 会议标题、时间、时长、tags JSON、transcript JSON、summary、preview | 原始音频不进数据库；旧记录标签默认为 `[]` |
 | `conversation_records` | 实时对话标题、message JSON、preview | 不保存对话音频 |
 
-转写段落、会议摘要、纪要修改对话、实时对话消息以 JSON 字符串保存到 SQLite `TEXT` 字段。列表数据接口只返回 metadata / preview；详情接口才返回 transcript、summary 或 messages。
+会议标签、转写段落、会议摘要、纪要修改对话、实时对话消息以 JSON 字符串保存到 SQLite `TEXT` 字段。列表数据接口只返回 metadata / preview；详情接口才返回 transcript、summary 或 messages。
 
 ## 浏览器本地数据
 
@@ -88,7 +88,7 @@ IndexedDB: speakr-meetings
 - guest summaries and metadata
 ```
 
-登录账号模式下，会议/对话文本保存到服务端 SQLite。当前会议记录页不提供录音保存/下载功能，也不在浏览器 IndexedDB 中保存录音分片。音频只用于实时 ASR，持久化结果是文字和摘要。详见 [录音保存边界](recording-storage.md)。
+登录账号模式下，会议/对话文本保存到服务端 SQLite。会议标签是轻量 metadata：账号模式进入 SQLite，访客模式进入 IndexedDB。当前会议记录页不提供录音保存/下载功能，也不在浏览器 IndexedDB 中保存录音分片。音频只用于实时 ASR，持久化结果是文字、标签和摘要。详见 [录音保存边界](recording-storage.md)。
 
 ## 临时音频与模型缓存
 
@@ -121,7 +121,7 @@ chatvoice data import backup.sqlite3 --yes --json
 
 ## 高并发 TODO
 
-`0.1.13` packaged storage 支持 SQLite WAL，适合单服务进程、轻并发和内部受控使用：
+`0.1.14` packaged storage 支持 SQLite WAL，适合单服务进程、轻并发和内部受控使用：
 
 ```bash
 chatvoice serve app --workers 1

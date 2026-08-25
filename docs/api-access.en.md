@@ -1,6 +1,6 @@
 # API Access
 
-ChatVoice 0.1.0 adds an end-to-end data access path for the packaged service: sign in with an invited account, create an API token, then read meetings and conversations through `/api/data/...` or `chatvoice data ...`.
+ChatVoice 0.1.14 provides an end-to-end data access path for the packaged service: sign in with an invited account, create an API token, then read meetings and conversations through `/api/data/...` or `chatvoice data ...`.
 
 ## Access model
 
@@ -8,7 +8,7 @@ ChatVoice 0.1.0 adds an end-to-end data access path for the packaged service: si
 | --- | --- | --- |
 | Browser login | HttpOnly session cookie + CSRF token | Save meetings/conversations and create/revoke API tokens in the web UI |
 | Browser voice cloning | HttpOnly session cookie + CSRF token | Upload reference audio and create one-shot VoiceClone jobs |
-| API token | Bearer token | Automation reads for meeting transcripts, summaries, and realtime conversation text |
+| API token | Bearer token | Automation reads for meeting tags, transcripts, summaries, and realtime conversation text |
 | Guest mode | Browser IndexedDB | Local trial only; does not write the backend database and cannot create API tokens |
 
 Token values are shown only once when created. The backend SQLite database stores only the hash, prefix, scopes, creation time, expiry time, revocation time, and last-used time.
@@ -21,7 +21,7 @@ Install and start the service:
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "ChatVoice[web]==0.1.13"
+python -m pip install "ChatVoice[web]==0.1.14"
 chatvoice service plan --ensure-dirs --json
 export CHATVOICE_ASR_CHANNEL=stub-local
 chatvoice serve app --host 127.0.0.1 --port 18087
@@ -80,7 +80,7 @@ GET /api/data/conversations
 GET /api/data/conversations/{conversation_id}
 ```
 
-List endpoints return metadata / preview only. Detail endpoints return meeting transcripts, summaries, or realtime conversation messages so routine polling does not dump full text into logs.
+Meeting list endpoints return metadata / preview, including `tags: string[]`. Meeting detail endpoints also return `tags` plus transcripts and summaries. Conversation detail endpoints return realtime messages so routine polling does not dump full text into logs.
 
 ## Voice clone job API
 
@@ -126,4 +126,5 @@ Boundaries:
 - Omitting `scopes` during token creation uses the two default read scopes; explicitly passing an empty scope list is rejected.
 - Revoked or expired tokens stop working immediately.
 - Detail data-read endpoints return transcript text and summary content; do not paste outputs into public logs or PRs.
+- Meeting `tags` are stored as a deduplicated string array; old meetings without a tag field return `[]`.
 - Raw recording files still do not enter the backend database and are not returned by these data APIs.

@@ -1,6 +1,6 @@
 # Runtime Layout and Data Structure
 
-This page documents where `pip install "ChatVoice[web]==0.1.13"` installs code, where runtime data is written by default, and which data lives in SQLite versus the browser.
+This page documents where `pip install "ChatVoice[web]==0.1.14"` installs code, where runtime data is written by default, and which data lives in SQLite versus the browser.
 
 ## Code install location
 
@@ -73,10 +73,10 @@ Core tables:
 | `accounts` | invited accounts, display names, password salt/hash | no plaintext password |
 | `auth_sessions` | login session hash, CSRF token, expiry | cookie stores only the session token |
 | `api_tokens` | automation token id, hash, prefix, scopes, revoke/expiry metadata | raw token is returned once only |
-| `meeting_records` | meeting title, timestamps, duration, transcript JSON, summary, preview | raw audio is not stored in DB |
+| `meeting_records` | meeting title, timestamps, duration, tags JSON, transcript JSON, summary, preview | raw audio is not stored in DB; old rows default to `[]` tags |
 | `conversation_records` | realtime conversation title, message JSON, preview | conversation audio is not stored |
 
-Transcript segments, summaries, summary-edit chat messages, and realtime messages are stored as JSON strings in SQLite `TEXT` columns. List data endpoints return metadata / preview only; detail endpoints return transcript, summary, or messages.
+Meeting tags, transcript segments, summaries, summary-edit chat messages, and realtime messages are stored as JSON strings in SQLite `TEXT` columns. List data endpoints return metadata / preview only; detail endpoints return transcript, summary, or messages.
 
 ## Browser-local data
 
@@ -88,7 +88,7 @@ IndexedDB: speakr-meetings
 - guest summaries and metadata
 ```
 
-For signed-in accounts, meeting/conversation text is saved to server-side SQLite. The current meeting recorder does not provide recording archive/download controls and does not store recording chunks in browser IndexedDB. Audio is used only for realtime ASR; the durable result is text and summaries. See [Recording Storage Boundary](recording-storage.md).
+For signed-in accounts, meeting/conversation text is saved to server-side SQLite. Meeting tags are lightweight metadata: account mode writes them to SQLite, and guest mode writes them to IndexedDB. The current meeting recorder does not provide recording archive/download controls and does not store recording chunks in browser IndexedDB. Audio is used only for realtime ASR; the durable result is text, tags, and summaries. See [Recording Storage Boundary](recording-storage.md).
 
 ## Temporary audio and model cache
 
@@ -121,7 +121,7 @@ chatvoice data import backup.sqlite3 --yes --json
 
 ## High-concurrency TODO
 
-The `0.1.13` packaged storage supports SQLite WAL. It is suitable for one service process, light concurrency, and controlled internal use:
+The `0.1.14` packaged storage supports SQLite WAL. It is suitable for one service process, light concurrency, and controlled internal use:
 
 ```bash
 chatvoice serve app --workers 1

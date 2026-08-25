@@ -16,7 +16,11 @@
 
 - **数据读取 API / CLI**
 
-    `GET /api/data/...` 与 `chatvoice data ...` 可用 bearer token 读取会议转写、会议摘要和实时对话文本记录。
+    `GET /api/data/...` 与 `chatvoice data ...` 可用 bearer token 读取会议标签、会议转写、会议摘要和实时对话文本记录。
+
+- **会议标签**
+
+    会议记录支持空标签、多选 `thought` / `diary` 预设和自定义标签；标签作为 metadata 随网页、REST API 和 CLI 数据读取流转。
 
 - **API-first ASR provider**
 
@@ -45,7 +49,8 @@
 | packaged Web 启动 | 已实现 | `chatvoice serve app` 调用 `chatvoice.web.server:create_app`。 |
 | 受邀账号 CLI | 已实现 | `chatvoice accounts add/list`，密码只从环境变量读取。 |
 | API Token 管理 | 已实现 | 网页设置面板 + CLI token lifecycle；服务端只存 token hash。 |
-| 数据读取 API/CLI | 已实现 | Bearer token 读取会议、摘要和 realtime conversations。 |
+| 数据读取 API/CLI | 已实现 | Bearer token 读取会议标签、摘要和 realtime conversations。 |
+| 会议标签 | 已实现 | 默认空标签；预设和自定义标签保存为 `meeting_records.tags_json`。 |
 | 本地一次性声音复刻 | 已实现 | `/api/voice-clone/*` 代理 VoiceClone sidecar；不保存 voice profile，不保存生成历史。 |
 | ASR API provider | 已实现 | `CHATVOICE_ASR_CHANNEL=api-server` + the ASR API URL setting。 |
 | 本地合同 smoke | 已实现 | `CHATVOICE_ASR_CHANNEL=stub-local` 可无 GPU/云凭据启动全链路。 |
@@ -56,7 +61,7 @@
 ## 不在当前范围
 
 - 不把 GPU 模型下载、CUDA/PyTorch 安装和 Web 服务打成一个默认进程。
-- 不在 v0.1.13 里宣称 MySQL/Postgres 已经完成；高并发数据库迁移需要单独版本。
+- 不在 v0.1.14 里宣称 MySQL/Postgres 已经完成；高并发数据库迁移需要单独版本。
 - 不输出 token、cookie、Authorization header 或原始录音；完整 transcript 只通过用户显式调用的数据读取接口返回。
 - 不把一次性声音复刻说成永久 voice profile；当前流程每次都需要参考音频和目标文本。
 - 不用 `kill` / `kill -9` 管理服务；重启类命令要先有 supervisor/graceful 方案。

@@ -210,3 +210,41 @@ def test_bearer_token_can_read_meeting_text_and_summary(monkeypatch, tmp_path):
     assert revoked.status_code == 200, revoked.text
     rejected = client.get("/api/data/meetings", headers={"Authorization": f"Bearer {token}"})
     assert rejected.status_code == 401
+
+
+def test_meeting_tags_are_normalized_persisted_and_exposed_to_api_and_data_tokens(monkeypatch, tmp_path):
+    client, legacy_app = _client_with_temp_db(monkeypatch, tmp_path)
+    csrf = _login_user(client, legacy_app)
+    token = _create_token(client, csrf, ["read:meetings"])["token"]
+    payload = _sample_meeting_payload()
+    payload["tags"] = ["Thought", "diary", "none", "Project Alpha", "thought"]
+
+    saved = client.put("/api/meetings/meeting_20260818", headers={"X-CSRF-Token": csrf}, json=payload)
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["tags"] == ["thought", "diary", "project alpha"]
+
+    listed = client.get("/api/meetings")
+    assert listed.status_code == 200, listed.text
+    assert listed.json()["meetings"][0]["tags"] == ["thought", "diary", "project alpha"]
+
+    data_list = client.get("/api/data/meetings", headers={"Authorization": f"Bearer {token}"})
+    assert data_list.status_code == 200, data_list.text
+    assert data_list.json()["meetings"][0]["tags"] == ["thought", "diary", "project alpha"]
+
+    data_detail = client.get("/api/data/meetings/meeting_20260818", headers={"Authorization": f"Bearer {token}"})
+    assert data_detail.status_code == 200, data_detail.text
+    assert data_detail.json()["tags"] == ["thought", "diary", "project alpha"]
+
+
+def test_meeting_tag_validation_rejects_unsafe_or_too_long_values(monkeypatch, tmp_path):
+    client, legacy_app = _client_with_temp_db(monkeypatch, tmp_path)
+    csrf = _login_user(client, legacy_app)
+    payload = _sample_meeting_payload()
+
+    unsafe = dict(payload, tags=["<script>"])
+    unsafe_response = client.put("/api/meetings/meeting_20260818", headers={"X-CSRF-Token": csrf}, json=unsafe)
+    assert unsafe_response.status_code == 400
+
+    too_long = dict(payload, tags=["x" * 41])
+    too_long_response = client.put("/api/meetings/meeting_20260818", headers={"X-CSRF-Token": csrf}, json=too_long)
+    assert too_long_response.status_code == 400

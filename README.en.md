@@ -19,7 +19,7 @@
 
 ChatArch voice recording, transcription, and meeting-notes toolkit. ChatVoice packages the Speakr FastAPI + browser service so a release can be installed, started, account-provisioned, and queried from the Python package.
 
-Recent recorder UX includes pause-time ASR window finalization, direct `刷新标题` / `新建` header controls for mobile use, a clearer toolbar, and a confirmation guard before clearing a meeting with existing content. The meeting recorder saves text and summaries only; original recording files are not saved locally or on the server. See [Recording Storage Boundary](docs/recording-storage.en.md).
+Recent recorder UX includes pause-time ASR window finalization, direct `刷新标题` / `新建` header controls for mobile use, a compact meeting `#` tag picker, a clearer toolbar, and a confirmation guard before clearing a meeting with existing content. Meetings default to no tags and can be classified with `thought` / `diary` presets plus repeated custom tags. The meeting recorder saves text, tags, and summaries only; original recording files are not saved locally or on the server. See [Recording Storage Boundary](docs/recording-storage.en.md).
 
 Documentation entry: <https://arch.gh.wzhecnu.cn/ChatVoice/en/>
 
@@ -29,7 +29,7 @@ Documentation entry: <https://arch.gh.wzhecnu.cn/ChatVoice/en/>
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "ChatVoice[web]==0.1.13"
+python -m pip install "ChatVoice[web]==0.1.14"
 
 chatvoice --tree
 chatvoice --tree-brief
@@ -94,7 +94,7 @@ Meeting summary generation is also a server-side model boundary: configure the n
 
 ## Database and concurrency
 
-v0.1.13 defaults to SQLite WAL under:
+v0.1.14 defaults to SQLite WAL under:
 
 ```text
 <chatarch-home>/chatvoice/data/meetings.sqlite3
@@ -116,7 +116,7 @@ After `pip install`, package code lives under the active Python `site-packages/c
 └── model-cache/
 ```
 
-The backend SQLite `meetings.sqlite3` currently contains `accounts`, `auth_sessions`, `api_tokens`, `meeting_records`, and `conversation_records`. Transcripts, summary content, and realtime messages are stored as JSON strings; raw audio is not stored in the backend database. Guest mode still uses browser IndexedDB for local meeting text and summaries, not recording chunks. `0.1.13` supports SQLite WAL + one service process; move data with the CLI single-file dump/restore commands. Future high-concurrency Postgres/MySQL support is a separate storage-layer migration. See [Runtime Layout and Data Structure](docs/runtime-layout.en.md) and [Recording Storage Boundary](docs/recording-storage.en.md).
+The backend SQLite `meetings.sqlite3` currently contains `accounts`, `auth_sessions`, `api_tokens`, `meeting_records`, and `conversation_records`. Transcripts, summary content, meeting tags, and realtime messages are stored as JSON strings; raw audio is not stored in the backend database. Guest mode still uses browser IndexedDB for local meeting text, tags, and summaries, not recording chunks. `0.1.14` supports SQLite WAL + one service process; move data with the CLI single-file dump/restore commands. Future high-concurrency Postgres/MySQL support is a separate storage-layer migration. See [Runtime Layout and Data Structure](docs/runtime-layout.en.md) and [Recording Storage Boundary](docs/recording-storage.en.md).
 
 ## CLI contract
 
