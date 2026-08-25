@@ -61,7 +61,7 @@ This page checks the first-class capabilities currently owned by `ChatVoice`, th
 ## Out of scope now
 
 - Do not bundle GPU model download, CUDA/PyTorch installation, and the web process as one default runtime.
-- Do not claim MySQL/Postgres is complete in v0.1.14; high-concurrency storage migration needs a separate release.
+- Do not claim MySQL/Postgres is complete in v0.1.15; high-concurrency storage migration needs a separate release.
 - Do not print tokens, cookies, Authorization headers, or raw recordings; full transcripts are returned only by explicit data-read commands.
 - Do not present one-shot voice cloning as a permanent voice profile; the current flow needs reference audio and target text for each generation.
 - Do not manage services with `kill` / `kill -9`; restart commands need supervisor/graceful boundaries first.

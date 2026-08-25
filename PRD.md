@@ -26,9 +26,11 @@
 ## 密钥与安全
 
 - 使用 ChatEnv typed profile：`~/.chatarch/envs/ChatVoice/.env`。
-- 模型接口使用 OpenAI-compatible 变量：`CHATVOICE_OPENAI_API_BASE` / `CHATVOICE_OPENAI_API_KEY` / `CHATVOICE_OPENAI_API_MODEL`。
+- 语音/realtime 模型接口使用 Token Plan OpenAI-compatible 变量：`CHATVOICE_OPENAI_API_BASE` / `CHATVOICE_OPENAI_API_KEY` / `CHATVOICE_OPENAI_API_MODEL`。
 - `CHATVOICE_OPENAI_API_KEY` 必须使用 Token Plan `sk-sp...`，避免误用普通按量 `sk-...`。
-- 不打印、不写入真实 `CHATVOICE_OPENAI_API_KEY`。
+- 摘要/summarize/polish/revise 使用独立配置：`CHATVOICE_MEETING_NOTES_PROVIDER`、`CHATVOICE_MEETING_NOTES_CRS_PROFILE`，必要时才显式设置 `CHATVOICE_MEETING_NOTES_CRS_API_BASE` / `CHATVOICE_MEETING_NOTES_CRS_API_KEY`。
+- CRS 摘要 provider 必须校验 CRS host，不读取其他 OpenAI-compatible ENV。
+- 不打印、不写入真实 `CHATVOICE_OPENAI_API_KEY` 或 `CHATVOICE_MEETING_NOTES_CRS_API_KEY`。
 - 只记录字段是否存在、Base URL host/path、模型名等安全元数据；不输出 key 值或任何密钥派生标识。
 - 前端不得直接接触 Key；Demo 后端读取服务端密钥并代理上游调用。
 

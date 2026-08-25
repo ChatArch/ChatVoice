@@ -1,6 +1,6 @@
 # Runtime Layout and Data Structure
 
-This page documents where `pip install "ChatVoice[web]==0.1.14"` installs code, where runtime data is written by default, and which data lives in SQLite versus the browser.
+This page documents where `pip install "ChatVoice[web]==0.1.15"` installs code, where runtime data is written by default, and which data lives in SQLite versus the browser.
 
 ## Code install location
 
@@ -105,8 +105,11 @@ The Settings page shows only whether server-side API keys are configured. It nev
 export CHATVOICE_ASR_CHANNEL=api-server
 export CHATVOICE_ASR_API_URL="https://<asr-service>/v1/transcribe"
 # Store CHATVOICE_ASR_API_KEY in the ChatEnv ChatVoice profile when the ASR endpoint requires it.
-# Store CHATVOICE_OPENAI_API_BASE / CHATVOICE_OPENAI_API_KEY / CHATVOICE_OPENAI_API_MODEL in the ChatEnv ChatVoice profile.
+# Store CHATVOICE_OPENAI_API_BASE / CHATVOICE_OPENAI_API_KEY / CHATVOICE_OPENAI_API_MODEL in the ChatEnv ChatVoice profile for Token Plan voice/realtime.
 # Production CHATVOICE_OPENAI_API_KEY should be a Token Plan sk-sp... key, not a usage-billed sk-... key.
+# Store summarize/polish provider separately when using CRS:
+# CHATVOICE_MEETING_NOTES_PROVIDER=crs-chat-completions
+# CHATVOICE_MEETING_NOTES_CRS_PROFILE=apple
 ```
 
 ## Data backup / restore
@@ -121,7 +124,7 @@ chatvoice data import backup.sqlite3 --yes --json
 
 ## High-concurrency TODO
 
-The `0.1.14` packaged storage supports SQLite WAL. It is suitable for one service process, light concurrency, and controlled internal use:
+The `0.1.15` packaged storage supports SQLite WAL. It is suitable for one service process, light concurrency, and controlled internal use:
 
 ```bash
 chatvoice serve app --workers 1

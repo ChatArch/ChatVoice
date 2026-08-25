@@ -64,13 +64,31 @@ class ChatVoiceConfig(BaseEnvConfig):
         default="180",
         desc="VoiceClone sidecar request timeout in seconds.",
     )
+    CHATVOICE_MEETING_NOTES_PROVIDER = EnvField(
+        "CHATVOICE_MEETING_NOTES_PROVIDER",
+        default="token-plan-chat-completions",
+        desc="Meeting-notes backend: token-plan-chat-completions, crs-chat-completions, or crs-responses.",
+    )
+    CHATVOICE_MEETING_NOTES_CRS_PROFILE = EnvField(
+        "CHATVOICE_MEETING_NOTES_CRS_PROFILE",
+        desc="ChatEnv OpenAI profile name for CRS-backed meeting notes, for example apple.",
+    )
+    CHATVOICE_MEETING_NOTES_CRS_API_BASE = EnvField(
+        "CHATVOICE_MEETING_NOTES_CRS_API_BASE",
+        desc="Explicit CRS Responses API base URL. Prefer CHATVOICE_MEETING_NOTES_CRS_PROFILE.",
+    )
+    CHATVOICE_MEETING_NOTES_CRS_API_KEY = EnvField(
+        "CHATVOICE_MEETING_NOTES_CRS_API_KEY",
+        desc="Explicit CRS API key for meeting notes. Prefer CHATVOICE_MEETING_NOTES_CRS_PROFILE.",
+        is_sensitive=True,
+    )
     CHATVOICE_MEETING_NOTES_MODEL = EnvField(
         "CHATVOICE_MEETING_NOTES_MODEL",
-        desc="Optional override for meeting-notes generation; defaults to CHATVOICE_OPENAI_API_MODEL."
+        desc="Optional override for meeting-notes generation; defaults to provider profile or CHATVOICE_OPENAI_API_MODEL.",
     )
     CHATVOICE_MEETING_TITLE_MODEL = EnvField(
         "CHATVOICE_MEETING_TITLE_MODEL",
-        desc="Optional override for meeting-title generation; defaults to CHATVOICE_OPENAI_API_MODEL."
+        desc="Optional override for meeting-title generation; defaults to CHATVOICE_OPENAI_API_MODEL.",
     )
     CHATVOICE_REALTIME_MODELS = EnvField(
         "CHATVOICE_REALTIME_MODELS",

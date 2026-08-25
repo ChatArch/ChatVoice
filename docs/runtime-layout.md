@@ -1,6 +1,6 @@
 # 运行目录与数据结构
 
-这一页说明 `pip install "ChatVoice[web]==0.1.14"` 之后，代码安装在哪里、运行数据默认写到哪里，以及 SQLite / 浏览器侧分别保存什么。
+这一页说明 `pip install "ChatVoice[web]==0.1.15"` 之后，代码安装在哪里、运行数据默认写到哪里，以及 SQLite / 浏览器侧分别保存什么。
 
 ## 代码安装位置
 
@@ -105,8 +105,11 @@ Settings 页面只显示服务端 API key 是否已配置，不会在浏览器�
 export CHATVOICE_ASR_CHANNEL=api-server
 export CHATVOICE_ASR_API_URL="https://<asr-service>/v1/transcribe"
 # Store CHATVOICE_ASR_API_KEY in ChatEnv ChatVoice profile when the ASR endpoint requires it.
-# Store CHATVOICE_OPENAI_API_BASE / CHATVOICE_OPENAI_API_KEY / CHATVOICE_OPENAI_API_MODEL in ChatEnv ChatVoice profile.
+# Store CHATVOICE_OPENAI_API_BASE / CHATVOICE_OPENAI_API_KEY / CHATVOICE_OPENAI_API_MODEL in ChatEnv ChatVoice profile for Token Plan voice/realtime.
 # Production CHATVOICE_OPENAI_API_KEY should be a Token Plan sk-sp... key, not a usage-billed sk-... key.
+# Store summarize/polish provider separately when using CRS:
+# CHATVOICE_MEETING_NOTES_PROVIDER=crs-chat-completions
+# CHATVOICE_MEETING_NOTES_CRS_PROFILE=apple
 ```
 
 ## 数据备份 / 恢复
@@ -121,7 +124,7 @@ chatvoice data import backup.sqlite3 --yes --json
 
 ## 高并发 TODO
 
-`0.1.14` packaged storage 支持 SQLite WAL，适合单服务进程、轻并发和内部受控使用：
+`0.1.15` packaged storage 支持 SQLite WAL，适合单服务进程、轻并发和内部受控使用：
 
 ```bash
 chatvoice serve app --workers 1

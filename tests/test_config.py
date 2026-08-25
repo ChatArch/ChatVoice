@@ -24,6 +24,7 @@ def test_config_marks_credentials_and_database_url_sensitive():
     for name in (
         "CHATVOICE_ASR_API_KEY",
         "CHATVOICE_OPENAI_API_KEY",
+        "CHATVOICE_MEETING_NOTES_CRS_API_KEY",
     ):
         assert fields[name].is_sensitive is True
 
@@ -37,9 +38,14 @@ def test_config_marks_credentials_and_database_url_sensitive():
     assert "CHATVOICE_OPENAI_API_BASE" in fields
     assert "CHATVOICE_OPENAI_API_KEY" in fields
     assert "CHATVOICE_OPENAI_API_MODEL" in fields
+    assert "CHATVOICE_MEETING_NOTES_PROVIDER" in fields
+    assert "CHATVOICE_MEETING_NOTES_CRS_PROFILE" in fields
+    assert "CHATVOICE_MEETING_NOTES_CRS_API_BASE" in fields
+    assert "CHATVOICE_MEETING_NOTES_CRS_API_KEY" in fields
     assert "CHATVOICE_MEETING_NOTES_MODEL" in fields
     assert "CHATVOICE_MEETING_TITLE_MODEL" in fields
     assert "CHATVOICE_REALTIME_MODELS" in fields
+    assert fields["CHATVOICE_MEETING_NOTES_PROVIDER"].default == "token-plan-chat-completions"
     assert fields["CHATVOICE_OPENAI_API_MODEL"].default == "qwen3.7-plus"
 
 

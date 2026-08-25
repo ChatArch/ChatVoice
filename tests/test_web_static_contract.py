@@ -60,6 +60,9 @@ def test_settings_panel_surfaces_server_side_api_key_status_without_browser_secr
     assert "服务端 API Key" in settings_markup
     assert "CHATVOICE_ASR_API_KEY" in settings_markup
     assert "CHATVOICE_OPENAI_API_KEY" in settings_markup
+    assert "CHATVOICE_MEETING_NOTES_PROVIDER" in settings_markup
+    assert "CHATVOICE_MEETING_NOTES_CRS_PROFILE" in settings_markup
+    assert "Summarize / Polish CRS" in settings_markup
     assert "sk-sp" in settings_markup
     assert "DASHSCOPE_API_KEY" not in settings_markup
     assert "api-key-status-list" in settings_markup
@@ -71,6 +74,8 @@ def test_settings_panel_surfaces_server_side_api_key_status_without_browser_secr
     assert "asr_api_key_configured" in status_body
     assert "model_api_key_configured" in status_body
     assert "model_api_key_is_token_plan" in status_body
+    assert "status.meeting_notes" in status_body
+    assert "crs-chat-completions" in status_body
     assert "voiceclone.url_configured" in status_body
     assert "voice_cloning_key_configured" not in status_body
     assert "DASHSCOPE_API_KEY" not in status_body

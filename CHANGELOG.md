@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.15 - 2026-08-26
+
+### Added
+
+- Add a separate CRS-backed meeting-notes provider for summarize/polish/revise: `CHATVOICE_MEETING_NOTES_PROVIDER=crs-chat-completions` with `CHATVOICE_MEETING_NOTES_CRS_PROFILE=apple` can call CRS `/chat/completions` in streaming mode.
+- Keep system TTS and realtime voice on the existing Token Plan `CHATVOICE_OPENAI_API_*` configuration while meeting notes can use a different CRS key/profile.
+- Surface sanitized meeting-notes provider status through `/api/status` and the Settings API-key panel.
+
+### Fixed
+
+- Refuse non-CRS API bases when the meeting-notes CRS provider is selected, so ChatVoice does not accidentally consume unrelated OpenAI-compatible ENV values.
+
 ## 0.1.14 - 2026-08-26
 
 ### Added

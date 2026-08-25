@@ -363,3 +363,146 @@ def test_asr_upload_updates_heartbeat_recent_success(monkeypatch, tmp_path):
         assert recent["last_error_type"] is None
     finally:
         sys.modules.pop(module_name, None)
+
+
+class _FakeSseResponse:
+    def __init__(self, events):
+        self._events = events
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        return False
+
+    def __iter__(self):
+        for event in self._events:
+            yield b"data: " + event + b"\n\n"
+
+
+def _save_openai_profile(tmp_path, name="apple", base="https://crs.example.wzhecnu.cn/openai/v1", model="gpt-stable"):
+    from chatenv import EnvStore, OpenAIConfig, get_paths
+
+    home = tmp_path / "chatarch-home"
+    store = EnvStore(get_paths(home).envs_dir)
+    store.save_profile(OpenAIConfig, name, {"OPENAI_API_BASE": base, "OPENAI_API_KEY": "cr_secret", "OPENAI_API_MODEL": model})
+    return home
+
+
+def test_meeting_notes_can_use_crs_chat_completions_profile_without_reusing_token_plan(monkeypatch, tmp_path):
+    import importlib
+    import json
+    import sys
+
+    module_name = "chatvoice.web.legacy_app"
+    sys.modules.pop(module_name, None)
+    home = _save_openai_profile(tmp_path)
+    monkeypatch.setenv("CHATARCH_HOME", str(home))
+    monkeypatch.setenv("CHATVOICE_HOME", str(tmp_path / "chatvoice-home"))
+    monkeypatch.setenv("CHATVOICE_MEETING_NOTES_PROVIDER", "crs-chat-completions")
+    monkeypatch.setenv("CHATVOICE_MEETING_NOTES_CRS_PROFILE", "apple")
+    monkeypatch.setenv("CHATVOICE_OPENAI_API_KEY", "sk-sp-token-plan-notes-should-not-use")
+    try:
+        legacy_app = importlib.import_module(module_name)
+        calls = []
+
+        def fake_urlopen(request, timeout):
+            body = json.loads(request.data.decode("utf-8"))
+            calls.append((request.full_url, request.get_header("Authorization"), body, timeout))
+            events = [
+                json.dumps({"choices": [{"delta": {"content": "稳定"}}]}).encode("utf-8"),
+                json.dumps({"choices": [{"delta": {"content": "纪要"}}]}).encode("utf-8"),
+                json.dumps({"usage": {"output_tokens": 2}, "choices": [{"delta": {}}]}).encode("utf-8"),
+            ]
+            return _FakeSseResponse(events)
+
+        monkeypatch.setattr(legacy_app.urllib.request, "urlopen", fake_urlopen)
+        result = legacy_app._meeting_notes_blocking(legacy_app.MeetingNotesRequest(transcript="会议讨论稳定模型", instruction="输出纪要"))
+
+        assert result["provider"] == "crs-chat-completions"
+        assert result["model"] == "gpt-stable"
+        assert result["content"] == "稳定纪要"
+        assert legacy_app._meeting_notes_status() == {
+            "provider": "crs-chat-completions",
+            "model": "gpt-stable",
+            "crs_profile": "apple",
+            "base_host": "crs.example.wzhecnu.cn",
+            "key_configured": True,
+        }
+        assert calls == [
+            (
+                "https://crs.example.wzhecnu.cn/openai/v1/chat/completions",
+                "Bearer cr_secret",
+                {
+                    "model": "gpt-stable",
+                    "messages": [
+                        {"role": "system", "content": "你是会议纪要实时整理助手，只输出中文结构化结果。"},
+                        {"role": "user", "content": "输出纪要\n\n转写文本：\n会议讨论稳定模型"},
+                    ],
+                    "stream": True,
+                },
+                80,
+            )
+        ]
+    finally:
+        sys.modules.pop(module_name, None)
+
+
+def test_meeting_notes_crs_provider_refuses_non_crs_profile_base(monkeypatch, tmp_path):
+    import importlib
+    import sys
+
+    module_name = "chatvoice.web.legacy_app"
+    sys.modules.pop(module_name, None)
+    home = _save_openai_profile(tmp_path, base="https://poison.example.test/v1")
+    monkeypatch.setenv("CHATARCH_HOME", str(home))
+    monkeypatch.setenv("CHATVOICE_HOME", str(tmp_path / "chatvoice-home"))
+    monkeypatch.setenv("CHATVOICE_MEETING_NOTES_PROVIDER", "crs-responses")
+    monkeypatch.setenv("CHATVOICE_MEETING_NOTES_CRS_PROFILE", "apple")
+    try:
+        legacy_app = importlib.import_module(module_name)
+        with pytest.raises(legacy_app.HTTPException) as exc_info:
+            legacy_app._meeting_notes_blocking(legacy_app.MeetingNotesRequest(transcript="会议", instruction="输出纪要"))
+        assert exc_info.value.status_code == 503
+        assert "non-CRS" in str(exc_info.value.detail)
+    finally:
+        sys.modules.pop(module_name, None)
+
+
+def test_meeting_notes_revision_stream_can_use_crs_chat_completions(monkeypatch, tmp_path):
+    import importlib
+    import json
+    import sys
+
+    module_name = "chatvoice.web.legacy_app"
+    sys.modules.pop(module_name, None)
+    home = _save_openai_profile(tmp_path)
+    monkeypatch.setenv("CHATARCH_HOME", str(home))
+    monkeypatch.setenv("CHATVOICE_HOME", str(tmp_path / "chatvoice-home"))
+    monkeypatch.setenv("CHATVOICE_MEETING_NOTES_PROVIDER", "crs-chat-completions")
+    monkeypatch.setenv("CHATVOICE_MEETING_NOTES_CRS_PROFILE", "apple")
+    try:
+        legacy_app = importlib.import_module(module_name)
+
+        def fake_urlopen(request, timeout):
+            body = json.loads(request.data.decode("utf-8"))
+            assert request.full_url == "https://crs.example.wzhecnu.cn/openai/v1/chat/completions"
+            assert body["stream"] is True
+            assert body["model"] == "gpt-stable"
+            return _FakeSseResponse([
+                json.dumps({"choices": [{"delta": {"content": "新纪要"}}]}).encode("utf-8"),
+                json.dumps({"usage": {"output_tokens": 3}, "choices": [{"delta": {}}]}).encode("utf-8"),
+            ])
+
+        monkeypatch.setattr(legacy_app.urllib.request, "urlopen", fake_urlopen)
+        events = "".join(
+            legacy_app._meeting_notes_revision_stream(
+                legacy_app.MeetingNotesReviseRequest(transcript="会议", current_summary="旧纪要", instruction="润色")
+            )
+        )
+
+        assert '"provider": "crs-chat-completions"' in events
+        assert "新纪要" in events
+        assert "event: done" in events
+    finally:
+        sys.modules.pop(module_name, None)

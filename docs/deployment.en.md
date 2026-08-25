@@ -1,6 +1,6 @@
 # Deployment and Startup
 
-This page explains how to run a ChatVoice / Speakr service from the released Python package in v0.1.14: install, create an account, start the service, generate an API token, and read meeting tag/summary data.
+This page explains how to run a ChatVoice / Speakr service from the released Python package in v0.1.15: install, create an account, start the service, generate an API token, and read meeting tag/summary data.
 
 ## Minimal install
 
@@ -8,7 +8,7 @@ This page explains how to run a ChatVoice / Speakr service from the released Pyt
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "ChatVoice[web]==0.1.14"
+python -m pip install "ChatVoice[web]==0.1.15"
 ```
 
 Read back the real CLI tree and runtime paths first:
@@ -66,7 +66,7 @@ For production, put the service behind a controlled reverse proxy. API keys stay
 
 ## ASR provider: API first
 
-The recommended production shape in v0.1.14 is **ChatVoice calls ASR through an API provider**. That provider can be:
+The recommended production shape in v0.1.15 is **ChatVoice calls ASR through an API provider**. That provider can be:
 
 - a managed cloud ASR API with an API key;
 - a self-hosted GPU ASR server exposing HTTP;
@@ -81,11 +81,22 @@ export CHATVOICE_ASR_API_URL="https://<asr-service>/v1/transcribe"
 chatvoice serve app --host 127.0.0.1 --port 18087
 ```
 
-The browser **Settings → Server-side API Key** panel shows whether `CHATVOICE_ASR_API_KEY`, the Token Plan `CHATVOICE_OPENAI_API_KEY`, and the local VoiceClone sidecar are configured. It displays status only and never stores raw key values in the browser. Server configuration is stored in the ChatEnv `ChatVoice` profile: `CHATVOICE_OPENAI_API_BASE` / `CHATVOICE_OPENAI_API_KEY` / `CHATVOICE_OPENAI_API_MODEL`. Production accepts `sk-sp...` Token Plan keys by default to avoid accidental usage-billed `sk-...` calls.
+The browser **Settings -> Server-side API Key** panel shows whether `CHATVOICE_ASR_API_KEY`, the voice/realtime Token Plan `CHATVOICE_OPENAI_API_KEY`, the summarize/polish CRS provider, and the local VoiceClone sidecar are configured. It displays status only and never stores raw key values in the browser. Voice and realtime model settings still live in the ChatEnv `ChatVoice` profile: `CHATVOICE_OPENAI_API_BASE` / `CHATVOICE_OPENAI_API_KEY` / `CHATVOICE_OPENAI_API_MODEL`. Production accepts `sk-sp...` Token Plan keys by default to avoid accidental usage-billed `sk-...` calls.
+
+Meeting notes can use CRS independently from voice model keys:
+
+```bash
+export CHATVOICE_MEETING_NOTES_PROVIDER=crs-chat-completions
+export CHATVOICE_MEETING_NOTES_CRS_PROFILE=apple
+# Optional explicit override; otherwise use the CRS profile model, e.g. gpt-5.5.
+# export CHATVOICE_MEETING_NOTES_MODEL=gpt-5.5
+```
+
+`crs-chat-completions` reads a ChatEnv built-in `OpenAI/<profile>` but only accepts CRS hosts such as `crs.tencent-am.wzhecnu.cn`, so unrelated OpenAI-compatible ENV values are refused. `CHATVOICE_MEETING_NOTES_CRS_API_BASE` / `CHATVOICE_MEETING_NOTES_CRS_API_KEY` are available only for controlled explicit overrides; prefer the CRS profile.
 
 ChatVoice sends uploaded audio to `CHATVOICE_ASR_API_URL` as multipart field `file` and reads `corrected_text`, `text`, `transcript`, `raw_text`, `data.text`, or `result.text` from the ASR JSON response.
 
-`funasr-gpu` / `funasr-cpu` remain compatibility channels, but they are not the default recommended deployment. Starting with 0.1.14, production requires FunASR to load persistently inside the ChatVoice service process and prewarm during startup by default; the short-lived subprocess worker is disabled by default because it reloads the GPU model per request/chunk and causes repeated cold starts. Enable `CHATVOICE_FUNASR_ALLOW_SUBPROCESS_WORKER=1` only for explicit debugging. A more flexible approach is to run the GPU runtime as an ASR API server and let ChatVoice call it through `api-server`.
+`funasr-gpu` / `funasr-cpu` remain compatibility channels, but they are not the default recommended deployment. Starting with 0.1.15, production requires FunASR to load persistently inside the ChatVoice service process and prewarm during startup by default; the short-lived subprocess worker is disabled by default because it reloads the GPU model per request/chunk and causes repeated cold starts. Enable `CHATVOICE_FUNASR_ALLOW_SUBPROCESS_WORKER=1` only for explicit debugging. A more flexible approach is to run the GPU runtime as an ASR API server and let ChatVoice call it through `api-server`.
 
 Meeting summary generation is also a server-side model boundary: configure the notes model/provider in server-side environment or config storage, and let the browser/API read only the saved summary text.
 
@@ -110,7 +121,7 @@ See [API Access](api-access.md) for details.
 
 ## Database and concurrency boundary
 
-The v0.1.14 packaged web app uses SQLite WAL by default:
+The v0.1.15 packaged web app uses SQLite WAL by default:
 
 ```text
 <chatarch-home>/chatvoice/data/meetings.sqlite3

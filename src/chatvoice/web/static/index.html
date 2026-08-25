@@ -1061,10 +1061,11 @@
       <p>页面始终使用统一转写协议。未来接入阿里、火山、讯飞或 Whisper 服务时，录音页不需要改变。</p>
       <section class="api-key-config" aria-labelledby="api-key-config-title">
         <h3 id="api-key-config-title">服务端 API Key</h3>
-        <p>这里显示密钥配置状态，不在浏览器保存或提交密钥明文。服务端配置统一走 ChatEnv <code>ChatVoice</code> profile：ASR 使用 <code>CHATVOICE_ASR_API_KEY</code>；模型侧使用 OpenAI-compatible <code>CHATVOICE_OPENAI_API_KEY</code>（Token Plan 必须是 <code>sk-sp...</code>）。</p>
+        <p>这里显示密钥配置状态，不在浏览器保存或提交密钥明文。服务端配置统一走 ChatEnv：ASR 使用 <code>CHATVOICE_ASR_API_KEY</code>；系统音色和 realtime 使用 ChatVoice Token Plan <code>CHATVOICE_OPENAI_API_KEY</code>（必须是 <code>sk-sp...</code>）；summarize/polish 可单独使用 CRS <code>CHATVOICE_MEETING_NOTES_PROVIDER</code> / <code>CHATVOICE_MEETING_NOTES_CRS_PROFILE</code>。</p>
         <ul class="api-key-status-list" id="api-key-status-list">
           <li><span>ASR API Key</span><b>读取中…</b></li>
           <li><span>Token Plan CHATVOICE_OPENAI_API_KEY</span><b>读取中…</b></li>
+          <li><span>Summarize / Polish CRS</span><b>读取中…</b></li>
           <li><span>本地声音复刻</span><b>读取中…</b></li>
         </ul>
       </section>
@@ -2112,10 +2113,12 @@
       status = status || {};
       const keys = status.api_keys || {};
       const asr = status.asr_api || {};
+      const notes = status.meeting_notes || {};
       const voiceclone = status.voiceclone_api || {};
       const rows = [
         ['ASR API Key', keys.asr_api_key_configured || asr.api_key_configured, asr.url_configured ? `已配置 endpoint：${asr.endpoint_host || 'server'}` : '等待 CHATVOICE_ASR_API_URL'],
-        ['Token Plan CHATVOICE_OPENAI_API_KEY', keys.model_api_key_configured && keys.model_api_key_is_token_plan, keys.model_api_key_is_token_plan ? 'ChatEnv ChatVoice profile · sk-sp' : '等待 ChatEnv ChatVoice profile 的 sk-sp key'],
+        ['Token Plan CHATVOICE_OPENAI_API_KEY', keys.model_api_key_configured && keys.model_api_key_is_token_plan, keys.model_api_key_is_token_plan ? '语音/realtime · ChatEnv ChatVoice profile · sk-sp' : '等待 ChatEnv ChatVoice profile 的 sk-sp key'],
+        ['Summarize / Polish CRS', notes.provider === 'crs-chat-completions' && notes.key_configured, notes.provider ? `${notes.provider} · ${notes.base_host || notes.crs_profile || 'CRS'}` : '等待 CHATVOICE_MEETING_NOTES_PROVIDER'],
         ['本地声音复刻', voiceclone.url_configured, voiceclone.url_configured ? `VoiceClone sidecar：${voiceclone.endpoint_host || 'local'}` : '等待 CHATVOICE_VOICECLONE_URL'],
       ];
       $('api-key-status-list').innerHTML = rows.map(([label, ready, note]) => `
