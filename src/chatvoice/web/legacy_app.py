@@ -35,7 +35,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
 
 from chatvoice import __version__
-from chatvoice import text_api
+from chatvoice import text_api, tts_api
 from chatvoice.config import ChatVoiceConfig
 from chatvoice.paths import state_paths
 from pydantic import BaseModel, Field
@@ -59,8 +59,10 @@ def _load_chatvoice_env_values() -> dict[str, str]:
     loaded: dict[str, str] = {}
     for field in ChatVoiceConfig.get_fields().values():
         value = field.value
-        if value is not None and str(value).strip():
-            loaded[field.env_key] = str(value).strip()
+        if value is not None:
+            value = str(value) if field.env_key.startswith('CHATVOICE_TTS_') else str(value).strip()
+            if value:
+                loaded[field.env_key] = value
     return loaded
 
 
@@ -190,7 +192,7 @@ app.add_middleware(
 
 class TTSRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=800)
-    voice: str = Field(DEFAULT_VOICE, min_length=1, max_length=80)
+    voice: str | None = Field(None, min_length=1, max_length=80, pattern=r'^[\x20-\x7e]+$')
     format: str = Field("mp3", pattern="^(mp3|wav)$")
 
 
@@ -483,6 +485,22 @@ def _meeting_title_status() -> dict[str, Any]:
     }
 
 
+def _tts_values() -> dict[str, str]:
+    return {f'CHATVOICE_TTS_{name}': os.environ.get(f'CHATVOICE_TTS_{name}', _CHATVOICE_ENV.get(f'CHATVOICE_TTS_{name}', ''))
+            for name in tts_api.FIELDS}
+
+
+def _tts_status() -> dict[str, Any]:
+    independent = tts_api.tts_status(_tts_values())
+    if independent is not None:
+        return independent
+    key = (_read_profile().get('CHATVOICE_OPENAI_API_KEY') or '').strip()
+    return {'provider': 'qwen', 'base_host': urlparse(TOKEN_PLAN_TTS_WS).hostname, 'model': TTS_MODEL,
+            'key_configured': bool(key), 'configured': bool(key and _is_token_plan_key(key)),
+            'voices': [{'id': DEFAULT_VOICE, 'label': '龙安灵心'}, {'id': 'longanlufeng', 'label': '龙安鲁风'}],
+            'default_voice': DEFAULT_VOICE}
+
+
 def _safe_profile_summary() -> dict[str, Any]:
     profile = _read_profile()
     key = (profile.get("CHATVOICE_OPENAI_API_KEY") or "").strip()
@@ -514,7 +532,8 @@ def _safe_profile_summary() -> dict[str, Any]:
             "endpoint_host": urlparse(VOICECLONE_API_URL).netloc if VOICECLONE_API_URL else None,
             "mode": "local-one-shot-sidecar",
         },
-        "tts_model": TTS_MODEL,
+        "tts_model": _tts_status()['model'],
+        "tts": _tts_status(),
         "meeting_notes": _meeting_notes_status(),
         "meeting_title": _meeting_title_status(),
         "meeting_title_model": _meeting_title_model(),
@@ -561,12 +580,19 @@ def _available_realtime_models() -> list[dict[str, str]]:
 
 
 def _tts_blocking(req: TTSRequest) -> dict[str, Any]:
+    settings = tts_api.resolve_tts_settings(_tts_values())
+    if settings is not None:
+        return tts_api.synthesize(settings, req.text, voice=req.voice, format=req.format)
+    return _legacy_tts_blocking(req)
+
+
+def _legacy_tts_blocking(req: TTSRequest) -> dict[str, Any]:
     key = _token_plan_key()
     dashscope.api_key = key
     dashscope.base_websocket_api_url = TOKEN_PLAN_TTS_WS
     audio_format = AudioFormat.MP3_22050HZ_MONO_256KBPS if req.format == "mp3" else AudioFormat.WAV_24000HZ_MONO_16BIT
     started = time.time()
-    synthesizer = SpeechSynthesizer(model=TTS_MODEL, voice=req.voice, format=audio_format)
+    synthesizer = SpeechSynthesizer(model=TTS_MODEL, voice=req.voice or DEFAULT_VOICE, format=audio_format)
     audio = synthesizer.call(req.text)
     if not audio:
         raise RuntimeError("TTS returned empty audio")
@@ -1336,6 +1362,10 @@ async def tts(req: TTSRequest) -> Response:
     safe_req = TTSRequest(text=text, voice=req.voice, format=req.format)
     try:
         result = await asyncio.to_thread(_tts_blocking, safe_req)
+    except tts_api.TTSConfigurationError:
+        raise HTTPException(status_code=503, detail=tts_api.CONFIG_ERROR) from None
+    except tts_api.TTSRequestError:
+        raise HTTPException(status_code=502, detail=tts_api.REQUEST_ERROR) from None
     except HTTPException:
         raise
     except Exception as exc:
@@ -1343,14 +1373,18 @@ async def tts(req: TTSRequest) -> Response:
     media_type = "audio/mpeg" if req.format == "mp3" else "audio/wav"
     suffix = "mp3" if req.format == "mp3" else "wav"
     headers = {
-        "X-Qwen-Model": TTS_MODEL,
-        "X-Qwen-Voice": req.voice,
-        "X-Qwen-Request-Id": str(result.get("request_id") or ""),
+        "X-TTS-Provider": result.get('provider', 'qwen'),
+        "X-TTS-Model": result.get('model', TTS_MODEL),
+        "X-TTS-Voice": result.get('voice', req.voice or DEFAULT_VOICE),
         "X-Audio-Bytes": str(len(result["audio"])),
         "X-Audio-Sha256-12": str(result.get("sha256_12") or ""),
         "X-Elapsed-Ms": str(result.get("elapsed_ms") or ""),
-        "Content-Disposition": f'inline; filename="qwen-token-plan-tts.{suffix}"',
+        "Content-Disposition": f'inline; filename="tts.{suffix}"',
     }
+    if 'provider' not in result:
+        request_id = str(result.get('request_id') or '')
+        headers.update({'X-Qwen-Model': TTS_MODEL, 'X-Qwen-Voice': req.voice or DEFAULT_VOICE,
+                        'X-Qwen-Request-Id': request_id if tts_api._header(request_id) else ''})
     return Response(content=result["audio"], media_type=media_type, headers=headers)
 
 

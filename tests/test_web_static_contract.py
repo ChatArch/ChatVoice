@@ -401,8 +401,8 @@ def test_voice_studio_uses_local_one_shot_clone_flow_instead_of_voice_id_enrollm
     assert "voice-options" in studio_markup
     assert "clone-voice-card" in studio_markup
     assert "共用下面同一个文本框" in studio_markup
-    assert "龙安灵心" in studio_markup
-    assert "龙安鲁风" in studio_markup
+    assert "renderTtsVoices" in source
+    assert "status?.tts?.voices" in source
     assert "我的复刻声音" in studio_markup
     assert "clone-source-status" in studio_markup
     assert "clone-reference-file" in studio_markup
@@ -431,7 +431,7 @@ def test_voice_studio_uses_local_one_shot_clone_flow_instead_of_voice_id_enrollm
     configure_body = _function_body(source, "configureVoiceCloning")
     assert "voiceclone_api" in configure_body
     assert "refreshVoiceCloneStatus" in configure_body
-    assert "model_api_key_configured" in configure_body
+    assert "status?.tts?.configured" in configure_body
     assert "system-key-status" in configure_body
 
     assert source.count("async function createClonedVoice") == 1
@@ -455,7 +455,7 @@ def test_voice_studio_uses_local_one_shot_clone_flow_instead_of_voice_id_enrollm
     synth_body = _function_body(source, "synthesizeVoice")
     assert "voiceSource === 'clone'" in synth_body
     assert "createClonedVoice" in synth_body
-    assert "系统音色未配置 Token Plan CHATVOICE_OPENAI_API_KEY" in synth_body
+    assert "系统语音合成尚未配置完成，请检查服务端 TTS 配置" in synth_body
 
     select_body = _function_body(source, "selectTtsVoice")
     assert "voice === 'clone'" in select_body
@@ -468,7 +468,8 @@ def test_voice_studio_uses_local_one_shot_clone_flow_instead_of_voice_id_enrollm
     assert "MediaRecorder" in record_body
     assert "recorded-reference.webm" in record_body
 
-    assert "voice-card').forEach((button) => button.addEventListener('click', () => selectTtsVoice(button.dataset.voice)))" in source
+    assert "$('voice-options').addEventListener('click'" in source
+    assert "event.target.closest('.voice-card')" in source
     assert "clone-reference-file').addEventListener('change'" in source
     assert "clone-consent').addEventListener('change', updateVoiceSubmitState" in source
     assert "record-clone-reference').addEventListener('click', toggleCloneRecording" in source

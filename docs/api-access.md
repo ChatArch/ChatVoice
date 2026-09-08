@@ -4,6 +4,8 @@ ChatVoice 0.1.15 提供从 packaged service 读取会议和对话数据的闭环
 
 ## 访问模型
 
+本地未发布 `0.1.15.post2` 为系统语音增加[独立 TTS 协议配置](tts-models.md)：`POST /api/tts` 仍接受 text、可选 voice 和 mp3/wav；默认音色取配置首项，响应使用 `X-TTS-Provider/Model/Voice`。`GET /api/status` 新增安全 `tts` 对象；配置错误返回 503，上游失败返回固定脱敏 502。数据访问、鉴权和复刻接口不变。
+
 | 入口 | 凭证 | 用途 |
 | --- | --- | --- |
 | 浏览器登录 | HttpOnly session cookie + CSRF token | 保存会议、对话、网页创建/撤销 API Token |
@@ -21,7 +23,7 @@ Token 明文只在创建时返回一次。后端 SQLite 只保存 hash、prefix�
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "ChatVoice[web]==0.1.15.post1"
+python -m pip install "ChatVoice[web]==0.1.15.post2"
 chatvoice service plan --ensure-dirs --json
 export CHATVOICE_ASR_CHANNEL=stub-local
 chatvoice serve app --host 127.0.0.1 --port 18087

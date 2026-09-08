@@ -25,13 +25,13 @@ Documentation entry: <https://arch.gh.wzhecnu.cn/ChatVoice/en/>
 
 ## Quick start from PyPI
 
-This branch contains the source-built `0.1.15.post1` hotfix; the pinned PyPI examples below require that version to be published first. Until then, install the reviewed local wheel. See [independent text models](docs/text-models.en.md) for notes/title configuration, validation and rollback. Voice configuration is unchanged.
+This branch contains the local, unpublished `0.1.15.post2` hotfix; the pinned PyPI examples below require publication first. Until then, install the reviewed local wheel. [Independent TTS](docs/tts-models.en.md) supports configurable protocols, endpoints, models, credentials and voice catalogs, failing closed for incomplete configuration. ASR, realtime and VoiceClone are unchanged. See [independent text models](docs/text-models.en.md) for unchanged notes/title configuration.
 
 ```bash
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "ChatVoice[web]==0.1.15.post1"
+python -m pip install "ChatVoice[web]==0.1.15.post2"
 
 chatvoice --tree
 chatvoice --tree-brief
@@ -92,7 +92,7 @@ chatvoice serve app --host 127.0.0.1 --port 18087
 
 `funasr-gpu` and `funasr-cpu` remain compatibility channels, but the recommended production boundary is to keep GPU runtime behind an ASR API server and let ChatVoice call it over HTTP.
 
-Meeting summary generation is a separate server-side model boundary: `summarize/polish/revise` can use CRS through `CHATVOICE_MEETING_NOTES_PROVIDER=crs-chat-completions` and `CHATVOICE_MEETING_NOTES_CRS_PROFILE=apple`, while system TTS and realtime voice keep using the Token Plan `CHATVOICE_OPENAI_API_*` settings.
+Meeting summary generation is a separate server-side model boundary: `summarize/polish/revise` can use CRS through `CHATVOICE_MEETING_NOTES_PROVIDER=crs-chat-completions` and `CHATVOICE_MEETING_NOTES_CRS_PROFILE=apple`. Realtime and legacy TTS retain Token Plan `CHATVOICE_OPENAI_API_*`; independent TTS uses only `CHATVOICE_TTS_*`.
 
 ## Database and concurrency
 

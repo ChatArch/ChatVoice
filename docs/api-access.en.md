@@ -4,6 +4,8 @@ ChatVoice 0.1.15 provides an end-to-end data access path for the packaged servic
 
 ## Access model
 
+Local unpublished `0.1.15.post2` adds [independent TTS protocols](tts-models.en.md). `POST /api/tts` still accepts text, optional voice and mp3/wav; the first configured voice is default, with `X-TTS-Provider/Model/Voice` response headers. `GET /api/status` adds a safe `tts` object. Invalid configuration returns 503; upstream failures return fixed sanitized 502 errors. Data access, authentication and clone APIs are unchanged.
+
 | Entry | Credential | Purpose |
 | --- | --- | --- |
 | Browser login | HttpOnly session cookie + CSRF token | Save meetings/conversations and create/revoke API tokens in the web UI |
@@ -21,7 +23,7 @@ Install and start the service:
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "ChatVoice[web]==0.1.15.post1"
+python -m pip install "ChatVoice[web]==0.1.15.post2"
 chatvoice service plan --ensure-dirs --json
 export CHATVOICE_ASR_CHANNEL=stub-local
 chatvoice serve app --host 127.0.0.1 --port 18087

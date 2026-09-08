@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.1.15.post2 - 2026-09-08 (local hotfix, unpublished)
+
+### Added
+
+- Add explicit independent `qwen` WebSocket TTS with configurable exact endpoint/model/voices, its own `sk-sp` key, bounded per-call connections, and no DashScope global mutation or fallback.
+- Independent TTS adapters for configurable Volcengine HTTP NDJSON and OpenAI-compatible speech endpoints, models, credentials, resource identifiers and voice catalogs.
+- Fail-closed configuration, bounded audio parsing, redirect refusal, sanitized status/errors, generic TTS response metadata, and a synthetic ChatEnv probe using the selected home without saving audio.
+- Dynamic system voice cards with the configured first voice as default; preserve clone selection and the shared studio panel.
+
+### Fixed
+
+- Reject premature TTS HTTP EOF when Content-Length bytes remain, and accept valid signed-int16 PCM without magic-prefix heuristics.
+
+### Unchanged
+
+- Empty independent TTS fields retain the existing Qwen `sk-sp` gate and synthesis path. ASR, realtime, notes/title, VoiceClone, authentication, storage and service supervision are unchanged.
+- This source-only hotfix does not imply publication, deployment or verified cloud synthesis.
+
 ## 0.1.15 - 2026-08-26
 
 ### Added

@@ -19,11 +19,12 @@ class ChatVoiceConfig(BaseEnvConfig):
 
     @classmethod
     def test(cls) -> None:
-        """Probe explicit text endpoints; legacy profiles remain schema-only."""
+        """Probe explicit text/TTS endpoints; legacy profiles remain schema-only."""
 
         from click import get_current_context
         from chatenv import EnvStore
         from chatvoice.text_api import probe_text_configuration
+        from chatvoice.tts_api import probe_tts_configuration, resolve_tts_settings
 
         # ChatEnv 0.2.x dispatches test() without loading the selected profile.
         # Reuse its already-resolved store (including --home), not a second parser.
@@ -34,11 +35,22 @@ class ChatVoiceConfig(BaseEnvConfig):
             cls.load_from_sources(env_values=store.load_active(cls))
 
         print(f"Testing {cls._title}...")
-        results = probe_text_configuration({field.env_key: field.value for field in cls.get_fields().values()})
-        if not results:
+        values = {field.env_key: field.value for field in cls.get_fields().values()}
+        tts_settings = resolve_tts_settings(values)
+        results = probe_text_configuration(values)
+        if not results and tts_settings is None:
             print("Schema loaded; no independent text endpoint configured (no network test).")
         for purpose in results:
             print(f"Meeting {purpose}: synthetic connectivity test passed.")
+        if probe_tts_configuration(values) is not None:
+            print("TTS: synthetic connectivity test passed (no audio saved).")
+
+    CHATVOICE_TTS_API_TYPE = EnvField("CHATVOICE_TTS_API_TYPE", desc="Independent TTS protocol: volcengine, openai or qwen.")
+    CHATVOICE_TTS_API_BASE = EnvField("CHATVOICE_TTS_API_BASE", desc="TTS root HTTP API base, or exact ws/wss endpoint for qwen.")
+    CHATVOICE_TTS_API_KEY = EnvField("CHATVOICE_TTS_API_KEY", desc="Independent TTS credential; never borrowed from other services.", is_sensitive=True)
+    CHATVOICE_TTS_MODEL = EnvField("CHATVOICE_TTS_MODEL", desc="Configured TTS model identifier.")
+    CHATVOICE_TTS_RESOURCE_ID = EnvField("CHATVOICE_TTS_RESOURCE_ID", desc="Volcengine protocol resource identifier, distinct from model.")
+    CHATVOICE_TTS_VOICES = EnvField("CHATVOICE_TTS_VOICES", desc='JSON list of {id,label} voices; first voice is default.')
 
     CHATVOICE_ASR_CHANNEL = EnvField(
         "CHATVOICE_ASR_CHANNEL",

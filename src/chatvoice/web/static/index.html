@@ -929,7 +929,7 @@
           <h1>让文字拥有合适的声音。</h1>
           <p>选择系统音色，或接入经过授权的复刻声音。生成后的音频可直接试听、下载，并继续用于播客、旁白和内容工作流。</p>
         </div>
-        <span class="studio-model-badge">qwen-audio-3.0-tts-plus</span>
+        <span class="studio-model-badge" id="tts-model-badge">TTS</span>
       </header>
 
       <div class="studio-grid">
@@ -938,12 +938,6 @@
 
           <div class="studio-label"><span>选择音色</span><small>系统音色或你的复刻声音，共用下面同一个文本框</small></div>
           <div class="voice-options" id="voice-options">
-            <button class="voice-card active" data-voice="longanlingxin" type="button">
-              <span class="voice-avatar">灵</span><span><strong>龙安灵心</strong><small>温暖 · 细腻 · 女声</small></span><i class="voice-check"></i>
-            </button>
-            <button class="voice-card" data-voice="longanlufeng" type="button">
-              <span class="voice-avatar">风</span><span><strong>龙安鲁风</strong><small>明亮 · 开朗 · 男声</small></span><i class="voice-check"></i>
-            </button>
             <button class="voice-card clone-voice-card" id="clone-voice-card" data-voice="clone" type="button">
               <span class="voice-avatar">●</span><span><strong>我的复刻声音</strong><small id="clone-source-status">上传或录制参考音频</small></span><i class="voice-check"></i>
             </button>
@@ -1061,9 +1055,10 @@
       <p>页面始终使用统一转写协议。未来接入阿里、火山、讯飞或 Whisper 服务时，录音页不需要改变。</p>
       <section class="api-key-config" aria-labelledby="api-key-config-title">
         <h3 id="api-key-config-title">服务端 API Key</h3>
-        <p>这里显示密钥配置状态，不在浏览器保存或提交密钥明文。服务端配置统一走 ChatEnv：ASR 使用 <code>CHATVOICE_ASR_API_KEY</code>；系统音色和 realtime 使用 ChatVoice Token Plan <code>CHATVOICE_OPENAI_API_KEY</code>（必须是 <code>sk-sp...</code>）；summarize/polish 可单独使用 CRS <code>CHATVOICE_MEETING_NOTES_PROVIDER</code> / <code>CHATVOICE_MEETING_NOTES_CRS_PROFILE</code>。</p>
+        <p>这里显示密钥配置状态，不在浏览器保存或提交密钥明文。服务端配置统一走 ChatEnv：ASR 使用 <code>CHATVOICE_ASR_API_KEY</code>；独立系统音色使用 <code>CHATVOICE_TTS_API_KEY</code> 和完整 TTS 配置；旧 TTS 与 realtime 使用 ChatVoice Token Plan <code>CHATVOICE_OPENAI_API_KEY</code>（必须是 <code>sk-sp...</code>）；summarize/polish 可单独使用 CRS <code>CHATVOICE_MEETING_NOTES_PROVIDER</code> / <code>CHATVOICE_MEETING_NOTES_CRS_PROFILE</code>。</p>
         <ul class="api-key-status-list" id="api-key-status-list">
           <li><span>ASR API Key</span><b>读取中…</b></li>
+          <li><span>系统 TTS</span><b>读取中…</b></li>
           <li><span>Token Plan CHATVOICE_OPENAI_API_KEY</span><b>读取中…</b></li>
           <li><span>Summarize / Polish CRS</span><b>读取中…</b></li>
           <li><span>本地声音复刻</span><b>读取中…</b></li>
@@ -1236,10 +1231,10 @@
     let csrfToken = '';
     let guestDbPromise = null;
     let activeProductView = 'meeting';
-    let selectedTtsVoice = 'longanlingxin';
+    let selectedTtsVoice = '';
     let selectedTtsFormat = 'mp3';
     let voiceSource = 'system';
-    let systemTtsKeyConfigured = true;
+    let systemTtsKeyConfigured = false;
     let ttsAudioUrl = null;
     let generatedAudioExtension = 'mp3';
     let voiceCloningConfigured = false;
@@ -1885,7 +1880,7 @@
 
     async function synthesizeVoice() {
       if (voiceSource === 'clone') { await createClonedVoice(); return; }
-      if (!systemTtsKeyConfigured) { showToast('系统音色未配置 Token Plan CHATVOICE_OPENAI_API_KEY（sk-sp...）'); return; }
+      if (!systemTtsKeyConfigured) { showToast('系统语音合成尚未配置完成，请检查服务端 TTS 配置'); return; }
       const text = $('tts-text').value.trim();
       const voice = selectedVoiceId();
       if (!text) { showToast('请先输入要生成的文字'); return; }
@@ -1908,7 +1903,7 @@
         $('tts-audio').src = ttsAudioUrl;
         $('result-player').hidden = false;
         $('result-empty').textContent = '已生成，可以试听';
-        $('result-voice').textContent = response.headers.get('X-Qwen-Voice') || voice;
+        $('result-voice').textContent = response.headers.get('X-TTS-Voice') || response.headers.get('X-Qwen-Voice') || voice;
         const elapsed = response.headers.get('X-Elapsed-Ms');
         $('result-elapsed').textContent = elapsed ? `${(Number(elapsed) / 1000).toFixed(1)} s` : '—';
         $('result-size').textContent = humanBytes(response.headers.get('X-Audio-Bytes') || audio.size);
@@ -1943,7 +1938,7 @@
         btn.title = cloneReady ? '用当前复刻声音生成（需已选参考音频并确认授权）' : '本地复刻服务尚未就绪';
       } else {
         btn.disabled = ttsGenerating || !systemTtsKeyConfigured;
-        btn.title = systemTtsKeyConfigured ? '用系统音色生成' : '系统音色未配置 Token Plan CHATVOICE_OPENAI_API_KEY（sk-sp...）';
+        btn.title = systemTtsKeyConfigured ? '用系统音色生成' : '系统语音合成尚未配置完成，请检查服务端 TTS 配置';
       }
       $('record-clone-reference').disabled = cloneGenerating || !cloneReady;
     }
@@ -1981,15 +1976,42 @@
       return localVoiceCloneStatus;
     }
 
+    function renderTtsVoices(status) {
+      const voices = status?.tts?.voices || [];
+      const container = $('voice-options');
+      container.querySelectorAll('.voice-card').forEach((card) => {
+        if (card.id !== 'clone-voice-card') card.remove();
+      });
+      voices.forEach((voice) => {
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = 'voice-card';
+        card.dataset.voice = voice.id;
+        const avatar = document.createElement('span');
+        avatar.className = 'voice-avatar';
+        avatar.textContent = voice.label.slice(0, 1);
+        const label = document.createElement('strong');
+        label.textContent = voice.label;
+        const check = document.createElement('i');
+        check.className = 'voice-check';
+        card.append(avatar, label, check);
+        container.insertBefore(card, $('clone-voice-card'));
+      });
+      if (!voices.some((voice) => voice.id === selectedTtsVoice)) selectedTtsVoice = status?.tts?.default_voice || '';
+      $('tts-model-badge').textContent = status?.tts?.model || 'TTS';
+      selectTtsVoice(voiceSource === 'clone' ? 'clone' : selectedTtsVoice);
+    }
+
     function configureVoiceCloning(status) {
       const keys = status?.api_keys || {};
       const localConfigured = Boolean(status?.voiceclone_api?.url_configured);
       voiceCloningConfigured = localConfigured || Boolean(keys.voice_cloning_key_configured || status === true);
-      systemTtsKeyConfigured = Boolean(keys.model_api_key_configured && keys.model_api_key_is_token_plan);
+      systemTtsKeyConfigured = Boolean(status?.tts?.configured);
+      renderTtsVoices(status);
       const note = $('system-key-status');
       note.textContent = systemTtsKeyConfigured
-        ? '系统音色已接入 Token Plan（sk-sp），可直接生成。'
-        : '系统音色未接入 Token Plan CHATVOICE_OPENAI_API_KEY（sk-sp...），暂不可用；可改用“我的复刻声音”。';
+        ? '系统语音合成已配置，可直接生成。'
+        : '系统语音合成配置不完整，暂不可用；可改用“我的复刻声音”。';
       note.classList.toggle('ok', systemTtsKeyConfigured);
       note.hidden = voiceSource !== 'system' || systemTtsKeyConfigured;
       updateVoiceSubmitState();
@@ -2117,7 +2139,8 @@
       const voiceclone = status.voiceclone_api || {};
       const rows = [
         ['ASR API Key', keys.asr_api_key_configured || asr.api_key_configured, asr.url_configured ? `已配置 endpoint：${asr.endpoint_host || 'server'}` : '等待 CHATVOICE_ASR_API_URL'],
-        ['Token Plan CHATVOICE_OPENAI_API_KEY', keys.model_api_key_configured && keys.model_api_key_is_token_plan, keys.model_api_key_is_token_plan ? '语音/realtime · ChatEnv ChatVoice profile · sk-sp' : '等待 ChatEnv ChatVoice profile 的 sk-sp key'],
+        ['系统 TTS', status.tts?.configured, status.tts?.configured ? `${status.tts.provider} · ${status.tts.model}` : '等待服务端 TTS 配置'],
+        ['Token Plan CHATVOICE_OPENAI_API_KEY', keys.model_api_key_configured && keys.model_api_key_is_token_plan, keys.model_api_key_is_token_plan ? 'realtime / 旧 TTS · ChatEnv ChatVoice profile · sk-sp' : '等待 ChatEnv ChatVoice profile 的 sk-sp key'],
         ['Summarize / Polish CRS', notes.provider === 'crs-chat-completions' && notes.key_configured, notes.provider ? `${notes.provider} · ${notes.base_host || notes.crs_profile || 'CRS'}` : '等待 CHATVOICE_MEETING_NOTES_PROVIDER'],
         ['本地声音复刻', voiceclone.url_configured, voiceclone.url_configured ? `VoiceClone sidecar：${voiceclone.endpoint_host || 'local'}` : '等待 CHATVOICE_VOICECLONE_URL'],
       ];
@@ -3836,7 +3859,10 @@
 
     document.querySelectorAll('.content-tab').forEach((button) => button.addEventListener('click', () => setActiveTab(button.dataset.tab)));
     document.querySelectorAll('.product-tab').forEach((button) => button.addEventListener('click', () => switchProductView(button.dataset.product)));
-    document.querySelectorAll('.voice-card').forEach((button) => button.addEventListener('click', () => selectTtsVoice(button.dataset.voice)));
+    $('voice-options').addEventListener('click', (event) => {
+      const button = event.target.closest('.voice-card');
+      if (button && $('voice-options').contains(button)) selectTtsVoice(button.dataset.voice);
+    });
     document.querySelectorAll('.format-button').forEach((button) => button.addEventListener('click', () => {
       selectedTtsFormat = button.dataset.format;
       document.querySelectorAll('.format-button').forEach((item) => item.classList.toggle('active', item === button));
