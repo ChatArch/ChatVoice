@@ -25,11 +25,13 @@ Documentation entry: <https://arch.gh.wzhecnu.cn/ChatVoice/en/>
 
 ## Quick start from PyPI
 
+This branch contains the source-built `0.1.15.post1` hotfix; the pinned PyPI examples below require that version to be published first. Until then, install the reviewed local wheel. See [independent text models](docs/text-models.en.md) for notes/title configuration, validation and rollback. Voice configuration is unchanged.
+
 ```bash
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "ChatVoice[web]==0.1.15"
+python -m pip install "ChatVoice[web]==0.1.15.post1"
 
 chatvoice --tree
 chatvoice --tree-brief

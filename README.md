@@ -26,7 +26,7 @@ The former `qwen-audio-demo.public.wzhecnu.cn` entry is retired and returns HTTP
 - **语音转写**: the recorder streams microphone PCM16 to the ASR WebSocket and appends normalized final segments to the timeline.
 - **API-first ASR**: production ASR is designed around `api-server`, where the ChatVoice backend calls either a managed ASR API or a self-hosted GPU ASR server. `stub-local` remains available for contract smoke, and `funasr-gpu` / `funasr-cpu` remain compatibility channels.
 - **Realtime ASR WebSocket**: `WS /ws/asr/stream` accepts continuous PCM16 microphone frames and returns cumulative revision events. Long recordings transparently roll a bounded context window while confirmed text continues to grow.
-- **会议纪要**: final transcript segments can be sent to a server-side Qwen-compatible model for summary, action items, risks, and open questions.
+- **会议纪要与标题独立模型**: 纪要、画布修改和标题可通过 ChatEnv 分别配置独立的 OpenAI-compatible Base/Key/Model；未配置时保留旧路径，不影响语音 Token Plan 保护。见 [独立文本配置](docs/text-models.md) / [English](docs/text-models.en.md)。`0.1.15.post1` 是源码构建 hotfix，不代表已经发布到 PyPI。
 - **双模式会议历史**: guests keep meeting text and summaries only in browser IndexedDB; signed-in accounts sync records through authenticated server storage.
 - **0.1 API 访问**: signed-in users can generate one-time-visible API tokens from the web settings panel; `chatvoice data ...` can then read meetings, summaries, and realtime conversations from a running service.
 - **受邀账号登录**: public registration is disabled. Accounts are provisioned by `chatvoice accounts add`; passwords use salted PBKDF2 hashes, sessions use HttpOnly cookies, and record writes require CSRF tokens.
@@ -43,11 +43,13 @@ The former `qwen-audio-demo.public.wzhecnu.cn` entry is retired and returns HTTP
 
 ## Quick start from the released package
 
+本分支 `0.1.15.post1` 是源码构建 hotfix；下面锁定版本的 PyPI 命令仅在正式发布后可用，发布前应安装经过验证的本地 wheel。纪要和标题配置、验证与回滚见[独立文本模型](docs/text-models.md)。
+
 ```bash
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "ChatVoice[web]==0.1.15"
+python -m pip install "ChatVoice[web]==0.1.15.post1"
 
 chatvoice --tree
 chatvoice --tree-brief

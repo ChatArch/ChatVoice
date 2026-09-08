@@ -35,6 +35,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
 
 from chatvoice import __version__
+from chatvoice import text_api
 from chatvoice.config import ChatVoiceConfig
 from chatvoice.paths import state_paths
 from pydantic import BaseModel, Field
@@ -300,7 +301,24 @@ def _token_plan_base() -> str:
     return profile.get("CHATVOICE_OPENAI_API_BASE", "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1").rstrip("/")
 
 
+def _independent_text_values() -> dict[str, str]:
+    return {
+        f"CHATVOICE_MEETING_{purpose}_{suffix}": _env_value(f"CHATVOICE_MEETING_{purpose}_{suffix}")
+        for purpose in ("NOTES", "TITLE")
+        for suffix in ("API_BASE", "API_KEY", "MODEL")
+    }
+
+
+def _independent_text_settings(purpose: str, req_model: str | None = None):
+    try:
+        return text_api.resolve_text_settings(_independent_text_values(), purpose, req_model=req_model)
+    except text_api.TextConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from None
+
+
 def _meeting_notes_provider() -> str:
+    if text_api.text_status(_independent_text_values(), "notes") is not None:
+        return "chat-completions"
     provider = MEETING_NOTES_PROVIDER or "token-plan-chat-completions"
     if provider in {"token-plan", "chat-completions", "token-plan-chat-completions"}:
         return "token-plan-chat-completions"
@@ -335,6 +353,9 @@ def _meeting_notes_crs_settings(req_model: str | None = None, require_key: bool 
 
 
 def _meeting_notes_model(req_model: str | None = None) -> str:
+    independent = _independent_text_settings("notes", req_model)
+    if independent is not None:
+        return independent.model
     if req_model:
         return req_model
     if _meeting_notes_provider() in {"crs-chat-completions", "crs-responses"}:
@@ -344,6 +365,9 @@ def _meeting_notes_model(req_model: str | None = None) -> str:
 
 
 def _meeting_title_model(req_model: str | None = None) -> str:
+    independent = text_api.text_status(_independent_text_values(), "title")
+    if independent is not None:
+        return req_model or independent["model"] or ""
     if req_model:
         return req_model
     profile = _read_profile()
@@ -429,6 +453,9 @@ def _database_health_summary() -> dict[str, Any]:
 
 
 def _meeting_notes_status() -> dict[str, Any]:
+    independent = text_api.text_status(_independent_text_values(), "notes")
+    if independent is not None:
+        return independent
     provider = _meeting_notes_provider()
     status = {"provider": provider, "model": _meeting_notes_model()}
     if provider in {"crs-chat-completions", "crs-responses"}:
@@ -441,6 +468,19 @@ def _meeting_notes_status() -> dict[str, Any]:
             }
         )
     return status
+
+
+def _meeting_title_status() -> dict[str, Any]:
+    independent = text_api.text_status(_independent_text_values(), "title")
+    if independent is not None:
+        return independent
+    profile = _read_profile()
+    key = profile.get("CHATVOICE_OPENAI_API_KEY", "")
+    return {
+        "provider": "token-plan-chat-completions", "model": _meeting_title_model(),
+        "base_host": urlparse(_token_plan_base()).hostname,
+        "key_configured": bool(key), "configured": bool(key and _is_token_plan_key(key)),
+    }
 
 
 def _safe_profile_summary() -> dict[str, Any]:
@@ -476,6 +516,7 @@ def _safe_profile_summary() -> dict[str, Any]:
         },
         "tts_model": TTS_MODEL,
         "meeting_notes": _meeting_notes_status(),
+        "meeting_title": _meeting_title_status(),
         "meeting_title_model": _meeting_title_model(),
         "realtime_model": REALTIME_MODEL,
         "asr_channels": ASR_CHANNELS,
@@ -1547,11 +1588,14 @@ def _meeting_notes_responses_request(messages: list[dict[str, str]], req_model: 
 
 
 def _meeting_notes_blocking(req: MeetingNotesRequest) -> dict[str, Any]:
+    independent = _independent_text_settings("notes", req.model)
     provider = _meeting_notes_provider()
     messages = [
         {"role": "system", "content": "你是会议纪要实时整理助手，只输出中文结构化结果。"},
         {"role": "user", "content": req.instruction + "\n\n转写文本：\n" + req.transcript},
     ]
+    if independent is not None:
+        return {"provider": "chat-completions", **text_api.complete_text(independent, messages)}
     if provider == "crs-chat-completions":
         model, pieces, usage = _meeting_notes_chat_completions_request(messages, req.model, 80, "chatvoice-meeting-notes-crs/0.1")
         content = "".join(pieces).strip()
@@ -1591,6 +1635,8 @@ def _meeting_notes_blocking(req: MeetingNotesRequest) -> dict[str, Any]:
 async def meeting_notes_polish(req: MeetingNotesRequest) -> JSONResponse:
     try:
         result = await asyncio.to_thread(_meeting_notes_blocking, req)
+    except HTTPException:
+        raise
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", "replace")[:700]
         raise HTTPException(status_code=502, detail={"error_type": "HTTPError", "status": exc.code, "message": detail}) from exc
@@ -1604,6 +1650,7 @@ def _sse_message(event: str, payload: dict[str, Any]) -> str:
 
 
 def _meeting_notes_revision_stream(req: MeetingNotesReviseRequest):
+    independent = _independent_text_settings("notes", req.model)
     provider = _meeting_notes_provider()
     model = _meeting_notes_model(req.model)
     system_prompt = """你是 Speakr 的会议纪要画布编辑助手。你同时维护一份纪要画布，并用简短中文回复用户。
@@ -1637,6 +1684,11 @@ def _meeting_notes_revision_stream(req: MeetingNotesReviseRequest):
     }
     yield _sse_message("meta", {"model": model, "provider": provider})
     try:
+        if independent is not None:
+            for delta in text_api.stream_text(independent, messages):
+                yield _sse_message("delta", {"text": delta})
+            yield _sse_message("done", {"model": independent.model, "provider": "chat-completions"})
+            return
         if provider in {"crs-chat-completions", "crs-responses"}:
             settings = _meeting_notes_crs_settings(req_model=req.model)
             if provider == "crs-chat-completions":
@@ -1717,6 +1769,8 @@ def _meeting_notes_revision_stream(req: MeetingNotesReviseRequest):
 
 @app.post("/api/meeting-notes/revise/stream")
 def meeting_notes_revise_stream(req: MeetingNotesReviseRequest) -> StreamingResponse:
+    # Configuration failures must be HTTP 503 before streaming headers are sent.
+    _independent_text_settings("notes", req.model)
     return StreamingResponse(
         _meeting_notes_revision_stream(req),
         media_type="text/event-stream",
@@ -1735,7 +1789,7 @@ def _normalize_meeting_title(value: str) -> str:
 
 
 def _meeting_title_blocking(req: MeetingTitleRequest) -> dict[str, Any]:
-    key = _token_plan_key()
+    independent = _independent_text_settings("title", req.model)
     model = _meeting_title_model(req.model)
     transcript = " ".join(req.transcript.split())[:2400]
     payload = {
@@ -1751,6 +1805,10 @@ def _meeting_title_blocking(req: MeetingTitleRequest) -> dict[str, Any]:
         "max_tokens": 64,
         "enable_thinking": False,
     }
+    if independent is not None:
+        result = text_api.complete_text(independent, payload["messages"], timeout=30, max_tokens=64)
+        return {"model": result["model"], "title": _normalize_meeting_title(result["content"]), "raw_usage": result["raw_usage"]}
+    key = _token_plan_key()
     request = urllib.request.Request(
         _token_plan_base() + "/chat/completions",
         data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
@@ -1774,6 +1832,8 @@ async def meeting_title(req: MeetingTitleRequest) -> JSONResponse:
     safe_req = MeetingTitleRequest(transcript=transcript, model=req.model)
     try:
         result = await asyncio.to_thread(_meeting_title_blocking, safe_req)
+    except HTTPException:
+        raise
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", "replace")[:700]
         raise HTTPException(status_code=502, detail={"error_type": "HTTPError", "status": exc.code, "message": detail}) from exc

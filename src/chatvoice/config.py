@@ -19,10 +19,26 @@ class ChatVoiceConfig(BaseEnvConfig):
 
     @classmethod
     def test(cls) -> None:
-        """Validate schema registration without external side effects."""
+        """Probe explicit text endpoints; legacy profiles remain schema-only."""
+
+        from click import get_current_context
+        from chatenv import EnvStore
+        from chatvoice.text_api import probe_text_configuration
+
+        # ChatEnv 0.2.x dispatches test() without loading the selected profile.
+        # Reuse its already-resolved store (including --home), not a second parser.
+        context = get_current_context(silent=True)
+        root_values = context.find_root().obj if context is not None else None
+        store = root_values.get("store") if isinstance(root_values, dict) else None
+        if isinstance(store, EnvStore):
+            cls.load_from_sources(env_values=store.load_active(cls))
 
         print(f"Testing {cls._title}...")
-        print("Schema loaded; no network test is required.")
+        results = probe_text_configuration({field.env_key: field.value for field in cls.get_fields().values()})
+        if not results:
+            print("Schema loaded; no independent text endpoint configured (no network test).")
+        for purpose in results:
+            print(f"Meeting {purpose}: synthetic connectivity test passed.")
 
     CHATVOICE_ASR_CHANNEL = EnvField(
         "CHATVOICE_ASR_CHANNEL",
@@ -82,13 +98,31 @@ class ChatVoiceConfig(BaseEnvConfig):
         desc="Explicit CRS API key for meeting notes. Prefer CHATVOICE_MEETING_NOTES_CRS_PROFILE.",
         is_sensitive=True,
     )
+    CHATVOICE_MEETING_NOTES_API_BASE = EnvField(
+        "CHATVOICE_MEETING_NOTES_API_BASE",
+        desc="Independent meeting-notes chat/completions base; requires its own API key and model.",
+    )
+    CHATVOICE_MEETING_NOTES_API_KEY = EnvField(
+        "CHATVOICE_MEETING_NOTES_API_KEY",
+        desc="Independent meeting-notes API key; never borrowed from voice, CRS or global OpenAI.",
+        is_sensitive=True,
+    )
+    CHATVOICE_MEETING_TITLE_API_BASE = EnvField(
+        "CHATVOICE_MEETING_TITLE_API_BASE",
+        desc="Independent meeting-title chat/completions base; requires its own API key and model.",
+    )
+    CHATVOICE_MEETING_TITLE_API_KEY = EnvField(
+        "CHATVOICE_MEETING_TITLE_API_KEY",
+        desc="Independent meeting-title API key; never borrowed from voice, CRS or global OpenAI.",
+        is_sensitive=True,
+    )
     CHATVOICE_MEETING_NOTES_MODEL = EnvField(
         "CHATVOICE_MEETING_NOTES_MODEL",
-        desc="Optional override for meeting-notes generation; defaults to provider profile or CHATVOICE_OPENAI_API_MODEL.",
+        desc="Required for independent meeting notes; otherwise defaults to legacy provider profile or CHATVOICE_OPENAI_API_MODEL.",
     )
     CHATVOICE_MEETING_TITLE_MODEL = EnvField(
         "CHATVOICE_MEETING_TITLE_MODEL",
-        desc="Optional override for meeting-title generation; defaults to CHATVOICE_OPENAI_API_MODEL.",
+        desc="Required for independent meeting titles; otherwise defaults to CHATVOICE_OPENAI_API_MODEL.",
     )
     CHATVOICE_REALTIME_MODELS = EnvField(
         "CHATVOICE_REALTIME_MODELS",
