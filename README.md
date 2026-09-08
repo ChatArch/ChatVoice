@@ -31,6 +31,12 @@ The former `qwen-audio-demo.public.wzhecnu.cn` entry is retired and returns HTTP
 - **0.1 API 访问**: signed-in users can generate one-time-visible API tokens from the web settings panel; `chatvoice data ...` can then read meetings, summaries, and realtime conversations from a running service.
 - **受邀账号登录**: public registration is disabled. Accounts are provisioned by `chatvoice accounts add`; passwords use salted PBKDF2 hashes, sessions use HttpOnly cookies, and record writes require CSRF tokens.
 
+## 登录后端与前端边界
+
+ChatVoice 依赖 `ChatLogin>=0.1.1,<0.2.0` 的认证与会话核心，但保留自己的 HTML、CSS、原生 JavaScript 和登录/访客弹窗，不注入 ChatLogin 默认模板。宿主适配层复用现有 `accounts` 与 `auth_sessions` 表、原账号 ID、PBKDF2 材料和 Cookie；不新建第二套用户库、不强制改密码。
+
+`/api/auth/*` 和原 JSON 字段保持兼容。已有账号映射为普通用户，不引入 Web Admin；会议/对话 owner 检查与 API Token scope 仍由 ChatVoice 负责。访客记录继续保存在浏览器 IndexedDB，不因接入登录库而自动上传。部署与生产数据迁移仍是独立操作，发布包不等于重启服务。
+
 ## Security model
 
 - The browser never receives or stores provider credentials.
@@ -47,7 +53,7 @@ The former `qwen-audio-demo.public.wzhecnu.cn` entry is retired and returns HTTP
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "ChatVoice[web]==0.1.14"
+python -m pip install "ChatVoice[web]==0.1.15"
 
 chatvoice --tree
 chatvoice --tree-brief
@@ -116,7 +122,7 @@ chatvoice data conversations --url http://127.0.0.1:18087 --token-env CHATVOICE_
 
 ## Database and concurrency
 
-The packaged v0.1.14 web app stores service data in one SQLite WAL file at:
+The packaged web app stores service data in one SQLite WAL file at:
 
 ```text
 <chatarch-home>/chatvoice/data/meetings.sqlite3
@@ -138,7 +144,7 @@ Use one service process (`--workers 1`) with SQLite. Back up and move data with 
 └── model-cache/
 ```
 
-后端 SQLite `meetings.sqlite3` 目前包含 `accounts`、`auth_sessions`、`api_tokens`、`meeting_records`、`conversation_records`。转写、summary、会议标签、实时对话消息以 JSON 字符串保存；原始音频不进后端数据库。访客模式仍使用浏览器 IndexedDB 保存本地会议文字、标签和摘要，不保存录音分片。当前 `0.1.14` 支持 SQLite WAL + 单服务进程；数据备份/迁移使用 CLI 单文件 dump/restore。高并发 Postgres/MySQL 是未来单独 storage-layer migration。详见 [运行目录与数据结构](docs/runtime-layout.md) 和 [录音保存边界](docs/recording-storage.md)。
+后端 SQLite `meetings.sqlite3` 目前包含 `accounts`、`auth_sessions`、`api_tokens`、`meeting_records`、`conversation_records`。转写、summary、会议标签、实时对话消息以 JSON 字符串保存；原始音频不进后端数据库。访客模式仍使用浏览器 IndexedDB 保存本地会议文字、标签和摘要，不保存录音分片。当前版本支持 SQLite WAL + 单服务进程；数据备份/迁移使用 CLI 单文件 dump/restore。高并发 Postgres/MySQL 是未来单独 storage-layer migration。详见 [运行目录与数据结构](docs/runtime-layout.md) 和 [录音保存边界](docs/recording-storage.md)。
 
 ## API surface
 

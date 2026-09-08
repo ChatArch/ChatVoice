@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.15 - 2026-09-09
+
+### 更改
+
+- 通过公开 Python 依赖 ChatLogin 0.1.1 复用账号校验、opaque 会话生命周期和 CSRF 核心。
+- 采用宿主适配层保留原账户、PBKDF2 材料、SQLite 表、Cookie/HTTP 契约和原生前端；不新建用户库、不要求改密码，不注入默认登录页。
+- 访客仍由浏览器 IndexedDB 保存本地记录；云端 owner 隔离、API Token scope 与原界面保持独立。
+
 ## 0.1.14 - 2026-08-26
 
 ### Added

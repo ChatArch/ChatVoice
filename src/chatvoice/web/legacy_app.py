@@ -25,6 +25,7 @@ from contextlib import closing, suppress
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from collections.abc import Mapping
 from urllib.parse import urlparse
 
 import dashscope
@@ -37,6 +38,8 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from chatvoice import __version__
 from chatvoice.config import ChatVoiceConfig
 from chatvoice.paths import state_paths
+from chatlogin import AccessDenied, StoreFull
+from chatvoice.web.auth_adapter import AuthAdapter
 from pydantic import BaseModel, Field
 
 try:
@@ -716,49 +719,32 @@ def _meeting_db() -> sqlite3.Connection:
     return connection
 
 
-def _create_auth_session(connection: sqlite3.Connection, user_id: str) -> tuple[str, str]:
-    token = secrets.token_urlsafe(32)
-    csrf_token = secrets.token_urlsafe(24)
-    now = _utc_now()
-    connection.execute(
-        "INSERT INTO auth_sessions (token_hash, user_id, csrf_token, created_at, expires_at) VALUES (?, ?, ?, ?, ?)",
-        (hashlib.sha256(token.encode("utf-8")).hexdigest(), user_id, csrf_token, _iso_utc(now), _iso_utc(now + timedelta(days=AUTH_SESSION_DAYS))),
-    )
-    return token, csrf_token
+_AUTH = AuthAdapter(
+    lambda: _meeting_db(), lambda: _MEETING_DB_LOCK,
+    lambda: _utc_now().timestamp(), ttl=AUTH_SESSION_DAYS * 24 * 60 * 60,
+)
 
 
-def _auth_row(request: Request, *, required: bool = True) -> sqlite3.Row | None:
+def _auth_row(request: Request, *, required: bool = True) -> Mapping[str, Any] | None:
     token = request.cookies.get(AUTH_COOKIE_NAME, "")
     if not token:
         if required:
             raise HTTPException(status_code=401, detail="请先登录")
         return None
-    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
-    with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
-        row = connection.execute(
-            """
-            SELECT s.token_hash, s.user_id, s.csrf_token, s.expires_at, a.account, a.display_name
-            FROM auth_sessions AS s JOIN accounts AS a ON a.id = s.user_id
-            WHERE s.token_hash = ?
-            """,
-            (token_hash,),
-        ).fetchone()
-        if row and datetime.fromisoformat(row["expires_at"]) <= _utc_now():
-            connection.execute("DELETE FROM auth_sessions WHERE token_hash = ?", (token_hash,))
-            connection.commit()
-            row = None
+    row = _AUTH.resolve_row(token)
     if row is None and required:
         raise HTTPException(status_code=401, detail="登录已过期，请重新登录")
     return row
 
 
-def _require_csrf(request: Request, auth: sqlite3.Row) -> None:
-    supplied = request.headers.get("X-CSRF-Token", "")
-    if not supplied or not hmac.compare_digest(supplied, auth["csrf_token"]):
-        raise HTTPException(status_code=403, detail="无效的请求令牌")
+def _require_csrf(request: Request, auth: Mapping[str, Any]) -> None:
+    try:
+        _AUTH.check_csrf(auth, request.headers.get("X-CSRF-Token", ""))
+    except AccessDenied as exc:
+        raise HTTPException(status_code=403, detail="无效的请求令牌") from exc
 
 
-def _auth_payload(row: sqlite3.Row, csrf_token: str | None = None) -> dict[str, Any]:
+def _auth_payload(row: Mapping[str, Any], csrf_token: str | None = None) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "authenticated": True,
         "user": {"id": row["user_id"] if "user_id" in row.keys() else row["id"], "account": row["account"], "display_name": row["display_name"]},
@@ -789,15 +775,17 @@ def register() -> JSONResponse:
 @app.post("/api/auth/login")
 def login(credentials: AccountCredentials, request: Request) -> JSONResponse:
     account = _normalized_account(credentials.account)
-    with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
-        row = connection.execute("SELECT * FROM accounts WHERE account = ?", (account,)).fetchone()
-        valid = bool(row and hmac.compare_digest(row["password_hash"], _password_hash(credentials.password, row["password_salt"])))
-        if not valid:
-            raise HTTPException(status_code=401, detail="账号或密码不正确")
-        token, csrf_token = _create_auth_session(connection, row["id"])
-        connection.commit()
-    response = JSONResponse({"authenticated": True, "user": {"id": row["id"], "account": row["account"], "display_name": row["display_name"]}, "csrf_token": csrf_token})
-    _set_auth_cookie(response, request, token)
+    try:
+        issued = _AUTH.login(account, credentials.password)
+    except StoreFull as exc:
+        raise HTTPException(status_code=503, detail="登录会话容量已满，请稍后重试") from exc
+    if issued is None:
+        raise HTTPException(status_code=401, detail="账号或密码不正确")
+    row = _AUTH.resolve_row(issued.token)
+    if row is None:
+        raise HTTPException(status_code=401, detail="账号或密码不正确")
+    response = JSONResponse(_auth_payload(row, row["csrf_token"]))
+    _set_auth_cookie(response, request, issued.token)
     return response
 
 
@@ -811,9 +799,7 @@ def auth_session(request: Request) -> JSONResponse:
 def logout(request: Request) -> JSONResponse:
     row = _auth_row(request)
     _require_csrf(request, row)
-    with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
-        connection.execute("DELETE FROM auth_sessions WHERE token_hash = ?", (row["token_hash"],))
-        connection.commit()
+    _AUTH.logout(request.cookies.get(AUTH_COOKIE_NAME))
     response = JSONResponse({"authenticated": False})
     response.delete_cookie(AUTH_COOKIE_NAME, path="/")
     return response
