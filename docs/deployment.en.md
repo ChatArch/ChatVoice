@@ -1,6 +1,6 @@
 # Deployment and Startup
 
-This page explains how to run a ChatVoice / Speakr service from the released Python package in v0.1.14: install, create an account, start the service, generate an API token, and read meeting tag/summary data.
+This page explains how to run a ChatVoice / Speakr service from the released Python package: install, create an account, start the service, generate an API token, and read meeting tag/summary data.
 
 ## Minimal install
 
@@ -8,7 +8,7 @@ This page explains how to run a ChatVoice / Speakr service from the released Pyt
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "ChatVoice[web]==0.1.14"
+python -m pip install "ChatVoice[web]==0.1.15"
 ```
 
 Read back the real CLI tree and runtime paths first:
@@ -66,7 +66,7 @@ For production, put the service behind a controlled reverse proxy. API keys stay
 
 ## ASR provider: API first
 
-The recommended production shape in v0.1.14 is **ChatVoice calls ASR through an API provider**. That provider can be:
+The recommended production shape is **ChatVoice calls ASR through an API provider**. That provider can be:
 
 - a managed cloud ASR API with an API key;
 - a self-hosted GPU ASR server exposing HTTP;
@@ -110,7 +110,7 @@ See [API Access](api-access.md) for details.
 
 ## Database and concurrency boundary
 
-The v0.1.14 packaged web app uses SQLite WAL by default:
+The packaged web app uses SQLite WAL by default:
 
 ```text
 <chatarch-home>/chatvoice/data/meetings.sqlite3
