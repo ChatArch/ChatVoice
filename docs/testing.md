@@ -55,13 +55,17 @@ python scripts/verify_service.py --live \
   --realtime
 ```
 
-默认验证实际部署的首页参数、标题、纪要、四个修改指令、全部音色×两格式、默认 TTS 文本与空文本拒绝；`--asr-audio` 增加两次提交的暂停/继续/结束，`--realtime` 必须收到 session.updated、真实文本与 PCM 音频以及完成事件。连接成功不算完整会话成功。音频由 ffmpeg 真正解码。此入口不启动浏览器，也不创建会议记录。
+默认验证实际部署的首页参数、标题、纪要、四个修改指令、全部音色×两格式、默认 TTS 文本与空文本拒绝。纪要修改要求 canvas/reply 标记各出现一次、顺序正确且两段均非空。TTS 要求 provider/model/voice 响应头与状态及请求一致、MIME 匹配请求格式，ffmpeg 解码成功，ffprobe 容器与编码符合 MP3 或 PCM16 WAV；回执记录实际身份和音频格式。此入口不启动浏览器，也不创建会议记录。
+
+`--asr-audio` 从 `/api/asr/channels` 读取默认通道及 engine，在发送音频前拒绝 stub/mock。合成输入必须为非空、**最多三秒**的单声道 PCM16 16 kHz WAV，文件不超过 256,000 字节；更长输入明确不属于本次两段提交验收范围。ready/started 的 context 必须大于输入时长，避免自动窗口轮转。ready、started、result 的 channel 和 result.meta.engine 必须匹配配置。暂停和继续后的两段均须有独立、非空的 final 结果，窗口为 1、2，chunk/revision 递增，commit/finish 的 rollover 和 done 窗口正确；回执保留每段实际元数据，不再无条件宣称真实供应商调用。
+
+`--realtime` 校验确认后的 model、voice、modalities、音频格式、指令、历史上限与 turn detection，仅允许一个已请求的活动 response，关联 created/done ID 和转发的上游 response 事件；必须明确返回 `completed` 且有非空文本与音频。缺少 ID 的派生事件只能在该单一活动 response 内接收，转发的上游事件仍须检查 ID。连接成功不算会话成功，这些传输证据也不是对上游供应商的独立认证。
 
 可附加 `--clone-reference <synthetic.wav>` 验证真实复刻：先由管理员准备独立 `qa-verify-` 前缀的测试账号，将凭据注入 `CHATVOICE_VERIFY_ACCOUNT`、`CHATVOICE_VERIFY_PASSWORD`（或使用 `--account-env` / `--password-env` 指定变量名）。只删除本次创建且已结束的任务，并回读 404；退出后回读会话撤销。运行中任务超时会保留精确 job ID 供安全跟进，不扫删其他任务。管理员最终负责清理自己创建的测试账号。
 
 `receipt.json` 逐项保存结果，任何失败、缺失或 BLOCKED 均非零退出；仅明确启用的可选流程列在 `selected_optional_flows`，不把未选择的项目当通过。不会自动重试供应商生成，不会改套餐/模型或启用按量后备。`--live` 会消耗现有配置对应的真实套餐资源；账单授权应在执行前明确。Token Plan 的 `AccessDenied.Unpurchased` 等错误是套餐/权限阻塞，不是网络就绪成功。
 
-`test_live_acceptance_contract.py` 验证完整 SSE、空结果、目标 URL、清理 job ID 与退出码规则；`test_realtime_provider_errors.py` 执行平面供应商错误与 socket 关闭后提示保留的回归。
+`test_live_acceptance_contract.py` 验证完整 SSE、空结果、目标 URL、清理 job ID 与退出码规则；`test_live_exchanges.py` 使用 HTTP/WebSocket 和 ffmpeg/ffprobe 进程边界替身执行真实 verifier，覆盖错误或缺失的身份、ASR 继续段结果归属、实时确认与 response 关联、标记错误和 Plan 拒绝。业务验证函数不替换，禁止真实 socket；进程替身不证明实际音频解码。`test_realtime_provider_errors.py` 执行平面供应商错误与 socket 关闭后提示保留的回归。
 
 离线通过不证明真实服务可连通、账户套餐有效或音频可听。真实 HTTP/SSE/WebSocket 验收必须另行明确授权，使用受控环境与合成数据，不访问用户记录，并分别记录 `PASS`、`FAIL`、`BLOCKED`、`NOT_RUN`。不得把常规 pytest 自动升级为真实供应商探测，也不能以浏览器点击替代这套业务回归。
 

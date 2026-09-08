@@ -1,4 +1,11 @@
 const {harness, assert} = require('./nonbrowser_harness.cjs');
+let completed = false;
+process.once('beforeExit', () => {
+  if (!completed) {
+    console.error('Realtime controller case did not complete');
+    process.exitCode = 1;
+  }
+});
 (async () => {
   const app = harness();
   app.run("storageMode = 'guest'");
@@ -15,4 +22,8 @@ const {harness, assert} = require('./nonbrowser_harness.cjs');
   assert.ok(app.tracks.every(track => track.stopped));
   assert.ok(app.graphs.every(graph => graph.closed));
   console.log('PASS provider error survives close and resources are released');
-})().catch(error => { console.error(error); process.exitCode=1; });
+})().then(() => { completed = true; }).catch(error => {
+  completed = true;
+  console.error(error);
+  process.exitCode = 1;
+});

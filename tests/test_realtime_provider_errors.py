@@ -13,6 +13,8 @@ def test_realtime_controller_preserves_provider_error_after_close():
     assert node, 'Node.js is required for actual controller regression'
     result=subprocess.run([node,str(Path(__file__).with_name('nonbrowser_realtime_error.cjs'))],capture_output=True,text=True,timeout=15)
     assert result.returncode==0,result.stdout+result.stderr
+    expected = 'PASS provider error survives close and resources are released'
+    assert result.stdout.splitlines().count(expected) == 1, 'Realtime controller case did not complete: ' + result.stdout + result.stderr
 
 
 @pytest.mark.parametrize('code,expected', [

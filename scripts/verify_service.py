@@ -43,11 +43,13 @@ def checked_revision(body):
     if not events or events[-1][0] != 'done':
         raise ValueError('Missing terminal SSE done event')
     text = ''.join(d.get('text', '') for name, d in events if name == 'delta')
-    if '[[[CANVAS]]]' not in text or '[[[REPLY]]]' not in text:
-        raise ValueError('Missing revision canvas/reply markers')
+    require(text.count('[[[CANVAS]]]') == text.count('[[[REPLY]]]') == 1,
+            'Missing or duplicate revision canvas/reply markers')
+    require(text.index('[[[CANVAS]]]') < text.index('[[[REPLY]]]'), 'Reversed revision markers')
     canvas = text.split('[[[CANVAS]]]', 1)[1].split('[[[REPLY]]]', 1)[0].strip()
     if not canvas:
         raise ValueError('Empty revision canvas')
+    require(text.split('[[[REPLY]]]', 1)[1].strip(), 'Empty revision reply')
     return text
 
 
@@ -99,16 +101,38 @@ def require(condition, message):
         raise ValueError(message)
 
 
-def decode_audio(path):
+def decode_audio(path, expected_format=None):
     r = subprocess.run(['ffmpeg', '-v', 'error', '-nostdin', '-i', str(path), '-f', 'null', '-'],
                        capture_output=True, timeout=20)
     require(r.returncode == 0, 'Audio decode failed')
-    r = subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'json', str(path)],
+    r = subprocess.run(['ffprobe', '-v', 'error', '-show_entries',
+                        'format=duration,format_name:stream=codec_type,codec_name', '-of', 'json', str(path)],
                        capture_output=True, text=True, timeout=10)
     require(r.returncode == 0, 'Audio duration inspection failed')
-    duration = float(json.loads(r.stdout)['format']['duration'])
+    info = json.loads(r.stdout)
+    duration = float(info['format']['duration'])
     require(duration > 0, 'Empty audio duration')
-    return {'bytes': path.stat().st_size, 'duration_seconds': duration, 'decoded': True}
+    container = info['format'].get('format_name')
+    streams = info.get('streams', [])
+    codec = streams[0].get('codec_name') if len(streams) == 1 else None
+    if expected_format:
+        require(container == expected_format, 'Audio container differs from requested format')
+        require(len(streams) == 1 and streams[0].get('codec_type') == 'audio', 'Expected one audio stream')
+        require(codec == {'mp3': 'mp3', 'wav': 'pcm_s16le'}[expected_format], 'Wrong audio codec')
+    return {'bytes': path.stat().st_size, 'duration_seconds': duration, 'decoded': True,
+            'container': container, 'codec': codec}
+
+
+def checked_tts(response, status, voice, fmt, path):
+    actual = {name: response.headers.get('x-tts-'+name) for name in ('provider', 'model', 'voice')}
+    expected = {'provider': status.get('provider'), 'model': status.get('model'), 'voice': voice}
+    require(all(isinstance(value, str) and value.strip() for value in expected.values()), 'Missing intended TTS identity')
+    require(actual == expected, 'TTS provider/model/voice differs from intended configuration')
+    mime = response.headers.get('content-type', '').split(';', 1)[0].strip().lower()
+    require(mime in {'mp3': ('audio/mpeg', 'audio/mp3'), 'wav': ('audio/wav', 'audio/x-wav', 'audio/wave')}[fmt],
+            'TTS MIME differs from requested format')
+    path.write_bytes(response.content)
+    return {**decode_audio(path, fmt), **actual, 'mime': mime, 'requested_format': fmt}
 
 
 def ws_options(connect):
@@ -121,6 +145,13 @@ async def realtime_exchange(origin, model, voice, out):
     import websockets
     url = origin.replace('https://', 'wss://', 1) + '/ws/realtime?' + urlencode({'model': model})
     event_types, text, audio, updated, submitted = [], [], bytearray(), False, False
+    active_response = None
+    session_request = {'modalities': ['text', 'audio'], 'voice': voice,
+                       'instructions': '用简短中文回答，只说你好。', 'input_audio_format': 'pcm',
+                       'output_audio_format': 'pcm', 'max_history_turns': 20,
+                       'turn_detection': {'type': 'server_vad', 'threshold': .5, 'silence_duration_ms': 700}}
+    acknowledged = None
+    configured = False
     async with websockets.connect(url, open_timeout=15, close_timeout=3, max_size=8_000_000,
                                   **ws_options(websockets.connect)) as ws:
         deadline = time.monotonic() + 60
@@ -129,53 +160,91 @@ async def realtime_exchange(origin, model, voice, out):
             kind = payload.get('demo_event'); event_types.append(kind)
             raise_provider_error(payload)
             if kind == 'proxy.connected':
-                await ws.send(json.dumps({'type': 'session.update', 'session': {
-                    'modalities': ['text', 'audio'], 'voice': voice,
-                    'instructions': '用简短中文回答，只说你好。', 'input_audio_format': 'pcm',
-                    'output_audio_format': 'pcm', 'max_history_turns': 20,
-                    'turn_detection': {'type': 'server_vad', 'threshold': .5, 'silence_duration_ms': 700}}}))
+                require(not configured, 'Duplicate realtime connection')
+                await ws.send(json.dumps({'type': 'session.update', 'session': session_request}))
+                configured = True
             elif kind == 'transcript.delta' and payload.get('role') == 'assistant':
+                require(active_response and payload.get('response_id', active_response) == active_response,
+                        'Unattributed realtime transcript')
                 text.append(payload.get('text', ''))
             elif kind == 'audio.delta':
+                require(active_response and payload.get('response_id', active_response) == active_response,
+                        'Unattributed realtime audio')
                 audio.extend(base64.b64decode(payload['audio'], validate=True))
                 require(len(audio) <= 8_000_000, 'Realtime audio cap exceeded')
             elif kind == 'upstream.event':
                 event = payload.get('event', {}); event_types.append(event.get('type'))
                 raise_provider_error(event)
                 if event.get('type') == 'session.updated':
+                    require(configured and not updated, 'Unrequested or duplicate session acknowledgement')
+                    session = event.get('session')
+                    require(isinstance(session, dict) and session.get('model') == model, 'Wrong acknowledged realtime model')
+                    for key, value in session_request.items():
+                        actual = session.get(key)
+                        require((isinstance(actual, list) and sorted(actual) == sorted(value)) if key == 'modalities'
+                                else actual == value, 'Wrong acknowledged realtime '+key)
+                    acknowledged = {key: session[key] for key in ('model', *session_request)}
                     updated = True
                     if not submitted:
                         submitted = True
                         await ws.send(json.dumps({'type': 'conversation.item.create', 'item': {
                             'type': 'message', 'role': 'user', 'content': [{'type': 'input_text', 'text': '请只说你好。'}]}}))
                         await ws.send(json.dumps({'type': 'response.create', 'response': {'modalities': ['audio', 'text']}}))
+                if event.get('type') == 'response.created':
+                    response = event.get('response')
+                    require(updated and submitted and active_response is None, 'Unrequested or overlapping realtime response')
+                    require(isinstance(response, dict) and isinstance(response.get('id'), str)
+                            and response['id'].strip(), 'Missing realtime response ID')
+                    active_response = response['id']
+                elif str(event.get('type', '')).startswith('response.') and event.get('type') != 'response.done':
+                    require(active_response and event.get('response_id') == active_response, 'Foreign realtime response event')
                 if event.get('type') == 'response.done':
                     require(updated and submitted and any(t.strip() for t in text) and len(audio)>0,
                             'Realtime done without configured session, text and audio')
-                    require(event.get('response', {}).get('status', 'completed') == 'completed', 'Realtime response not completed')
+                    response = event.get('response')
+                    require(isinstance(response, dict) and active_response and response.get('id') == active_response,
+                            'Realtime completion ID missing or mismatched')
+                    require(response.get('status') == 'completed', 'Realtime response not explicitly completed')
                     require(len(audio) % 2 == 0, 'Invalid PCM16 framing')
                     with wave.open(str(out / 'realtime.wav'), 'wb') as w:
                         w.setnchannels(1); w.setsampwidth(2); w.setframerate(24000); w.writeframes(audio)
                     return {**decode_audio(out/'realtime.wav'), 'event_types': event_types,
-                            'text_chars': sum(map(len,text)), 'socket_context_closed_on_return': True}
+                            'text_chars': sum(map(len,text)), 'socket_context_closed_on_return': True,
+                            'response_id': active_response, 'session': acknowledged}
         raise TimeoutError('Realtime response did not complete')
 
 
-async def asr_exchange(origin, audio_path):
+async def asr_exchange(origin, audio_path, configuration):
     import websockets
+    channel = configuration.get('default')
+    expected = configuration.get('channels', {}).get(channel, {})
+    engine = expected.get('engine')
+    require(isinstance(channel, str) and isinstance(engine, str) and engine.strip()
+            and not any(marker in (channel+' '+engine).lower() for marker in ('stub', 'mock')),
+            'ASR requires a configured non-stub/non-mock channel and engine')
+    require(audio_path.stat().st_size <= 256_000, 'ASR fixture exceeds bounded two-commit scope')
     with wave.open(str(audio_path), 'rb') as w:
         require((w.getnchannels(),w.getsampwidth(),w.getframerate()) == (1,2,16000), 'ASR fixture must be mono PCM16 16kHz')
+        require(0 < w.getnframes() <= 48_000, 'ASR fixture must contain at most three seconds of audio')
         pcm = w.readframes(w.getnframes())
-    results, commits, events = [], 0, []
+        require(len(pcm) == w.getnframes()*2, 'Truncated ASR fixture')
+    results, commits, events, segments = [], 0, [], []
+    last_chunk = 0
     async with websockets.connect(origin.replace('https://','wss://',1)+'/ws/asr/stream',
                                   open_timeout=15,close_timeout=3,**ws_options(websockets.connect)) as ws:
         ready = json.loads(await asyncio.wait_for(ws.recv(),15))
         require(ready.get('demo_event')=='asr.stream.ready','ASR ready missing')
-        await ws.send(json.dumps({'type':'asr.stream.start','sample_rate':16000,'chunk_seconds':4.0}))
+        require(ready.get('channel') == channel, 'ASR ready channel differs from configuration')
+        require(ready.get('context_seconds', 0) > len(pcm)/32000, 'ASR fixture can trigger automatic rollover')
+        await ws.send(json.dumps({'type':'asr.stream.start','channel':channel,'sample_rate':16000,'chunk_seconds':4.0}))
         started=json.loads(await asyncio.wait_for(ws.recv(),15))
         require(started.get('demo_event')=='asr.stream.started','ASR started missing')
+        require(started.get('channel') == channel, 'ASR started channel differs from configuration')
+        require(started.get('context_seconds', 0) > len(pcm)/32000, 'ASR fixture can trigger automatic rollover')
         # Each commit corresponds to a pause; append again corresponds to resume.
         for final in (False,True):
+            segment = None
+            window = commits+1
             for pos in range(0,len(pcm),16000): await ws.send(pcm[pos:pos+16000])
             await ws.send(json.dumps({'type':'asr.stream.finish' if final else 'asr.stream.commit'}))
             deadline=time.monotonic()+65
@@ -185,11 +254,29 @@ async def asr_exchange(origin, audio_path):
                 require(kind!='asr.stream.error','ASR stream error')
                 if kind=='asr.stream.result':
                     r=event.get('result',{});text=r.get('corrected_text') or r.get('raw_text') or ''
-                    if text.strip(): results.append(text)
+                    require(segment is None, 'Unexpected multiple ASR results in bounded segment')
+                    require(r.get('channel') == channel and r.get('meta', {}).get('engine') == engine,
+                            'ASR result provider differs from configuration')
+                    stream = r.get('stream', {})
+                    require(stream.get('window_index') == window and stream.get('final') is True,
+                            'ASR result is not final for the expected window')
+                    chunk = stream.get('chunk_index')
+                    require(type(chunk) is int and chunk == last_chunk+1 and stream.get('revision') == chunk,
+                            'ASR chunk/revision progression invalid')
+                    require(isinstance(text, str) and text.strip(), 'Empty ASR segment transcript')
+                    last_chunk = chunk
+                    results.append(text)
+                    segment = {'channel': r['channel'], 'meta': r['meta'], 'stream': stream, 'transcript_chars': len(text)}
                 if kind=='asr.stream.done':
+                    require(segment is not None, 'ASR segment completed without attributable transcript')
+                    require(event.get('rollover') is (not final) and event.get('window_index') == 2,
+                            'ASR done window/rollover progression invalid')
+                    segments.append({**segment, 'done': event})
                     require(event.get('final') is final,'Wrong commit/finish state');commits+=1;break
         require(results and commits==2,'ASR produced no transcript or missed a boundary')
-    return {'commits':commits,'transcript_chars':sum(map(len,results)),'events':events,'socket_closed':True}
+    return {'commits':commits,'transcript_chars':sum(map(len,results)),'events':events,'socket_closed':True,
+            'expected_channel': channel, 'expected_engine': engine, 'segments': segments,
+            'ready_channel': ready['channel'], 'started_channel': started['channel']}
 
 
 def checked_job_id(value):
@@ -238,7 +325,7 @@ def clone_exchange(client, reference, account, password, out):
 def run(origin, out, *, include_realtime=False, audio=None, clone=None):
     import httpx
     out.mkdir(parents=True,exist_ok=True)
-    receipt={'origin':origin,'browser_used':False,'real_provider_calls':True,'cases':[],
+    receipt={'origin':origin,'browser_used':False,'provider_evidence':'Per-case response metadata; not independent upstream attestation','cases':[],
              'exclusions':['pixel layout / physical microphone / OS clipboard','account/meeting mutations (offline suite covers logic)'],
              'selected_optional_flows':{'asr':bool(audio),'realtime':include_realtime,'clone':bool(clone)}}
     def save():
@@ -290,21 +377,23 @@ def run(origin, out, *, include_realtime=False, audio=None, clone=None):
             for fmt in ('mp3','wav'):
                 def tts(i=i,voice=voice,fmt=fmt):
                     r=post('/api/tts',{'text':'你好，这是完整操作流程的自动测试。','voice':voice['id'],'format':fmt})
-                    require(r.headers.get('content-type','').startswith('audio/'),'Not an audio response')
-                    path=out/f'tts-{i}.{fmt}';path.write_bytes(r.content);return decode_audio(path)
+                    return checked_tts(r,status['tts'],voice['id'],fmt,out/f'tts-{i}.{fmt}')
                 case(f'tts-{i}-{fmt}',tts)
         if voices and ui:
             def default_tts():
                 r=post('/api/tts',{'text':ui['text'],'voice':voices[0]['id'],'format':'mp3'})
-                require(r.headers.get('content-type','').startswith('audio/'),'Not audio')
-                path=out/'tts-default.mp3';path.write_bytes(r.content)
-                return {**decode_audio(path),'input_chars':len(ui['text'])}
+                return {**checked_tts(r,status['tts'],voices[0]['id'],'mp3',out/'tts-default.mp3'),
+                        'input_chars':len(ui['text'])}
             case('tts-untouched-ui-text',default_tts)
         def empty():
             r=client.post('/api/tts',json={'text':'','format':'mp3'})
             require(r.status_code in (400,422),'Empty TTS input accepted');return {'http':r.status_code}
         case('tts-empty-rejected',empty)
-        if audio:case('asr-pause-resume-finish',lambda:asyncio.run(asr_exchange(origin,audio)))
+        if audio:
+            def asr():
+                response=client.get('/api/asr/channels');response.raise_for_status()
+                return asyncio.run(asr_exchange(origin,audio,response.json()))
+            case('asr-pause-resume-finish',asr)
         if clone:case('clone-generate-download-delete-logout',lambda:clone_exchange(client,*clone,out))
         if include_realtime:
             if status.get('token_plan_key') is not True or not ui:

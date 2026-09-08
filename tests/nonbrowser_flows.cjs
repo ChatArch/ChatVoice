@@ -402,4 +402,15 @@ async function main() {
   }
   console.log(`PASS ${[name, ...args].join(' ')}`);
 }
-main().catch(error => { console.error(error); process.exitCode = 1; });
+let completed = false;
+process.once('beforeExit', () => {
+  if (!completed) {
+    console.error('Controller case did not complete');
+    process.exitCode = 1;
+  }
+});
+main().then(() => { completed = true; }).catch(error => {
+  completed = true;
+  console.error(error);
+  process.exitCode = 1;
+});

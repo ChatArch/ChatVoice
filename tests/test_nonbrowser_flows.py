@@ -30,3 +30,7 @@ def test_nonbrowser_controller_flow(case):
         capture_output=True, text=True, timeout=20,
     )
     assert result.returncode == 0, result.stdout + result.stderr
+    expected = "PASS " + " ".join(case)
+    assert result.stdout.splitlines().count(expected) == 1, (
+        f"Controller case did not complete exactly once: {expected}\n" + result.stdout + result.stderr
+    )
