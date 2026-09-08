@@ -43,13 +43,13 @@ The former `qwen-audio-demo.public.wzhecnu.cn` entry is retired and returns HTTP
 
 ## Quick start from the released package
 
-本分支 `0.1.15.post2` 是本地源码 hotfix，尚未发布；下面锁定版本的 PyPI 命令仅在正式发布后可用，发布前应安装经过验证的本地 wheel。[独立 TTS 配置](docs/tts-models.md) 支持可配置协议、端点、模型、凭据和音色，配置不完整时拒绝而不回退；ASR、实时对话和 VoiceClone 不变。纪要和标题配置仍见[独立文本模型](docs/text-models.md)。
+本分支 `0.1.15.post3` 是本地源码 hotfix，尚未发布；下面锁定版本的 PyPI 命令仅在正式发布后可用，发布前应安装经过验证的本地 wheel。[独立 TTS 配置](docs/tts-models.md) 支持可配置协议、端点、模型、凭据和音色，配置不完整时拒绝而不回退；ASR、实时对话和 VoiceClone 不变。纪要和标题配置仍见[独立文本模型](docs/text-models.md)。
 
 ```bash
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "ChatVoice[web]==0.1.15.post2"
+python -m pip install "ChatVoice[web]==0.1.15.post3"
 
 chatvoice --tree
 chatvoice --tree-brief

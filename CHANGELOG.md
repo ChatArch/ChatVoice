@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.15.post3 (local hotfix, unpublished)
+
+### Added
+
+- Browser-free operation regression using shipped JavaScript controllers, deterministic device boundaries, isolated ASGI routes and SQLite, with Node 22 configured in CI and bilingual flow-to-test documentation.
+- Isolate test home directories before application imports to avoid accidental production profile or database access.
+- Add an explicit live HTTP/SSE/WebSocket verifier with audio decoding, owned clone-job cleanup and fail-closed results, separate from normal offline pytest.
+
+### Fixed
+
+- Preserve notes when revision streams fail, end without an explicit completion event, arrive after reset, or return empty summaries.
+- Reject empty system TTS audio, ignore stale clone generation after reference replacement, and release realtime output audio resources on connection closure.
+
 ## 0.1.15.post2 - 2026-09-08 (local hotfix, unpublished)
 
 ### Added

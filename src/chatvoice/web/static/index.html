@@ -1247,6 +1247,7 @@
     let cloneRecorderChunks = [];
     let cloneJobPollTimer = null;
     let cloneGenerating = false;
+    let cloneGenerationEpoch = 0;
     let ttsGenerating = false;
     let meetingTitleMode = 'default';
     let titleGenerationAttempted = false;
@@ -1835,7 +1836,9 @@
           realtimeSocket = null;
           realtimeSessionConfigured = false;
           stopRealtimeInput();
-          if (!manual && realtimeState !== 'ended') setRealtimeState('error', '实时对话连接已断开');
+          stopRealtimePlayback(false);
+          if (realtimeOutputContext) { realtimeOutputContext.close(); realtimeOutputContext = null; }
+          if (!manual && !['ended', 'error'].includes(realtimeState)) setRealtimeState('error', '实时对话连接已断开');
         };
       } catch (error) {
         stopRealtimeInput();
@@ -1897,6 +1900,7 @@
         });
         if (!response.ok) throw new Error(await responseError(response, '声音生成服务暂不可用'));
         const audio = await response.blob();
+        if (!audio.size) throw new Error('声音服务返回了空音频');
         if (ttsAudioUrl) URL.revokeObjectURL(ttsAudioUrl);
         ttsAudioUrl = URL.createObjectURL(audio);
         generatedAudioExtension = selectedTtsFormat;
@@ -2019,6 +2023,11 @@
     }
 
     function setCloneReference(blob, name = 'reference.wav') {
+      cloneGenerationEpoch += 1;
+      clearTimeout(cloneJobPollTimer);
+      cloneJobPollTimer = null;
+      cloneGenerating = false;
+      resetVoiceButtonLabel();
       cloneReferenceBlob = blob;
       cloneReferenceName = name || 'reference.wav';
       if (cloneReferenceUrl) URL.revokeObjectURL(cloneReferenceUrl);
@@ -2060,12 +2069,13 @@
       }
     }
 
-    async function pollCloneJob(jobId) {
+    async function pollCloneJob(jobId, generationEpoch = cloneGenerationEpoch) {
       clearTimeout(cloneJobPollTimer);
       try {
         const response = await fetch(`/api/voice-clone/jobs/${encodeURIComponent(jobId)}`, { cache: 'no-store' });
         if (!response.ok) throw new Error(await responseError(response, '读取复刻任务失败'));
         const job = await response.json();
+        if (generationEpoch !== cloneGenerationEpoch) return;
         const eta = Number(job.eta_seconds || 0);
         const etaText = eta > 0 ? ` · 预计 ${eta}s` : '';
         setCloneProgress(job.progress || 0.08, `${job.stage || job.status}${etaText}`);
@@ -2073,6 +2083,7 @@
           const audioResponse = await fetch(`/api/voice-clone/jobs/${encodeURIComponent(jobId)}/audio`, { cache: 'no-store' });
           if (!audioResponse.ok) throw new Error(await responseError(audioResponse, '读取复刻音频失败'));
           const audio = await audioResponse.blob();
+          if (generationEpoch !== cloneGenerationEpoch) return;
           if (ttsAudioUrl) URL.revokeObjectURL(ttsAudioUrl);
           ttsAudioUrl = URL.createObjectURL(audio);
           generatedAudioExtension = 'wav';
@@ -2091,8 +2102,9 @@
           return;
         }
         if (job.status === 'failed') throw new Error(`${job.error_type || 'VoiceCloneError'}：${job.error_message || '生成失败'}`);
-        cloneJobPollTimer = setTimeout(() => pollCloneJob(jobId), 1200);
+        cloneJobPollTimer = setTimeout(() => pollCloneJob(jobId, generationEpoch), 1200);
       } catch (error) {
+        if (generationEpoch !== cloneGenerationEpoch) return;
         cloneGenerating = false;
         resetVoiceButtonLabel();
         setCloneProgress(0, `生成失败：${error.message || String(error)}`);
@@ -2109,6 +2121,7 @@
       const text = $('tts-text').value.trim();
       if (!text) { showToast('请先输入要生成的文字'); return; }
       cloneGenerating = true;
+      const generationEpoch = ++cloneGenerationEpoch;
       updateVoiceSubmitState();
       $('synthesize-voice').textContent = '提交中…';
       setCloneProgress(0.05, '正在提交本地复刻任务…');
@@ -2121,9 +2134,11 @@
         const response = await fetch('/api/voice-clone/jobs', { method: 'POST', headers: csrfToken ? { 'X-CSRF-Token': csrfToken } : {}, body: form });
         if (!response.ok) throw new Error(await responseError(response, '创建复刻任务失败'));
         const job = await response.json();
+        if (generationEpoch !== cloneGenerationEpoch) return;
         $('synthesize-voice').textContent = '生成中…';
-        await pollCloneJob(job.job_id);
+        await pollCloneJob(job.job_id, generationEpoch);
       } catch (error) {
+        if (generationEpoch !== cloneGenerationEpoch) return;
         cloneGenerating = false;
         resetVoiceButtonLabel();
         setCloneProgress(0, `生成失败：${error.message || String(error)}`);
@@ -3632,6 +3647,7 @@
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.detail && payload.detail.message ? payload.detail.message : '摘要服务暂不可用');
         if (requestEpoch !== contentEpoch || summaryAbortController !== controller) return;
+        if (typeof payload.content !== 'string' || !payload.content.trim()) throw new Error('摘要服务未返回内容');
         $('summary-output').className = 'summary-output';
         if (explicit && previousSummary) {
           summaryUndoStack.push(previousSummary);
@@ -3733,6 +3749,10 @@
         let streamDone = false;
         while (!streamDone) {
           const chunk = await reader.read();
+          if (requestEpoch !== contentEpoch || summaryRevisionAbortController !== controller) {
+            await reader.cancel();
+            return;
+          }
           pending += decoder.decode(chunk.value || new Uint8Array(), { stream: !chunk.done });
           const blocks = pending.split(/\r?\n\r?\n/);
           pending = blocks.pop() || '';
@@ -3758,7 +3778,7 @@
             }
             if (eventName === 'done') streamDone = true;
           }
-          if (chunk.done) streamDone = true;
+          if (chunk.done && !streamDone) throw new Error('纪要修改流未完整结束');
         }
 
         const finalResult = parseSummaryRevisionOutput(modelOutput);

@@ -2768,6 +2768,19 @@ async def realtime_proxy(client: WebSocket) -> None:
                 except Exception:
                     await client.send_text(message)
                     continue
+                # Token Plan may reject an established session with a flat
+                # code/message object, rather than an OpenAI-style error event.
+                if isinstance(event, dict) and not event.get("type") and event.get("code"):
+                    messages = {
+                        "AccessDenied.Unpurchased": "当前实时模型套餐未开通或已失效，请检查套餐权限；不会自动转按量付费。",
+                        "InvalidApiKey": "实时服务鉴权失败，请检查服务端配置。",
+                        "QuotaExceeded": "实时服务额度已用尽，请检查套餐；不会自动转按量付费。",
+                    }
+                    provider_code = event.get("code")
+                    safe_code = provider_code if isinstance(provider_code, str) and provider_code in messages else "UpstreamError"
+                    await client.send_json({"demo_event": "proxy.error", "error_type": safe_code,
+                                            "message": messages.get(safe_code, "实时服务返回错误，请检查服务端配置和套餐状态。")})
+                    return
                 for transcript_event in extract_realtime_transcript_events(event):
                     await client.send_json(transcript_event)
                 if event.get("type") == "response.audio.delta" and isinstance(event.get("delta"), str):
@@ -2804,6 +2817,8 @@ async def realtime_proxy(client: WebSocket) -> None:
         )
         for task in pending:
             task.cancel()
+        if pending:
+            await asyncio.gather(*pending, return_exceptions=True)
         for task in done:
             exc = task.exception()
             if exc and not isinstance(exc, WebSocketDisconnect):

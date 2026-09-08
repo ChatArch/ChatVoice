@@ -23,7 +23,7 @@ Documentation entry: <https://arch.gh.wzhecnu.cn/ChatVoice/en/>
 
 - **Deployment and Startup**
 
-    From `python -m pip install "ChatVoice[web]==0.1.15.post2"` to `chatvoice serve app`, including runtime paths, account provisioning, ASR API provider wiring, and database concurrency boundaries. This version is a local, unpublished hotfix; see [independent TTS](tts-models.en.md) for system speech configuration.
+    From `python -m pip install "ChatVoice[web]==0.1.15.post3"` to `chatvoice serve app`, including runtime paths, account provisioning, ASR API provider wiring, and database concurrency boundaries. This version is a local, unpublished hotfix; see [independent TTS](tts-models.en.md) for system speech configuration.
 
     [Read deployment guide](deployment.md)
 

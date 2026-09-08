@@ -8,7 +8,7 @@ This page explains how to run a ChatVoice / Speakr service from the released Pyt
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "ChatVoice[web]==0.1.15.post2"
+python -m pip install "ChatVoice[web]==0.1.15.post3"
 ```
 
 Read back the real CLI tree and runtime paths first:
@@ -81,7 +81,7 @@ export CHATVOICE_ASR_API_URL="https://<asr-service>/v1/transcribe"
 chatvoice serve app --host 127.0.0.1 --port 18087
 ```
 
-The browser **Settings -> Server-side API Key** panel displays ASR, system TTS, realtime Token Plan, text and local VoiceClone readiness without storing raw credentials. `0.1.15.post2` is a local, unpublished hotfix: review the local wheel first. Configure the six `CHATVOICE_TTS_*` fields in ChatEnv `ChatVoice` for [independent TTS](tts-models.en.md). Any nonempty field opts in; incomplete configuration returns 503 without borrowed credentials or fallback. All fields empty preserve legacy TTS through `CHATVOICE_OPENAI_API_BASE` / `CHATVOICE_OPENAI_API_KEY` / `CHATVOICE_OPENAI_API_MODEL`; legacy TTS and realtime still require `sk-sp...`. ASR, realtime, notes/title, VoiceClone, accounts, storage and supervisors are unchanged. The deployment owner handles real synthesis, billing confirmation, backup and rollback acceptance.
+The browser **Settings -> Server-side API Key** panel displays ASR, system TTS, realtime Token Plan, text and local VoiceClone readiness without storing raw credentials. `0.1.15.post3` is a local, unpublished hotfix: review the local wheel first. Configure the six `CHATVOICE_TTS_*` fields in ChatEnv `ChatVoice` for [independent TTS](tts-models.en.md). Any nonempty field opts in; incomplete configuration returns 503 without borrowed credentials or fallback. All fields empty preserve legacy TTS through `CHATVOICE_OPENAI_API_BASE` / `CHATVOICE_OPENAI_API_KEY` / `CHATVOICE_OPENAI_API_MODEL`; legacy TTS and realtime still require `sk-sp...`. ASR, realtime, notes/title, VoiceClone, accounts, storage and supervisors are unchanged. The deployment owner handles real synthesis, billing confirmation, backup and rollback acceptance.
 
 Meeting notes can use CRS independently from voice model keys:
 

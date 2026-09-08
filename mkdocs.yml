@@ -40,6 +40,7 @@ plugins:
             独立语音合成: Independent TTS
             运行目录与数据结构: Runtime Layout and Data Structure
             API 访问: API Access
+            离线操作回归: Offline Operation Regression
             声音复刻使用指南: Voice Cloning Guide
             录音保存边界: Recording Storage Boundary
             命令与接口: Commands and APIs
@@ -73,6 +74,7 @@ nav:
   - 声音复刻使用指南: voice-cloning.md
   - 录音保存边界: recording-storage.md
   - API 访问: api-access.md
+  - 离线操作回归: testing.md
   - 命令与接口:
       - CLI 树: cli-tree.md
       - 能力地图: capability-map.md

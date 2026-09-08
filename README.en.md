@@ -25,13 +25,13 @@ Documentation entry: <https://arch.gh.wzhecnu.cn/ChatVoice/en/>
 
 ## Quick start from PyPI
 
-This branch contains the local, unpublished `0.1.15.post2` hotfix; the pinned PyPI examples below require publication first. Until then, install the reviewed local wheel. [Independent TTS](docs/tts-models.en.md) supports configurable protocols, endpoints, models, credentials and voice catalogs, failing closed for incomplete configuration. ASR, realtime and VoiceClone are unchanged. See [independent text models](docs/text-models.en.md) for unchanged notes/title configuration.
+This branch contains the local, unpublished `0.1.15.post3` hotfix; the pinned PyPI examples below require publication first. Until then, install the reviewed local wheel. [Independent TTS](docs/tts-models.en.md) supports configurable protocols, endpoints, models, credentials and voice catalogs, failing closed for incomplete configuration. ASR, realtime and VoiceClone are unchanged. See [independent text models](docs/text-models.en.md) for unchanged notes/title configuration.
 
 ```bash
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "ChatVoice[web]==0.1.15.post2"
+python -m pip install "ChatVoice[web]==0.1.15.post3"
 
 chatvoice --tree
 chatvoice --tree-brief
