@@ -3,9 +3,8 @@ from contextlib import closing
 from datetime import datetime, timedelta, timezone
 import hashlib
 import importlib.util
-from pathlib import Path
+from importlib.resources import files
 import sqlite3
-import subprocess
 
 import chatlogin
 from fastapi.testclient import TestClient
@@ -134,9 +133,10 @@ def test_schema_and_html_bytes_unchanged(host):
     with closing(app._meeting_db()) as db:
         assert db.execute("SELECT name, sql FROM sqlite_master WHERE type='table' ORDER BY name").fetchall() == before
         assert db.execute("SELECT password_salt, password_hash FROM accounts ORDER BY id").fetchall() == hashes
-    root = Path(__file__).resolve().parents[1]
-    original = subprocess.check_output(["git", "show", "3e2ffca55c387302cad400036001ea0420d8bcb4:src/chatvoice/web/static/index.html"], cwd=root)
-    assert (root / "src/chatvoice/web/static/index.html").read_bytes() == original
+    # Golden checksum of the released 0.1.14 HTML; also works in shallow clones
+    # and installed/source distributions without Git history.
+    html = (files("chatvoice.web") / "static" / "index.html").read_bytes()
+    assert hashlib.sha256(html).hexdigest() == "35c9b575c0ae3c2dc61a51bf3945748b6399309ceb16a71c4cd35d029d7e606b"
 
 
 def test_owner_isolation_same_id_and_guest_cloud_denial(host):
