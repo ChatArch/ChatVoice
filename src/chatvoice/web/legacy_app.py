@@ -35,6 +35,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
 
 from chatvoice import __version__
+from chatvoice import todo_markdown
 from chatvoice import text_api, tts_api
 from chatvoice.config import ChatVoiceConfig
 from chatvoice.paths import state_paths
@@ -215,6 +216,23 @@ class MeetingNotesChatMessage(BaseModel):
     text: str = Field(..., min_length=1, max_length=4000)
 
 
+class TodoGenerateRequest(BaseModel):
+    summary: str = Field(..., min_length=1, max_length=20000, pattern=r"\S")
+
+
+class TodoReviseRequest(BaseModel):
+    summary: str = Field("", max_length=20000)
+    current_todo: str = Field(..., min_length=1, max_length=20000, pattern=r"\S")
+    instruction: str = Field(..., min_length=1, max_length=2000, pattern=r"\S")
+    messages: list[MeetingNotesChatMessage] = Field(default_factory=list, max_length=12)
+
+
+class _TodoModelRequest(MeetingNotesRequest):
+    # Internal composition of individually bounded summary/Todo/history fields.
+    transcript: str = Field(..., min_length=1, max_length=100000)
+    instruction: str = Field(..., max_length=6000)
+
+
 class MeetingNotesReviseRequest(BaseModel):
     transcript: str = Field(..., min_length=1, max_length=20000)
     current_summary: str = Field(..., min_length=1, max_length=20000)
@@ -245,6 +263,8 @@ class MeetingRecordInput(BaseModel):
     summary_content: str = Field("", max_length=20000)
     summary_customized: bool = False
     summary_chat_messages: list[MeetingNotesChatMessage] = Field(default_factory=list, max_length=100)
+    todo_markdown: str = Field("", max_length=20000)
+    todo_chat_messages: list[MeetingNotesChatMessage] = Field(default_factory=list, max_length=100)
 
 
 class StoredConversationMessage(BaseModel):
@@ -819,6 +839,10 @@ def _meeting_db() -> sqlite3.Connection:
         connection.execute("ALTER TABLE meeting_records ADD COLUMN summary_chat_json TEXT NOT NULL DEFAULT '[]'")
     if "tags_json" not in meeting_columns:
         connection.execute("ALTER TABLE meeting_records ADD COLUMN tags_json TEXT NOT NULL DEFAULT '[]'")
+    if "todo_markdown" not in meeting_columns:
+        connection.execute("ALTER TABLE meeting_records ADD COLUMN todo_markdown TEXT NOT NULL DEFAULT ''")
+    if "todo_chat_json" not in meeting_columns:
+        connection.execute("ALTER TABLE meeting_records ADD COLUMN todo_chat_json TEXT NOT NULL DEFAULT '[]'")
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS conversation_records (
@@ -1107,6 +1131,12 @@ def _meeting_row_payload(row: sqlite3.Row, include_content: bool) -> dict[str, A
             payload["summary_chat_messages"] = json.loads(row["summary_chat_json"])
         except Exception:
             payload["summary_chat_messages"] = []
+        payload["todo_markdown"] = row["todo_markdown"] if "todo_markdown" in row.keys() else ""
+        try:
+            messages = json.loads(row["todo_chat_json"]) if "todo_chat_json" in row.keys() else []
+            payload["todo_chat_messages"] = messages if isinstance(messages, list) else []
+        except (TypeError, ValueError):
+            payload["todo_chat_messages"] = []
     return payload
 
 
@@ -1199,6 +1229,17 @@ def upsert_meeting(meeting_id: str, record: MeetingRecordInput, request: Request
                 preview,
             ),
         )
+        # Older clients do not know these fields: omission must preserve Todo.
+        if "todo_markdown" in record.model_fields_set:
+            connection.execute(
+                "UPDATE meeting_records SET todo_markdown = ? WHERE owner_id = ? AND meeting_id = ?",
+                (record.todo_markdown, owner_id, record_id),
+            )
+        if "todo_chat_messages" in record.model_fields_set:
+            connection.execute(
+                "UPDATE meeting_records SET todo_chat_json = ? WHERE owner_id = ? AND meeting_id = ?",
+                (json.dumps([message.model_dump() for message in record.todo_chat_messages], ensure_ascii=False), owner_id, record_id),
+            )
         connection.commit()
         row = connection.execute(
             "SELECT * FROM meeting_records WHERE owner_id = ? AND meeting_id = ?",
@@ -1677,6 +1718,30 @@ async def meeting_notes_polish(req: MeetingNotesRequest) -> JSONResponse:
     except Exception as exc:
         raise HTTPException(status_code=502, detail={"error_type": type(exc).__name__, "message": str(exc)[:700]}) from exc
     return JSONResponse(result)
+
+
+def _todo_model_call(*, transcript: str, instruction: str) -> dict[str, Any]:
+    return _meeting_notes_blocking(_TodoModelRequest(transcript=transcript, instruction=instruction))
+
+
+def _todo_result(action, *args) -> JSONResponse:
+    try:
+        return JSONResponse(action(*args, _todo_model_call))
+    except todo_markdown.TodoModelError as exc:
+        detail = "会议摘要模型尚未配置完整" if exc.status_code == 503 else "Todo 模型请求失败，请稍后重试"
+        raise HTTPException(status_code=exc.status_code, detail=detail) from None
+    except ValueError:
+        raise HTTPException(status_code=502, detail="模型没有返回有效的 Markdown Todo，请重试") from None
+
+
+@app.post("/api/meeting-notes/todo")
+def meeting_todo_generate(req: TodoGenerateRequest) -> JSONResponse:
+    return _todo_result(todo_markdown.generate_todo, req.summary)
+
+
+@app.post("/api/meeting-notes/todo/revise")
+def meeting_todo_revise(req: TodoReviseRequest) -> JSONResponse:
+    return _todo_result(todo_markdown.revise_todo, req.summary, req.current_todo, req.instruction, [m.model_dump() for m in req.messages])
 
 
 def _sse_message(event: str, payload: dict[str, Any]) -> str:

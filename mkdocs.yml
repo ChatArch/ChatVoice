@@ -37,6 +37,7 @@ plugins:
             首页: Home
             部署与启动: Deployment and Startup
             独立文本模型: Independent Text Models
+            Markdown 待办: Markdown Todo
             独立语音合成: Independent TTS
             运行目录与数据结构: Runtime Layout and Data Structure
             API 访问: API Access
@@ -69,6 +70,7 @@ nav:
   - 首页: index.md
   - 部署与启动: deployment.md
   - 独立文本模型: text-models.md
+  - Markdown 待办: markdown-todo.md
   - 独立语音合成: tts-models.md
   - 运行目录与数据结构: runtime-layout.md
   - 声音复刻使用指南: voice-cloning.md

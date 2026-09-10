@@ -675,6 +675,20 @@
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
     }
+    .content-tabs { overflow-x: auto; }
+    .content-tab { flex-shrink: 0; }
+    .todo-convert { margin-top: 24px; padding: 18px 20px; border: 1px solid var(--line); border-radius: 16px; display: flex; align-items: center; justify-content: space-between; gap: 16px; background: var(--violet-soft); }
+    .todo-convert strong { display: block; font-size: 13px; }
+    .todo-convert p { margin: 5px 0 0; font-size: 11px; color: #737580; line-height: 1.6; }
+    .todo-convert button { flex: none; border: 0; border-radius: 10px; background: var(--ink); color: #fff; padding: 11px 16px; font-size: 12px; }
+    .todo-active #todo-panel { max-width: 1120px; }
+    .todo-active .recording-console.idle, .todo-active .recording-console.ended, .todo-active .recording-console.error { display: none; }
+    .todo-toolbar { gap: 12px; flex-wrap: wrap; }
+    .todo-toolbar .summary-actions { flex-wrap: wrap; }
+    .todo-canvas { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; min-height: 380px; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .todo-canvas::placeholder { color: #a0a2aa; }
+    .todo-note { color: #858790; font-size: 11px; line-height: 1.7; margin: 0 0 18px; }
+    @media (max-width: 600px) { .todo-convert { align-items: flex-start; flex-direction: column; } .todo-canvas { min-height: 300px; } }
   </style>
 </head>
 <body>
@@ -781,6 +795,7 @@
         <button class="content-tab active" id="transcript-tab" data-tab="transcript" type="button" role="tab" aria-selected="true">文字记录 <span class="live-tag">实时</span></button>
         <button class="content-tab" id="summary-tab" data-tab="summary" type="button" role="tab" aria-selected="false">实时摘要</button>
         <button class="content-tab" id="summary-chat-tab" data-tab="summary-chat" type="button" role="tab" aria-selected="false"><span aria-hidden="true">✦</span> 完善纪要</button>
+        <button class="content-tab" id="todo-tab" data-tab="todo" type="button" role="tab" aria-selected="false">Todo</button>
       </nav>
 
       <div class="content-scroll" id="content-scroll">
@@ -843,6 +858,46 @@
             <span class="extension-chip">风险与问题</span>
             <span class="extension-chip">润色校对</span>
             <span class="extension-chip">自定义工作流</span>
+          </div>
+          <section class="todo-convert" aria-label="将摘要转为 Todo">
+            <div><strong>这段想法，下一步怎么做？</strong><p>确认值得推进时，再转成 Markdown 待办；原摘要保持不变。</p></div>
+            <button id="summary-to-todo" type="button">转为 Todo →</button>
+          </section>
+        </section>
+
+        <section class="tab-panel" id="todo-panel" data-panel="todo" role="tabpanel" aria-labelledby="todo-tab">
+          <div class="summary-toolbar todo-toolbar">
+            <div><span class="ai-mark">TODO</span><span id="todo-status" role="status">等待转入想法</span></div>
+            <div class="summary-actions">
+              <button id="generate-todo" type="button">从摘要生成</button>
+              <button id="cancel-todo" type="button" hidden>停止</button>
+              <button id="copy-todo" type="button">复制 Markdown</button>
+              <button id="download-todo" type="button">导出 .md</button>
+            </div>
+          </div>
+          <p class="todo-note">此页可以先留空。由你决定何时把想法转成行动；生成后可直接编辑，也可继续对话完善。Todo 单独保存，不会改写会议摘要。</p>
+          <div class="summary-copilot">
+            <section class="summary-canvas-card" aria-label="Markdown Todo 编辑器">
+              <header class="summary-canvas-header">
+                <div class="summary-canvas-heading"><span aria-hidden="true">☑</span><div><strong>行动计划</strong><small>标准 Markdown · - [ ] 待办 / - [x] 完成</small></div></div>
+                <div class="summary-canvas-actions"><button id="undo-todo" type="button" disabled>撤销修改</button></div>
+              </header>
+              <textarea class="summary-canvas todo-canvas" id="todo-canvas" maxlength="20000" aria-label="Markdown Todo 正文" placeholder="这里还没有 Todo。&#10;&#10;先在摘要下方点击「转为 Todo」，或者直接写下：&#10;# 我的计划&#10;- [ ] 第一个可执行步骤"></textarea>
+              <footer class="summary-canvas-footer"><span id="todo-save-state">随当前会议保存</span><strong id="todo-count">0 项待办</strong></footer>
+            </section>
+            <section class="summary-chat-card" aria-label="通过对话完善 Todo">
+              <header class="summary-chat-header"><div class="summary-chat-heading"><span aria-hidden="true">✦</span><div><strong>继续完善 Todo</strong><small>拆步骤、调顺序、补充验收标准</small></div></div></header>
+              <div class="summary-chat-messages" id="todo-chat-messages" aria-live="polite"></div>
+              <div class="summary-prompts" aria-label="Todo 修改建议">
+                <button class="summary-prompt" type="button" data-todo-prompt="把任务拆成更小的可执行步骤，不增加未确认的承诺。">拆成小步骤</button>
+                <button class="summary-prompt" type="button" data-todo-prompt="按执行顺序分组，保留已完成状态，不编造日期和负责人。">整理执行顺序</button>
+                <button class="summary-prompt" type="button" data-todo-prompt="给任务补充能检查的完成标准，不确定的内容列为待确认。">补充完成标准</button>
+              </div>
+              <form class="summary-chat-composer" id="todo-chat-form">
+                <textarea id="todo-chat-input" rows="1" maxlength="2000" placeholder="例如：把第一项拆成今天能做的三步…" aria-label="Todo 修改要求"></textarea>
+                <button class="summary-chat-send" id="todo-chat-send" type="submit" aria-label="发送 Todo 修改要求">↑</button>
+              </form>
+            </section>
           </div>
         </section>
 
@@ -1207,6 +1262,10 @@
     let showingDemo = true;
     let summaryIsDemo = true;
     let summaryRunning = false;
+    let todoChatMessages = [];
+    let todoUndoStack = [];
+    let todoRunning = false;
+    let todoAbortController = null;
     let hasGeneratedSummary = false;
     let summaryCustomized = false;
     let summaryChatMessages = [];
@@ -2455,6 +2514,7 @@
     }
 
     function cancelSummaryWork() {
+      cancelTodoWork('');
       contentEpoch += 1;
       if (summaryAbortController) summaryAbortController.abort();
       summaryAbortController = null;
@@ -2473,6 +2533,119 @@
 
     function summaryContent() {
       return hasGeneratedSummary ? $('summary-canvas').value.trim() : '';
+    }
+
+    function todoContent() { return $('todo-canvas').value.trim(); }
+
+    function updateTodoUi(message = '') {
+      if (message) $('todo-status').textContent = message;
+      const lines = todoContent().split('\n');
+      const tasks = lines.filter((line) => /^\s*- \[[ xX]\] \S/.test(line));
+      const completed = tasks.filter((line) => /^\s*- \[[xX]\]/.test(line));
+      $('todo-count').textContent = `${completed.length} / ${tasks.length} 项完成`;
+      $('generate-todo').disabled = todoRunning;
+      $('summary-to-todo').disabled = todoRunning;
+      $('todo-chat-send').disabled = todoRunning;
+      $('cancel-todo').hidden = !todoRunning;
+      $('undo-todo').disabled = todoRunning || !todoUndoStack.length;
+      $('todo-save-state').textContent = storageMode === 'guest' ? '随会议保存 · 仅此浏览器' : '随当前会议保存';
+    }
+
+    function renderTodoChat() {
+      const container = $('todo-chat-messages');
+      container.innerHTML = todoChatMessages.length
+        ? todoChatMessages.map((message) => `<div class="summary-chat-message ${message.role === 'user' ? 'user' : 'assistant'}">${escapeHtml(message.text)}</div>`).join('')
+        : '<div class="summary-chat-empty"><strong>先有想法，再决定行动</strong><span>生成 Todo 后，在这里继续讨论。也可以先手写一份 Markdown，再请 AI 帮你完善。</span></div>';
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function cancelTodoWork(message = '已停止 · 保留当前 Todo') {
+      if (todoAbortController) todoAbortController.abort();
+      todoAbortController = null;
+      todoRunning = false;
+      updateTodoUi(message);
+    }
+
+    function loadTodoPage(record = {}) {
+      cancelTodoWork('');
+      $('todo-canvas').value = typeof record.todo_markdown === 'string' ? record.todo_markdown : '';
+      todoChatMessages = Array.isArray(record.todo_chat_messages) ? record.todo_chat_messages.filter((m) => ['user', 'assistant'].includes(m.role) && typeof m.text === 'string').map(({role, text}) => ({role, text})) : [];
+      todoUndoStack = [];
+      $('todo-chat-input').value = '';
+      renderTodoChat();
+      updateTodoUi(todoContent() ? '已打开 Todo' : '等待转入想法');
+    }
+
+    function rememberTodo() {
+      todoUndoStack.push({content: todoContent(), messages: todoChatMessages.map((m) => ({...m}))});
+      if (todoUndoStack.length > 10) todoUndoStack.shift();
+    }
+
+    async function requestTodoUpdate(instruction = null) {
+      if (todoRunning) return;
+      if (!storageMode || showingDemo) { updateTodoUi('请先生成真实摘要，或进入会议填写 Todo'); return; }
+      const source = summaryContent();
+      const previous = todoContent();
+      if (instruction === null && !source) { updateTodoUi('请先生成或填写摘要'); return; }
+      if (instruction !== null && !previous) { updateTodoUi('请先转为 Todo，或手动填写待办'); return; }
+      if (instruction === null && previous && !confirm('重新生成会替换当前 Todo（可撤销），继续吗？')) return;
+      ensureActiveMeeting();
+      const recordId = activeMeetingId;
+      const mode = storageMode;
+      const epoch = contentEpoch;
+      const controller = new AbortController();
+      todoAbortController = controller;
+      todoRunning = true;
+      updateTodoUi(instruction === null ? '正在把想法转成行动…' : '正在完善 Todo…');
+      const stillCurrent = () => todoAbortController === controller && recordId === activeMeetingId && mode === storageMode && epoch === contentEpoch;
+      const payload = instruction === null ? {summary: source} : {summary: source, current_todo: previous, instruction, messages: todoChatMessages.slice(-12).map(({role, text}) => ({role, text}))};
+      try {
+        const response = await fetch(instruction === null ? '/api/meeting-notes/todo' : '/api/meeting-notes/todo/revise', {
+          method: 'POST', headers: {'Content-Type': 'application/json'}, signal: controller.signal, body: JSON.stringify(payload),
+        });
+        if (!response.ok) throw new Error(await responseError(response, 'Todo 服务暂不可用'));
+        const result = await response.json();
+        if (!stillCurrent()) return;
+        if (todoContent() !== previous || summaryContent() !== source) { updateTodoUi('内容已变化 · 未应用旧结果，请重试'); return; }
+        if (typeof result.content !== 'string' || !result.content.trim() || result.content.length > 20000) throw new Error('没有返回有效的 Markdown Todo');
+        if (instruction !== null && (typeof result.reply !== 'string' || !result.reply.trim())) throw new Error('没有返回完整的修改结果');
+        rememberTodo();
+        $('todo-canvas').value = result.content.trim();
+        if (instruction === null) todoChatMessages = [];
+        else todoChatMessages = [...todoChatMessages, {role: 'user', text: instruction}, {role: 'assistant', text: result.reply}].slice(-100);
+        $('todo-chat-input').value = '';
+        renderTodoChat();
+        updateTodoUi(instruction === null ? '已转为 Markdown Todo' : 'Todo 已完善');
+        await saveActiveMeeting();
+      } catch (error) {
+        if (error.name !== 'AbortError' && stillCurrent()) updateTodoUi(`处理失败 · 保留原内容：${error.message || '请重试'}`);
+      } finally {
+        if (todoAbortController === controller) {
+          todoAbortController = null;
+          todoRunning = false;
+          updateTodoUi();
+        }
+      }
+    }
+
+    function generateTodoFromSummary() { setActiveTab('todo'); return requestTodoUpdate(); }
+
+    function reviseTodoWithChat(instruction) {
+      const text = String(instruction || '').trim();
+      if (!text) { updateTodoUi('请填写 Todo 修改要求'); return; }
+      return requestTodoUpdate(text);
+    }
+
+    function downloadTodoMarkdown() {
+      if (!todoContent()) { showToast('当前 Todo 还是空的'); return; }
+      const url = URL.createObjectURL(new Blob([todoContent() + '\n'], {type: 'text/markdown;charset=utf-8'}));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `todo-${($('meeting-title').value || '行动计划').replace(/[\\/:*?"<>|]/g, '-').slice(0, 70)}.md`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
 
     function updateSummaryCanvasMeta(label = '') {
@@ -2807,6 +2980,8 @@
         summary_content: summaryContent(),
         summary_customized: summaryCustomized,
         summary_chat_messages: summaryChatMessages.filter((message) => !message.streaming && message.text.trim()).map(({ role, text }) => ({ role, text })),
+        todo_markdown: todoContent(),
+        todo_chat_messages: todoChatMessages.map(({role, text}) => ({role, text})),
       };
       meetingSaveChain = meetingSaveChain.catch(() => {}).then(async () => {
         try {
@@ -2860,6 +3035,7 @@
         summaryCustomized = Boolean(meeting.summary_customized);
         summaryChatMessages = Array.isArray(meeting.summary_chat_messages) ? meeting.summary_chat_messages.map(({ role, text }) => ({ role, text })) : [];
         summaryUndoStack = [];
+        loadTodoPage(meeting);
         renderSummaryChat();
         lastSummaryAt = hasGeneratedSummary ? Date.now() : 0;
         if (hasGeneratedSummary) {
@@ -3176,6 +3352,7 @@
 
     function setActiveTab(tab) {
       activeTab = tab;
+      document.body.classList.toggle('todo-active', tab === 'todo');
       document.body.classList.toggle('summary-chat-active', tab === 'summary-chat');
       document.querySelectorAll('.content-tab').forEach((button) => {
         const selected = button.dataset.tab === tab;
@@ -3458,6 +3635,7 @@
       $('elapsed').textContent = '00:00';
       clearSummaryContent();
       $('live-text').innerHTML = '<span class="typing-caret"></span>';
+      loadTodoPage();
       setActiveTab('transcript');
       updateRecorderUi('idle', announce ? '内容已清空，可以开始新录音' : '正在准备新录音…');
       if (persist && activeMeetingId) scheduleMeetingSave(0);
@@ -4011,6 +4189,41 @@
       $('channel-label').textContent = option ? option.textContent.replace(/（.*?）/g, '').trim() : '自动选择识别服务';
     });
     $('generate-summary').addEventListener('click', () => generateSummary({ explicit: true }));
+    $('summary-to-todo').addEventListener('click', generateTodoFromSummary);
+    $('generate-todo').addEventListener('click', generateTodoFromSummary);
+    $('cancel-todo').addEventListener('click', () => cancelTodoWork());
+    $('todo-canvas').addEventListener('input', () => {
+      cancelTodoWork('手工编辑 · 自动保存');
+      if (!storageMode || showingDemo) return;
+      ensureActiveMeeting();
+      return saveActiveMeeting();
+    });
+    $('todo-chat-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      return reviseTodoWithChat($('todo-chat-input').value);
+    });
+    $('todo-chat-input').addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); $('todo-chat-form').requestSubmit(); }
+    });
+    document.querySelectorAll('[data-todo-prompt]').forEach((button) => button.addEventListener('click', () => {
+      $('todo-chat-input').value = button.dataset.todoPrompt;
+      return reviseTodoWithChat(button.dataset.todoPrompt);
+    }));
+    $('undo-todo').addEventListener('click', () => {
+      if (todoRunning || !todoUndoStack.length) return;
+      const previous = todoUndoStack.pop();
+      $('todo-canvas').value = previous.content;
+      todoChatMessages = previous.messages;
+      renderTodoChat();
+      updateTodoUi('已撤销修改');
+      return saveActiveMeeting();
+    });
+    $('copy-todo').addEventListener('click', async () => {
+      if (!todoContent()) { showToast('当前 Todo 还是空的'); return; }
+      await navigator.clipboard.writeText(todoContent());
+      showToast('Markdown Todo 已复制');
+    });
+    $('download-todo').addEventListener('click', downloadTodoMarkdown);
     $('copy-summary').addEventListener('click', async () => {
       await navigator.clipboard.writeText(summaryContent());
       showToast('摘要已复制');
@@ -4108,6 +4321,8 @@
     window.__demoConversationState = () => ({ activeProductView, realtimeState, model: $('conversation-model').value, voice: $('conversation-voice').value, activeConversationId, messages: realtimeMessages.map(({ role, text, final }) => ({ role, text, final })) });
 
     updateTtsCount();
+    renderTodoChat();
+    updateTodoUi();
     renderMeetingTags();
     syncSummaryContent($('summary-output').textContent, { canvasState: '示例纪要 · 修改后自动保存' });
     renderSummaryChat();
