@@ -1,4 +1,4 @@
-const {harness, assert} = require('./nonbrowser_harness.cjs');
+const {harness, assert, json} = require('./nonbrowser_harness.cjs');
 (async () => {
   const app = harness();
   const test = process.argv[2];
@@ -19,6 +19,14 @@ const {harness, assert} = require('./nonbrowser_harness.cjs');
     assert.match(app.stores.get('meetings').get(id).transcript_segments.map(x => x.text).join(''), /访客草稿/);
     assert.equal(app.run('storageMode'), 'guest');
     assert.equal(app.requests.length, 0);
+  } else if (test.startsWith('failed-')) {
+    app.run("storageMode='account'; authUser={id:'fixture'}; csrfToken='fixture'");
+    if (test === 'failed-meeting-save') app.run("ensureActiveMeeting(); appendTranscript('Unsaved draft');");
+    else app.run("ensureActiveConversation();");
+    app.respond = async () => json({detail:'Synthetic save failure'}, 500);
+    await app.element('show-login').click();
+    assert.deepEqual(moves, [], 'failed persistence must prevent navigation');
+    assert.match(app.element('toast').textContent, /保存失败/);
   } else if (test === 'active-realtime') {
     app.run("storageMode='guest'; realtimeState='listening'");
     await app.element('show-login').click();

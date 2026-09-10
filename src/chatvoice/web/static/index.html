@@ -2818,8 +2818,10 @@
             conversationIndex = [meta, ...conversationIndex.filter((conversation) => conversation.id !== meta.id)];
             renderConversationIndex();
           }
+          return true;
         } catch (error) {
           if (targetMode === storageMode) showToast(error.message || '对话记录暂未保存，请稍后重试');
+          return false;
         }
       });
       return conversationSaveChain;
@@ -2978,8 +2980,10 @@
             meetingIndex = [meta, ...meetingIndex.filter((meeting) => meeting.id !== meta.id)];
             renderMeetingIndex();
           }
+          return true;
         } catch (error) {
           if (targetMode === storageMode) showToast(error.message || '会议记录暂未保存，请稍后重试');
+          return false;
         }
       });
       return meetingSaveChain;
@@ -3116,8 +3120,8 @@
       try {
         clearTimeout(meetingSaveTimer);
         clearTimeout(conversationSaveTimer);
-        if (storageMode && activeMeetingId && !showingDemo) await saveActiveMeeting();
-        if (storageMode && activeConversationId) await saveActiveConversation();
+        if (storageMode && activeMeetingId && !showingDemo && await saveActiveMeeting() === false) return;
+        if (storageMode && activeConversationId && await saveActiveConversation() === false) return;
         await Promise.all([meetingSaveChain, conversationSaveChain]);
         location.assign('/login?next=' + encodeURIComponent('/'));
       } catch (error) {
