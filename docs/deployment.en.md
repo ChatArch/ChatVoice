@@ -8,7 +8,7 @@ This page explains how to run a ChatVoice / Speakr service from the released Pyt
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "ChatVoice[web]==0.1.15"
+python -m pip install "ChatVoice[web]==0.1.16"
 ```
 
 Read back the real CLI tree and runtime paths first:
@@ -81,11 +81,22 @@ export CHATVOICE_ASR_API_URL="https://<asr-service>/v1/transcribe"
 chatvoice serve app --host 127.0.0.1 --port 18087
 ```
 
-The browser **Settings → Server-side API Key** panel shows whether `CHATVOICE_ASR_API_KEY`, the Token Plan `CHATVOICE_OPENAI_API_KEY`, and the local VoiceClone sidecar are configured. It displays status only and never stores raw key values in the browser. Server configuration is stored in the ChatEnv `ChatVoice` profile: `CHATVOICE_OPENAI_API_BASE` / `CHATVOICE_OPENAI_API_KEY` / `CHATVOICE_OPENAI_API_MODEL`. Production accepts `sk-sp...` Token Plan keys by default to avoid accidental usage-billed `sk-...` calls.
+The browser **Settings -> Server-side API Key** panel displays ASR, system TTS, realtime Token Plan, text and local VoiceClone readiness without storing raw credentials. `0.1.16` includes independent text, TTS settings and Markdown Todo. Configure the six `CHATVOICE_TTS_*` fields in ChatEnv `ChatVoice` for [independent TTS](tts-models.en.md). Any nonempty field opts in; incomplete configuration returns 503 without borrowed credentials or fallback. All fields empty preserve legacy TTS through `CHATVOICE_OPENAI_API_BASE` / `CHATVOICE_OPENAI_API_KEY` / `CHATVOICE_OPENAI_API_MODEL`; legacy TTS and realtime still require `sk-sp...`. ASR, realtime, notes/title, VoiceClone, accounts, storage and supervisors are unchanged. The deployment owner handles real synthesis, billing confirmation, backup and rollback acceptance.
+
+Meeting notes can use CRS independently from voice model keys:
+
+```bash
+export CHATVOICE_MEETING_NOTES_PROVIDER=crs-chat-completions
+export CHATVOICE_MEETING_NOTES_CRS_PROFILE=apple
+# Optional explicit override; otherwise use the CRS profile model, e.g. gpt-5.5.
+# export CHATVOICE_MEETING_NOTES_MODEL=gpt-5.5
+```
+
+`crs-chat-completions` reads a ChatEnv built-in `OpenAI/<profile>` but only accepts CRS hosts such as `crs.tencent-am.wzhecnu.cn`, so unrelated OpenAI-compatible ENV values are refused. `CHATVOICE_MEETING_NOTES_CRS_API_BASE` / `CHATVOICE_MEETING_NOTES_CRS_API_KEY` are available only for controlled explicit overrides; prefer the CRS profile.
 
 ChatVoice sends uploaded audio to `CHATVOICE_ASR_API_URL` as multipart field `file` and reads `corrected_text`, `text`, `transcript`, `raw_text`, `data.text`, or `result.text` from the ASR JSON response.
 
-`funasr-gpu` / `funasr-cpu` remain compatibility channels, but they are not the default recommended deployment. Starting with 0.1.14, production requires FunASR to load persistently inside the ChatVoice service process and prewarm during startup by default; the short-lived subprocess worker is disabled by default because it reloads the GPU model per request/chunk and causes repeated cold starts. Enable `CHATVOICE_FUNASR_ALLOW_SUBPROCESS_WORKER=1` only for explicit debugging. A more flexible approach is to run the GPU runtime as an ASR API server and let ChatVoice call it through `api-server`.
+`funasr-gpu` / `funasr-cpu` remain compatibility channels, but they are not the default recommended deployment. Starting with 0.1.15, production requires FunASR to load persistently inside the ChatVoice service process and prewarm during startup by default; the short-lived subprocess worker is disabled by default because it reloads the GPU model per request/chunk and causes repeated cold starts. Enable `CHATVOICE_FUNASR_ALLOW_SUBPROCESS_WORKER=1` only for explicit debugging. A more flexible approach is to run the GPU runtime as an ASR API server and let ChatVoice call it through `api-server`.
 
 Meeting summary generation is also a server-side model boundary: configure the notes model/provider in server-side environment or config storage, and let the browser/API read only the saved summary text.
 

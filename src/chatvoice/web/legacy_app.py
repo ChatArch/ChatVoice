@@ -29,13 +29,15 @@ from collections.abc import Mapping
 from urllib.parse import urlparse
 
 import dashscope
-from chatenv import EnvStore, get_paths
+from chatenv import EnvStore, OpenAIConfig, get_paths
 from dashscope.audio.tts_v2 import AudioFormat, SpeechSynthesizer
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
 
 from chatvoice import __version__
+from chatvoice import todo_markdown
+from chatvoice import text_api, tts_api
 from chatvoice.config import ChatVoiceConfig
 from chatvoice.paths import state_paths
 from chatlogin import AccessDenied, StoreFull
@@ -61,8 +63,10 @@ def _load_chatvoice_env_values() -> dict[str, str]:
     loaded: dict[str, str] = {}
     for field in ChatVoiceConfig.get_fields().values():
         value = field.value
-        if value is not None and str(value).strip():
-            loaded[field.env_key] = str(value).strip()
+        if value is not None:
+            value = str(value) if field.env_key.startswith('CHATVOICE_TTS_') else str(value).strip()
+            if value:
+                loaded[field.env_key] = value
     return loaded
 
 
@@ -106,6 +110,10 @@ MAX_VOICECLONE_REFERENCE_BYTES = int(_env_value("CHATVOICE_VOICECLONE_MAX_REFERE
 DEFAULT_ASR_CHANNEL = _env_value("CHATVOICE_ASR_CHANNEL", "DEFAULT_ASR_CHANNEL").strip() or ("api-server" if ASR_API_URL else "stub-local")
 MEETING_NOTES_MODEL = _env_value("CHATVOICE_MEETING_NOTES_MODEL", "CHATVOICE_OPENAI_API_MODEL", default="qwen3.7-plus")
 MEETING_TITLE_MODEL = _env_value("CHATVOICE_MEETING_TITLE_MODEL", default="qwen3.6-flash")
+MEETING_NOTES_PROVIDER = _env_value("CHATVOICE_MEETING_NOTES_PROVIDER", default="token-plan-chat-completions").strip().lower()
+MEETING_NOTES_CRS_PROFILE = _env_value("CHATVOICE_MEETING_NOTES_CRS_PROFILE").strip()
+MEETING_NOTES_CRS_API_BASE = _env_value("CHATVOICE_MEETING_NOTES_CRS_API_BASE").strip().rstrip("/")
+MEETING_NOTES_CRS_API_KEY = _env_value("CHATVOICE_MEETING_NOTES_CRS_API_KEY").strip()
 ALLOWED_ASR_STREAM_SAMPLE_RATES = {8000, 16000, 24000, 48000}
 MIN_ASR_STREAM_CHUNK_SECONDS = 0.5
 MAX_ASR_STREAM_CHUNK_SECONDS = 10.0
@@ -188,7 +196,7 @@ app.add_middleware(
 
 class TTSRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=800)
-    voice: str = Field(DEFAULT_VOICE, min_length=1, max_length=80)
+    voice: str | None = Field(None, min_length=1, max_length=80, pattern=r'^[\x20-\x7e]+$')
     format: str = Field("mp3", pattern="^(mp3|wav)$")
 
 
@@ -209,6 +217,23 @@ class MeetingNotesRequest(BaseModel):
 class MeetingNotesChatMessage(BaseModel):
     role: str = Field(..., pattern="^(user|assistant)$")
     text: str = Field(..., min_length=1, max_length=4000)
+
+
+class TodoGenerateRequest(BaseModel):
+    summary: str = Field(..., min_length=1, max_length=20000, pattern=r"\S")
+
+
+class TodoReviseRequest(BaseModel):
+    summary: str = Field("", max_length=20000)
+    current_todo: str = Field(..., min_length=1, max_length=20000, pattern=r"\S")
+    instruction: str = Field(..., min_length=1, max_length=2000, pattern=r"\S")
+    messages: list[MeetingNotesChatMessage] = Field(default_factory=list, max_length=12)
+
+
+class _TodoModelRequest(MeetingNotesRequest):
+    # Internal composition of individually bounded summary/Todo/history fields.
+    transcript: str = Field(..., min_length=1, max_length=100000)
+    instruction: str = Field(..., max_length=6000)
 
 
 class MeetingNotesReviseRequest(BaseModel):
@@ -241,6 +266,8 @@ class MeetingRecordInput(BaseModel):
     summary_content: str = Field("", max_length=20000)
     summary_customized: bool = False
     summary_chat_messages: list[MeetingNotesChatMessage] = Field(default_factory=list, max_length=100)
+    todo_markdown: str = Field("", max_length=20000)
+    todo_chat_messages: list[MeetingNotesChatMessage] = Field(default_factory=list, max_length=100)
 
 
 class StoredConversationMessage(BaseModel):
@@ -299,14 +326,73 @@ def _token_plan_base() -> str:
     return profile.get("CHATVOICE_OPENAI_API_BASE", "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1").rstrip("/")
 
 
+def _independent_text_values() -> dict[str, str]:
+    return {
+        f"CHATVOICE_MEETING_{purpose}_{suffix}": _env_value(f"CHATVOICE_MEETING_{purpose}_{suffix}")
+        for purpose in ("NOTES", "TITLE")
+        for suffix in ("API_BASE", "API_KEY", "MODEL")
+    }
+
+
+def _independent_text_settings(purpose: str, req_model: str | None = None):
+    try:
+        return text_api.resolve_text_settings(_independent_text_values(), purpose, req_model=req_model)
+    except text_api.TextConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from None
+
+
+def _meeting_notes_provider() -> str:
+    if text_api.text_status(_independent_text_values(), "notes") is not None:
+        return "chat-completions"
+    provider = MEETING_NOTES_PROVIDER or "token-plan-chat-completions"
+    if provider in {"token-plan", "chat-completions", "token-plan-chat-completions"}:
+        return "token-plan-chat-completions"
+    if provider in {"crs", "crs-chat", "crs-chat-completions"}:
+        return "crs-chat-completions"
+    if provider in {"crs-responses", "openai-responses"}:
+        return "crs-responses"
+    raise HTTPException(status_code=503, detail=f"Unsupported CHATVOICE_MEETING_NOTES_PROVIDER: {provider}")
+
+
+def _is_trusted_crs_base(base: str) -> bool:
+    host = (urlparse(base).hostname or "").lower()
+    return host == "crs.tencent-am.wzhecnu.cn" or (host.startswith("crs.") and host.endswith(".wzhecnu.cn"))
+
+
+def _meeting_notes_crs_settings(req_model: str | None = None, require_key: bool = True) -> dict[str, Any]:
+    profile_values: dict[str, str] = {}
+    profile_name = MEETING_NOTES_CRS_PROFILE
+    if profile_name:
+        profile_values = EnvStore(get_paths().envs_dir).load_profile(OpenAIConfig, profile_name)
+        if not profile_values and require_key:
+            raise HTTPException(status_code=503, detail=f"CRS profile not found: {profile_name}")
+    base = (MEETING_NOTES_CRS_API_BASE or profile_values.get("OPENAI_API_BASE") or "").strip().rstrip("/")
+    key = (MEETING_NOTES_CRS_API_KEY or profile_values.get("OPENAI_API_KEY") or "").strip()
+    explicit_model = _env_value("CHATVOICE_MEETING_NOTES_MODEL").strip()
+    model = req_model or explicit_model or profile_values.get("OPENAI_API_MODEL") or MEETING_NOTES_MODEL
+    if base and not _is_trusted_crs_base(base):
+        raise HTTPException(status_code=503, detail="Meeting notes CRS provider refuses non-CRS API base")
+    if require_key and (not base or not key):
+        raise HTTPException(status_code=503, detail="Meeting notes CRS provider is missing API base or key")
+    return {"base": base, "key": key, "model": model, "profile": profile_name, "base_host": urlparse(base).netloc if base else None}
+
+
 def _meeting_notes_model(req_model: str | None = None) -> str:
+    independent = _independent_text_settings("notes", req_model)
+    if independent is not None:
+        return independent.model
     if req_model:
         return req_model
+    if _meeting_notes_provider() in {"crs-chat-completions", "crs-responses"}:
+        return str(_meeting_notes_crs_settings(require_key=False)["model"])
     profile = _read_profile()
     return profile.get("CHATVOICE_MEETING_NOTES_MODEL") or profile.get("CHATVOICE_OPENAI_API_MODEL") or MEETING_NOTES_MODEL
 
 
 def _meeting_title_model(req_model: str | None = None) -> str:
+    independent = text_api.text_status(_independent_text_values(), "title")
+    if independent is not None:
+        return req_model or independent["model"] or ""
     if req_model:
         return req_model
     profile = _read_profile()
@@ -391,6 +477,53 @@ def _database_health_summary() -> dict[str, Any]:
     return {"ok": True, "status": "ready", "path": str(MEETING_DB_PATH)}
 
 
+def _meeting_notes_status() -> dict[str, Any]:
+    independent = text_api.text_status(_independent_text_values(), "notes")
+    if independent is not None:
+        return independent
+    provider = _meeting_notes_provider()
+    status = {"provider": provider, "model": _meeting_notes_model()}
+    if provider in {"crs-chat-completions", "crs-responses"}:
+        settings = _meeting_notes_crs_settings(require_key=False)
+        status.update(
+            {
+                "crs_profile": settings["profile"],
+                "base_host": settings["base_host"],
+                "key_configured": bool(settings["key"]),
+            }
+        )
+    return status
+
+
+def _meeting_title_status() -> dict[str, Any]:
+    independent = text_api.text_status(_independent_text_values(), "title")
+    if independent is not None:
+        return independent
+    profile = _read_profile()
+    key = profile.get("CHATVOICE_OPENAI_API_KEY", "")
+    return {
+        "provider": "token-plan-chat-completions", "model": _meeting_title_model(),
+        "base_host": urlparse(_token_plan_base()).hostname,
+        "key_configured": bool(key), "configured": bool(key and _is_token_plan_key(key)),
+    }
+
+
+def _tts_values() -> dict[str, str]:
+    return {f'CHATVOICE_TTS_{name}': os.environ.get(f'CHATVOICE_TTS_{name}', _CHATVOICE_ENV.get(f'CHATVOICE_TTS_{name}', ''))
+            for name in tts_api.FIELDS}
+
+
+def _tts_status() -> dict[str, Any]:
+    independent = tts_api.tts_status(_tts_values())
+    if independent is not None:
+        return independent
+    key = (_read_profile().get('CHATVOICE_OPENAI_API_KEY') or '').strip()
+    return {'provider': 'qwen', 'base_host': urlparse(TOKEN_PLAN_TTS_WS).hostname, 'model': TTS_MODEL,
+            'key_configured': bool(key), 'configured': bool(key and _is_token_plan_key(key)),
+            'voices': [{'id': DEFAULT_VOICE, 'label': '龙安灵心'}, {'id': 'longanlufeng', 'label': '龙安鲁风'}],
+            'default_voice': DEFAULT_VOICE}
+
+
 def _safe_profile_summary() -> dict[str, Any]:
     profile = _read_profile()
     key = (profile.get("CHATVOICE_OPENAI_API_KEY") or "").strip()
@@ -422,7 +555,10 @@ def _safe_profile_summary() -> dict[str, Any]:
             "endpoint_host": urlparse(VOICECLONE_API_URL).netloc if VOICECLONE_API_URL else None,
             "mode": "local-one-shot-sidecar",
         },
-        "tts_model": TTS_MODEL,
+        "tts_model": _tts_status()['model'],
+        "tts": _tts_status(),
+        "meeting_notes": _meeting_notes_status(),
+        "meeting_title": _meeting_title_status(),
         "meeting_title_model": _meeting_title_model(),
         "realtime_model": REALTIME_MODEL,
         "asr_channels": ASR_CHANNELS,
@@ -467,12 +603,19 @@ def _available_realtime_models() -> list[dict[str, str]]:
 
 
 def _tts_blocking(req: TTSRequest) -> dict[str, Any]:
+    settings = tts_api.resolve_tts_settings(_tts_values())
+    if settings is not None:
+        return tts_api.synthesize(settings, req.text, voice=req.voice, format=req.format)
+    return _legacy_tts_blocking(req)
+
+
+def _legacy_tts_blocking(req: TTSRequest) -> dict[str, Any]:
     key = _token_plan_key()
     dashscope.api_key = key
     dashscope.base_websocket_api_url = TOKEN_PLAN_TTS_WS
     audio_format = AudioFormat.MP3_22050HZ_MONO_256KBPS if req.format == "mp3" else AudioFormat.WAV_24000HZ_MONO_16BIT
     started = time.time()
-    synthesizer = SpeechSynthesizer(model=TTS_MODEL, voice=req.voice, format=audio_format)
+    synthesizer = SpeechSynthesizer(model=TTS_MODEL, voice=req.voice or DEFAULT_VOICE, format=audio_format)
     audio = synthesizer.call(req.text)
     if not audio:
         raise RuntimeError("TTS returned empty audio")
@@ -699,6 +842,10 @@ def _meeting_db() -> sqlite3.Connection:
         connection.execute("ALTER TABLE meeting_records ADD COLUMN summary_chat_json TEXT NOT NULL DEFAULT '[]'")
     if "tags_json" not in meeting_columns:
         connection.execute("ALTER TABLE meeting_records ADD COLUMN tags_json TEXT NOT NULL DEFAULT '[]'")
+    if "todo_markdown" not in meeting_columns:
+        connection.execute("ALTER TABLE meeting_records ADD COLUMN todo_markdown TEXT NOT NULL DEFAULT ''")
+    if "todo_chat_json" not in meeting_columns:
+        connection.execute("ALTER TABLE meeting_records ADD COLUMN todo_chat_json TEXT NOT NULL DEFAULT '[]'")
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS conversation_records (
@@ -970,6 +1117,12 @@ def _meeting_row_payload(row: sqlite3.Row, include_content: bool) -> dict[str, A
             payload["summary_chat_messages"] = json.loads(row["summary_chat_json"])
         except Exception:
             payload["summary_chat_messages"] = []
+        payload["todo_markdown"] = row["todo_markdown"] if "todo_markdown" in row.keys() else ""
+        try:
+            messages = json.loads(row["todo_chat_json"]) if "todo_chat_json" in row.keys() else []
+            payload["todo_chat_messages"] = messages if isinstance(messages, list) else []
+        except (TypeError, ValueError):
+            payload["todo_chat_messages"] = []
     return payload
 
 
@@ -1062,6 +1215,17 @@ def upsert_meeting(meeting_id: str, record: MeetingRecordInput, request: Request
                 preview,
             ),
         )
+        # Older clients do not know these fields: omission must preserve Todo.
+        if "todo_markdown" in record.model_fields_set:
+            connection.execute(
+                "UPDATE meeting_records SET todo_markdown = ? WHERE owner_id = ? AND meeting_id = ?",
+                (record.todo_markdown, owner_id, record_id),
+            )
+        if "todo_chat_messages" in record.model_fields_set:
+            connection.execute(
+                "UPDATE meeting_records SET todo_chat_json = ? WHERE owner_id = ? AND meeting_id = ?",
+                (json.dumps([message.model_dump() for message in record.todo_chat_messages], ensure_ascii=False), owner_id, record_id),
+            )
         connection.commit()
         row = connection.execute(
             "SELECT * FROM meeting_records WHERE owner_id = ? AND meeting_id = ?",
@@ -1225,6 +1389,10 @@ async def tts(req: TTSRequest) -> Response:
     safe_req = TTSRequest(text=text, voice=req.voice, format=req.format)
     try:
         result = await asyncio.to_thread(_tts_blocking, safe_req)
+    except tts_api.TTSConfigurationError:
+        raise HTTPException(status_code=503, detail=tts_api.CONFIG_ERROR) from None
+    except tts_api.TTSRequestError:
+        raise HTTPException(status_code=502, detail=tts_api.REQUEST_ERROR) from None
     except HTTPException:
         raise
     except Exception as exc:
@@ -1232,14 +1400,18 @@ async def tts(req: TTSRequest) -> Response:
     media_type = "audio/mpeg" if req.format == "mp3" else "audio/wav"
     suffix = "mp3" if req.format == "mp3" else "wav"
     headers = {
-        "X-Qwen-Model": TTS_MODEL,
-        "X-Qwen-Voice": req.voice,
-        "X-Qwen-Request-Id": str(result.get("request_id") or ""),
+        "X-TTS-Provider": result.get('provider', 'qwen'),
+        "X-TTS-Model": result.get('model', TTS_MODEL),
+        "X-TTS-Voice": result.get('voice', req.voice or DEFAULT_VOICE),
         "X-Audio-Bytes": str(len(result["audio"])),
         "X-Audio-Sha256-12": str(result.get("sha256_12") or ""),
         "X-Elapsed-Ms": str(result.get("elapsed_ms") or ""),
-        "Content-Disposition": f'inline; filename="qwen-token-plan-tts.{suffix}"',
+        "Content-Disposition": f'inline; filename="tts.{suffix}"',
     }
+    if 'provider' not in result:
+        request_id = str(result.get('request_id') or '')
+        headers.update({'X-Qwen-Model': TTS_MODEL, 'X-Qwen-Voice': req.voice or DEFAULT_VOICE,
+                        'X-Qwen-Request-Id': request_id if tts_api._header(request_id) else ''})
     return Response(content=result["audio"], media_type=media_type, headers=headers)
 
 
@@ -1387,15 +1559,121 @@ async def voice_clone_delete_job(job_id: str, request: Request) -> JSONResponse:
     return JSONResponse(payload)
 
 
+def _responses_stream_events(request: urllib.request.Request, timeout: float):
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        for raw_line in response:
+            line = raw_line.decode("utf-8", "replace").strip()
+            if not line.startswith("data:"):
+                continue
+            data = line[5:].strip()
+            if not data or data == "[DONE]":
+                continue
+            try:
+                yield json.loads(data)
+            except Exception:
+                continue
+
+
+def _responses_event_delta(event: dict[str, Any]) -> str:
+    if event.get("type") == "response.output_text.delta" and isinstance(event.get("delta"), str):
+        return event["delta"]
+    if isinstance(event.get("delta"), str):
+        return event["delta"]
+    return ""
+
+
+def _responses_event_error(event: dict[str, Any]) -> str | None:
+    if event.get("type") not in {"response.failed", "response.incomplete", "error"} and "error" not in event:
+        return None
+    error = event.get("error") or event.get("response") or event
+    if isinstance(error, dict):
+        message = error.get("message") or error.get("detail") or error.get("status") or json.dumps(error, ensure_ascii=False)
+        return str(message)[:700]
+    return str(error)[:700]
+
+
+def _chat_completion_event_delta(event: dict[str, Any]) -> str:
+    choices = event.get("choices")
+    if not isinstance(choices, list) or not choices:
+        return ""
+    choice = choices[0] if isinstance(choices[0], dict) else {}
+    delta = choice.get("delta") if isinstance(choice.get("delta"), dict) else {}
+    message = choice.get("message") if isinstance(choice.get("message"), dict) else {}
+    return str(delta.get("content") or message.get("content") or "")
+
+
+def _meeting_notes_chat_completions_request(messages: list[dict[str, str]], req_model: str | None, timeout: float, user_agent: str) -> tuple[str, list[str], Any]:
+    settings = _meeting_notes_crs_settings(req_model=req_model)
+    payload = {"model": settings["model"], "messages": messages, "stream": True}
+    request = urllib.request.Request(
+        settings["base"] + "/chat/completions",
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers={"Authorization": f"Bearer {settings['key']}", "Content-Type": "application/json", "Accept": "text/event-stream", "User-Agent": user_agent},
+        method="POST",
+    )
+    pieces: list[str] = []
+    usage: Any = None
+    for event in _responses_stream_events(request, timeout=timeout):
+        error_message = _responses_event_error(event)
+        if error_message:
+            raise RuntimeError(error_message)
+        delta = _chat_completion_event_delta(event)
+        if delta:
+            pieces.append(delta)
+        if event.get("usage"):
+            usage = event.get("usage")
+    return settings["model"], pieces, usage
+
+
+def _meeting_notes_responses_request(messages: list[dict[str, str]], req_model: str | None, timeout: float, user_agent: str) -> tuple[str, list[str], Any]:
+    settings = _meeting_notes_crs_settings(req_model=req_model)
+    payload = {"model": settings["model"], "input": messages, "stream": True}
+    request = urllib.request.Request(
+        settings["base"] + "/responses",
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers={"Authorization": f"Bearer {settings['key']}", "Content-Type": "application/json", "Accept": "text/event-stream", "User-Agent": user_agent},
+        method="POST",
+    )
+    pieces: list[str] = []
+    usage: Any = None
+    for event in _responses_stream_events(request, timeout=timeout):
+        error_message = _responses_event_error(event)
+        if error_message:
+            raise RuntimeError(error_message)
+        delta = _responses_event_delta(event)
+        if delta:
+            pieces.append(delta)
+        if event.get("type") == "response.completed" and isinstance(event.get("response"), dict):
+            usage = event["response"].get("usage")
+    return settings["model"], pieces, usage
+
+
 def _meeting_notes_blocking(req: MeetingNotesRequest) -> dict[str, Any]:
+    independent = _independent_text_settings("notes", req.model)
+    provider = _meeting_notes_provider()
+    messages = [
+        {"role": "system", "content": "你是会议纪要实时整理助手，只输出中文结构化结果。"},
+        {"role": "user", "content": req.instruction + "\n\n转写文本：\n" + req.transcript},
+    ]
+    if independent is not None:
+        return {"provider": "chat-completions", **text_api.complete_text(independent, messages)}
+    if provider == "crs-chat-completions":
+        model, pieces, usage = _meeting_notes_chat_completions_request(messages, req.model, 80, "chatvoice-meeting-notes-crs/0.1")
+        content = "".join(pieces).strip()
+        if not content:
+            raise RuntimeError("CRS chat completions returned empty meeting notes")
+        return {"model": model, "provider": provider, "content": content, "raw_usage": usage}
+    if provider == "crs-responses":
+        model, pieces, usage = _meeting_notes_responses_request(messages, req.model, 80, "chatvoice-meeting-notes-crs/0.1")
+        content = "".join(pieces).strip()
+        if not content:
+            raise RuntimeError("CRS Responses returned empty meeting notes")
+        return {"model": model, "provider": provider, "content": content, "raw_usage": usage}
     key = _token_plan_key()
     model = _meeting_notes_model(req.model)
     payload = {
         "model": model,
-        "messages": [
-            {"role": "system", "content": "你是会议纪要实时整理助手，只输出中文结构化结果。"},
-            {"role": "user", "content": req.instruction + "\n\n转写文本：\n" + req.transcript},
-        ],
+        "messages": messages,
         "temperature": 0.2,
     }
     request = urllib.request.Request(
@@ -1411,13 +1689,15 @@ def _meeting_notes_blocking(req: MeetingNotesRequest) -> dict[str, Any]:
         content = body["choices"][0]["message"]["content"]
     except Exception:
         content = json.dumps(body, ensure_ascii=False)[:4000]
-    return {"model": model, "content": content, "raw_usage": body.get("usage")}
+    return {"model": model, "provider": provider, "content": content, "raw_usage": body.get("usage")}
 
 
 @app.post("/api/meeting-notes/polish")
 async def meeting_notes_polish(req: MeetingNotesRequest) -> JSONResponse:
     try:
         result = await asyncio.to_thread(_meeting_notes_blocking, req)
+    except HTTPException:
+        raise
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", "replace")[:700]
         raise HTTPException(status_code=502, detail={"error_type": "HTTPError", "status": exc.code, "message": detail}) from exc
@@ -1426,11 +1706,37 @@ async def meeting_notes_polish(req: MeetingNotesRequest) -> JSONResponse:
     return JSONResponse(result)
 
 
+def _todo_model_call(*, transcript: str, instruction: str) -> dict[str, Any]:
+    return _meeting_notes_blocking(_TodoModelRequest(transcript=transcript, instruction=instruction))
+
+
+def _todo_result(action, *args) -> JSONResponse:
+    try:
+        return JSONResponse(action(*args, _todo_model_call))
+    except todo_markdown.TodoModelError as exc:
+        detail = "会议摘要模型尚未配置完整" if exc.status_code == 503 else "Todo 模型请求失败，请稍后重试"
+        raise HTTPException(status_code=exc.status_code, detail=detail) from None
+    except ValueError:
+        raise HTTPException(status_code=502, detail="模型没有返回有效的 Markdown Todo，请重试") from None
+
+
+@app.post("/api/meeting-notes/todo")
+def meeting_todo_generate(req: TodoGenerateRequest) -> JSONResponse:
+    return _todo_result(todo_markdown.generate_todo, req.summary)
+
+
+@app.post("/api/meeting-notes/todo/revise")
+def meeting_todo_revise(req: TodoReviseRequest) -> JSONResponse:
+    return _todo_result(todo_markdown.revise_todo, req.summary, req.current_todo, req.instruction, [m.model_dump() for m in req.messages])
+
+
 def _sse_message(event: str, payload: dict[str, Any]) -> str:
     return f"event: {event}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
 def _meeting_notes_revision_stream(req: MeetingNotesReviseRequest):
+    independent = _independent_text_settings("notes", req.model)
+    provider = _meeting_notes_provider()
     model = _meeting_notes_model(req.model)
     system_prompt = """你是 Speakr 的会议纪要画布编辑助手。你同时维护一份纪要画布，并用简短中文回复用户。
 
@@ -1453,15 +1759,59 @@ def _meeting_notes_revision_stream(req: MeetingNotesReviseRequest):
         + "\n\n本轮要求：\n"
         + req.instruction
     )
+    messages = [{"role": "system", "content": system_prompt}, *history, {"role": "user", "content": context}]
     payload = {
         "model": model,
-        "messages": [{"role": "system", "content": system_prompt}, *history, {"role": "user", "content": context}],
+        "messages": messages,
         "temperature": 0.2,
         "enable_thinking": False,
         "stream": True,
     }
-    yield _sse_message("meta", {"model": model})
+    yield _sse_message("meta", {"model": model, "provider": provider})
     try:
+        if independent is not None:
+            for delta in text_api.stream_text(independent, messages):
+                yield _sse_message("delta", {"text": delta})
+            yield _sse_message("done", {"model": independent.model, "provider": "chat-completions"})
+            return
+        if provider in {"crs-chat-completions", "crs-responses"}:
+            settings = _meeting_notes_crs_settings(req_model=req.model)
+            if provider == "crs-chat-completions":
+                crs_payload = {"model": settings["model"], "messages": messages, "stream": True}
+                endpoint = "/chat/completions"
+                delta_reader = _chat_completion_event_delta
+                empty_message = "CRS chat completions 没有返回可用的纪要内容"
+            else:
+                crs_payload = {"model": settings["model"], "input": messages, "stream": True}
+                endpoint = "/responses"
+                delta_reader = _responses_event_delta
+                empty_message = "CRS Responses 没有返回可用的纪要内容"
+            upstream_request = urllib.request.Request(
+                settings["base"] + endpoint,
+                data=json.dumps(crs_payload, ensure_ascii=False).encode("utf-8"),
+                headers={
+                    "Authorization": f"Bearer {settings['key']}",
+                    "Content-Type": "application/json",
+                    "Accept": "text/event-stream",
+                    "User-Agent": "chatvoice-meeting-canvas-crs/0.1",
+                },
+                method="POST",
+            )
+            received_content = False
+            for event in _responses_stream_events(upstream_request, timeout=120):
+                error_message = _responses_event_error(event)
+                if error_message:
+                    yield _sse_message("error", {"message": error_message})
+                    return
+                delta = delta_reader(event)
+                if delta:
+                    received_content = True
+                    yield _sse_message("delta", {"text": delta})
+            if not received_content:
+                yield _sse_message("error", {"message": empty_message})
+                return
+            yield _sse_message("done", {"model": settings["model"], "provider": provider})
+            return
         key = _token_plan_key()
         upstream_request = urllib.request.Request(
             _token_plan_base() + "/chat/completions",
@@ -1494,7 +1844,7 @@ def _meeting_notes_revision_stream(req: MeetingNotesReviseRequest):
         if not received_content:
             yield _sse_message("error", {"message": "模型没有返回可用的纪要内容"})
             return
-        yield _sse_message("done", {"model": model})
+        yield _sse_message("done", {"model": model, "provider": provider})
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", "replace")[:700]
         yield _sse_message("error", {"message": f"上游服务返回 {exc.code}", "detail": detail})
@@ -1504,6 +1854,8 @@ def _meeting_notes_revision_stream(req: MeetingNotesReviseRequest):
 
 @app.post("/api/meeting-notes/revise/stream")
 def meeting_notes_revise_stream(req: MeetingNotesReviseRequest) -> StreamingResponse:
+    # Configuration failures must be HTTP 503 before streaming headers are sent.
+    _independent_text_settings("notes", req.model)
     return StreamingResponse(
         _meeting_notes_revision_stream(req),
         media_type="text/event-stream",
@@ -1522,7 +1874,7 @@ def _normalize_meeting_title(value: str) -> str:
 
 
 def _meeting_title_blocking(req: MeetingTitleRequest) -> dict[str, Any]:
-    key = _token_plan_key()
+    independent = _independent_text_settings("title", req.model)
     model = _meeting_title_model(req.model)
     transcript = " ".join(req.transcript.split())[:2400]
     payload = {
@@ -1538,6 +1890,10 @@ def _meeting_title_blocking(req: MeetingTitleRequest) -> dict[str, Any]:
         "max_tokens": 64,
         "enable_thinking": False,
     }
+    if independent is not None:
+        result = text_api.complete_text(independent, payload["messages"], timeout=30, max_tokens=64)
+        return {"model": result["model"], "title": _normalize_meeting_title(result["content"]), "raw_usage": result["raw_usage"]}
+    key = _token_plan_key()
     request = urllib.request.Request(
         _token_plan_base() + "/chat/completions",
         data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
@@ -1561,6 +1917,8 @@ async def meeting_title(req: MeetingTitleRequest) -> JSONResponse:
     safe_req = MeetingTitleRequest(transcript=transcript, model=req.model)
     try:
         result = await asyncio.to_thread(_meeting_title_blocking, safe_req)
+    except HTTPException:
+        raise
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", "replace")[:700]
         raise HTTPException(status_code=502, detail={"error_type": "HTTPError", "status": exc.code, "message": detail}) from exc
@@ -2461,6 +2819,19 @@ async def realtime_proxy(client: WebSocket) -> None:
                 except Exception:
                     await client.send_text(message)
                     continue
+                # Token Plan may reject an established session with a flat
+                # code/message object, rather than an OpenAI-style error event.
+                if isinstance(event, dict) and not event.get("type") and event.get("code"):
+                    messages = {
+                        "AccessDenied.Unpurchased": "当前实时模型套餐未开通或已失效，请检查套餐权限；不会自动转按量付费。",
+                        "InvalidApiKey": "实时服务鉴权失败，请检查服务端配置。",
+                        "QuotaExceeded": "实时服务额度已用尽，请检查套餐；不会自动转按量付费。",
+                    }
+                    provider_code = event.get("code")
+                    safe_code = provider_code if isinstance(provider_code, str) and provider_code in messages else "UpstreamError"
+                    await client.send_json({"demo_event": "proxy.error", "error_type": safe_code,
+                                            "message": messages.get(safe_code, "实时服务返回错误，请检查服务端配置和套餐状态。")})
+                    return
                 for transcript_event in extract_realtime_transcript_events(event):
                     await client.send_json(transcript_event)
                 if event.get("type") == "response.audio.delta" and isinstance(event.get("delta"), str):
@@ -2497,6 +2868,8 @@ async def realtime_proxy(client: WebSocket) -> None:
         )
         for task in pending:
             task.cancel()
+        if pending:
+            await asyncio.gather(*pending, return_exceptions=True)
         for task in done:
             exc = task.exception()
             if exc and not isinstance(exc, WebSocketDisconnect):

@@ -31,11 +31,13 @@ Existing `/api/auth/*` endpoints and JSON fields remain compatible. Existing acc
 
 ## Quick start from PyPI
 
+This branch contains the local, unpublished `0.1.15.post3` hotfix; the pinned PyPI examples below require publication first. Until then, install the reviewed local wheel. [Independent TTS](docs/tts-models.en.md) supports configurable protocols, endpoints, models, credentials and voice catalogs, failing closed for incomplete configuration. ASR, realtime and VoiceClone are unchanged. See [independent text models](docs/text-models.en.md) for unchanged notes/title configuration.
+
 ```bash
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "ChatVoice[web]==0.1.15"
+python -m pip install "ChatVoice[web]==0.1.16"
 
 chatvoice --tree
 chatvoice --tree-brief
@@ -96,7 +98,7 @@ chatvoice serve app --host 127.0.0.1 --port 18087
 
 `funasr-gpu` and `funasr-cpu` remain compatibility channels, but the recommended production boundary is to keep GPU runtime behind an ASR API server and let ChatVoice call it over HTTP.
 
-Meeting summary generation is also a server-side model boundary: configure the notes model/provider in server-side environment or config storage, and let the browser/API read only the saved summary text.
+Meeting summary generation is a separate server-side model boundary: `summarize/polish/revise` can use CRS through `CHATVOICE_MEETING_NOTES_PROVIDER=crs-chat-completions` and `CHATVOICE_MEETING_NOTES_CRS_PROFILE=apple`. Realtime and legacy TTS retain Token Plan `CHATVOICE_OPENAI_API_*`; independent TTS uses only `CHATVOICE_TTS_*`.
 
 ## Database and concurrency
 
@@ -142,6 +144,8 @@ curl -s http://127.0.0.1:18087/api/heartbeat | python -m json.tool
 The CLI is a thin adapter over importable Python APIs. See `docs/interface-tree.md` for the function mapping.
 
 ## Documentation
+
+**Markdown Todo**: explicitly convert a summary into an independent Markdown action plan, refine it through conversation, undo changes, and export `.md` without changing the original summary. See [Markdown Todo](docs/markdown-todo.en.md).
 
 Choose documentation by scenario:
 

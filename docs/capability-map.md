@@ -61,7 +61,7 @@
 ## 不在当前范围
 
 - 不把 GPU 模型下载、CUDA/PyTorch 安装和 Web 服务打成一个默认进程。
-- 不在 v0.1.14 里宣称 MySQL/Postgres 已经完成；高并发数据库迁移需要单独版本。
+- 不在 v0.1.15 里宣称 MySQL/Postgres 已经完成；高并发数据库迁移需要单独版本。
 - 不输出 token、cookie、Authorization header 或原始录音；完整 transcript 只通过用户显式调用的数据读取接口返回。
 - 不把一次性声音复刻说成永久 voice profile；当前流程每次都需要参考音频和目标文本。
 - 不用 `kill` / `kill -9` 管理服务；重启类命令要先有 supervisor/graceful 方案。

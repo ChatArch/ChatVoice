@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.16 - 2026-09-11
+
+### Added
+
+- Add an explicit summary-to-Todo action and independent Markdown Todo workspace: direct editing, conversation refinement, undo, copy and `.md` export. Summary updates never generate tasks automatically.
+- Persist Todo text and its conversation with each meeting; guest data stays in browser IndexedDB, while older clients preserve Todo fields they omit.
+- Include the previously deployed independent meeting-text and configurable TTS support, with endpoint/key/model isolation and the existing no-overage guard for legacy audio.
+- Add normal browser-free interaction and route regression, plus separate opt-in real-service verification.
+
+### Fixed
+
+- Reject malformed or incomplete model output and keep manual content when requests fail, are cancelled, or become stale.
+- Preserve existing accounts, sessions and storage while integrating the released ChatLogin adapter.
+
 ## 0.1.15 - 2026-09-09
 
 ### 更改

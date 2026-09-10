@@ -10,6 +10,8 @@ ChatVoice 依赖 `ChatLogin>=0.1.1,<0.2.0` 的认证/会话核心，保留自己
 
 ## 访问模型
 
+系统语音支持[独立 TTS 协议配置](tts-models.md)：`POST /api/tts` 仍接受 text、可选 voice 和 mp3/wav；默认音色取配置首项，响应使用 `X-TTS-Provider/Model/Voice`。`GET /api/status` 新增安全 `tts` 对象；配置错误返回 503，上游失败返回固定脱敏 502。数据访问、鉴权和复刻接口不变。
+
 | 入口 | 凭证 | 用途 |
 | --- | --- | --- |
 | 浏览器登录 | HttpOnly session cookie + CSRF | 保存会议/对话、创建和撤销 API Token |
@@ -22,7 +24,7 @@ Token 明文仅在创建时返回一次。SQLite 保存摘要、前缀、scope�
 ## Fresh-start 本地流程
 
 ```bash
-python -m pip install "ChatVoice[web]==0.1.15"
+python -m pip install "ChatVoice[web]==0.1.16"
 chatvoice service plan --ensure-dirs --json
 export CHATVOICE_ASR_CHANNEL=stub-local
 chatvoice serve app --host 127.0.0.1 --port 18087

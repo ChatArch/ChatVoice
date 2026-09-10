@@ -10,6 +10,8 @@ Existing `/api/auth/*` routes, JSON fields and cookie contracts remain compatibl
 
 ## Access model
 
+System speech supports [independent TTS protocols](tts-models.en.md). `POST /api/tts` still accepts text, optional voice and mp3/wav; the first configured voice is default, with `X-TTS-Provider/Model/Voice` response headers. `GET /api/status` adds a safe `tts` object. Invalid configuration returns 503; upstream failures return fixed sanitized 502 errors. Data access, authentication and clone APIs are unchanged.
+
 | Entry | Credential | Purpose |
 | --- | --- | --- |
 | Browser login | HttpOnly session cookie + CSRF | Save meetings/conversations and manage API tokens |
@@ -22,7 +24,7 @@ A token value is returned only once at creation. SQLite stores its digest, prefi
 ## Fresh-start local flow
 
 ```bash
-python -m pip install "ChatVoice[web]==0.1.15"
+python -m pip install "ChatVoice[web]==0.1.16"
 chatvoice service plan --ensure-dirs --json
 export CHATVOICE_ASR_CHANNEL=stub-local
 chatvoice serve app --host 127.0.0.1 --port 18087

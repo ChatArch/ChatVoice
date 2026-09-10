@@ -14,6 +14,8 @@ The former `qwen-audio-demo.public.wzhecnu.cn` entry is retired and returns HTTP
 
 ## Features
 
+- **Markdown Todo**：摘要下方点击“转为 Todo”，在独立页面编辑、通过对话完善、撤销并导出 `.md`；不自动生成或执行任务，原摘要保持不变。详见 [Markdown Todo](docs/markdown-todo.md)。
+
 - **语音合成 (TTS)**: server-side proxy for `qwen-audio-3.0-tts-plus`, returning playable MP3/WAV audio when the model provider key is configured.
 - **本地声音复刻**: Voice Studio is one unified panel: choose **系统音色** (built-in TTS voices) or **我的复刻声音** (upload/record an authorized reference audio sample) and share the same text box. The clone path runs a one-shot VoiceClone/IndexTTS-2.5 job through a local sidecar; the browser receives a playable/downloadable result for the current job only. Within a session the reference audio is kept so the cloned voice can be reused for new text until the page is left. No voice profile or generated-audio history is saved. See [声音复刻使用指南](docs/voice-cloning.md).
 - **实时对话**: 独立的豆包式语音对话页；browser WebSocket -> FastAPI proxy -> Qwen Realtime，支持服务端模型列表、VAD、流式文字、24 kHz PCM 播放、自然打断、对话历史和 Markdown 导出。
@@ -26,7 +28,7 @@ The former `qwen-audio-demo.public.wzhecnu.cn` entry is retired and returns HTTP
 - **语音转写**: the recorder streams microphone PCM16 to the ASR WebSocket and appends normalized final segments to the timeline.
 - **API-first ASR**: production ASR is designed around `api-server`, where the ChatVoice backend calls either a managed ASR API or a self-hosted GPU ASR server. `stub-local` remains available for contract smoke, and `funasr-gpu` / `funasr-cpu` remain compatibility channels.
 - **Realtime ASR WebSocket**: `WS /ws/asr/stream` accepts continuous PCM16 microphone frames and returns cumulative revision events. Long recordings transparently roll a bounded context window while confirmed text continues to grow.
-- **会议纪要**: final transcript segments can be sent to a server-side Qwen-compatible model for summary, action items, risks, and open questions.
+- **会议纪要与标题独立模型**: 纪要、画布修改和标题可通过 ChatEnv 分别配置独立的 OpenAI-compatible Base/Key/Model；未配置时保留旧路径，不影响语音 Token Plan 保护。见 [独立文本配置](docs/text-models.md) / [English](docs/text-models.en.md)。`0.1.15.post1` 是源码构建 hotfix，不代表已经发布到 PyPI。
 - **双模式会议历史**: guests keep meeting text and summaries only in browser IndexedDB; signed-in accounts sync records through authenticated server storage.
 - **0.1 API 访问**: signed-in users can generate one-time-visible API tokens from the web settings panel; `chatvoice data ...` can then read meetings, summaries, and realtime conversations from a running service.
 - **受邀账号登录**: public registration is disabled. Accounts are provisioned by `chatvoice accounts add`; passwords use salted PBKDF2 hashes, sessions use HttpOnly cookies, and record writes require CSRF tokens.
@@ -49,11 +51,13 @@ ChatVoice 依赖 `ChatLogin>=0.1.1,<0.2.0` 的认证与会话核心，但保留�
 
 ## Quick start from the released package
 
+本分支 `0.1.15.post3` 是本地源码 hotfix，尚未发布；下面锁定版本的 PyPI 命令仅在正式发布后可用，发布前应安装经过验证的本地 wheel。[独立 TTS 配置](docs/tts-models.md) 支持可配置协议、端点、模型、凭据和音色，配置不完整时拒绝而不回退；ASR、实时对话和 VoiceClone 不变。纪要和标题配置仍见[独立文本模型](docs/text-models.md)。
+
 ```bash
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "ChatVoice[web]==0.1.15"
+python -m pip install "ChatVoice[web]==0.1.16"
 
 chatvoice --tree
 chatvoice --tree-brief
@@ -83,7 +87,7 @@ export CHATVOICE_ASR_API_URL="https://<asr-service>/v1/transcribe"
 chatvoice serve app --host 127.0.0.1 --port 18087
 ```
 
-Meeting summary generation is also a server-side model boundary: configure the notes model/provider in server-side environment or config storage, and let the browser/API read only the saved summary text.
+Meeting summary generation is a separate server-side model boundary: `summarize/polish/revise` can use CRS via `CHATVOICE_MEETING_NOTES_PROVIDER=crs-chat-completions` and `CHATVOICE_MEETING_NOTES_CRS_PROFILE=apple`. Realtime and legacy TTS retain Token Plan `CHATVOICE_OPENAI_API_*`; independent TTS uses only `CHATVOICE_TTS_*`.
 
 ## Fresh account, browser, token, and data flow
 
@@ -164,7 +168,7 @@ Use one service process (`--workers 1`) with SQLite. Back up and move data with 
 - `WS /ws/asr/stream`: bounded PCM16 stream used by the recorder.
 - `GET /api/realtime/models`: Realtime models currently exposed by the configured account.
 - `WS /ws/realtime?model=<id>`: browser-to-backend Realtime proxy.
-- `POST /api/meeting-notes/polish`: Qwen-compatible chat completion endpoint for transcript polish + realtime summary structure.
+- `POST /api/meeting-notes/polish`: server-side transcript polish + realtime summary endpoint; supports Token Plan chat completions by default or CRS `crs-chat-completions` via the separate meeting-notes provider settings.
 - `POST /api/auth/register`: intentionally returns `403`; self-registration is disabled.
 - `POST /api/auth/login`, `GET /api/auth/session`, `POST /api/auth/logout`: invited-account session lifecycle.
 - `GET|PUT|DELETE /api/meetings[/<id>]`: authenticated meeting record storage, including optional `tags: string[]` metadata. Writes require the session CSRF token.

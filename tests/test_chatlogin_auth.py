@@ -124,7 +124,7 @@ def test_path_monkeypatch_follows_existing_adapter(host, monkeypatch, tmp_path):
     assert client.post("/api/auth/login", json={"account": "alice@example.invalid", "password": PASSWORD}).status_code == 401
 
 
-def test_schema_and_html_bytes_unchanged(host):
+def test_schema_and_auth_dialog_bytes_unchanged(host):
     app, client = host
     with closing(app._meeting_db()) as db:
         before = db.execute("SELECT name, sql FROM sqlite_master WHERE type='table' ORDER BY name").fetchall()
@@ -133,10 +133,12 @@ def test_schema_and_html_bytes_unchanged(host):
     with closing(app._meeting_db()) as db:
         assert db.execute("SELECT name, sql FROM sqlite_master WHERE type='table' ORDER BY name").fetchall() == before
         assert db.execute("SELECT password_salt, password_hash FROM accounts ORDER BY id").fetchall() == hashes
-    # Golden checksum of the released 0.1.14 HTML; also works in shallow clones
-    # and installed/source distributions without Git history.
-    html = (files("chatvoice.web") / "static" / "index.html").read_bytes()
-    assert hashlib.sha256(html).hexdigest() == "35c9b575c0ae3c2dc61a51bf3945748b6399309ceb16a71c4cd35d029d7e606b"
+    # Preserve the released login/guest UI, not unrelated product features.
+    # This golden fragment also works without Git history in installed wheels.
+    html = (files("chatvoice.web") / "static" / "index.html").read_text(encoding="utf-8")
+    start = html.index('<dialog id="entry-dialog"')
+    dialog = html[start:html.index('</dialog>', start) + len('</dialog>')]
+    assert hashlib.sha256(dialog.encode()).hexdigest() == "fbc54c0acb7fa6a9d0ccacc9cc7dd6910e372b2dfc66838ddcacaa665a3e779c"
 
 
 def test_owner_isolation_same_id_and_guest_cloud_denial(host):
