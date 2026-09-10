@@ -1,67 +1,33 @@
 # 能力地图
 
-这个页面校对 `ChatVoice` 当前有哪些一等能力、哪些能力已经验证，以及哪些事情不属于当前包。
+这张图回答“ChatVoice 负责什么”。具体调用方式见[CLI 树](cli-tree.md)、[HTTP 接口](api-access.md)和[Python 接口树](interface-tree.md)。
 
-## 当前能力
-
-<div class="grid cards" markdown>
-
-- **包化 Web 服务**
-
-    `ChatVoice[web]` 安装后可以通过 `chatvoice serve app` 启动当前 Speakr FastAPI + browser 服务。
-
-- **Fresh-start 账号与 API Token**
-
-    `chatvoice accounts add` 可在 packaged runtime 数据库里创建受邀账号；登录后可在网页设置面板生成 API Token，CLI 也可创建/列出/撤销 token metadata。
-
-- **数据读取 API / CLI**
-
-    `GET /api/data/...` 与 `chatvoice data ...` 可用 bearer token 读取会议标签、会议转写、会议摘要和实时对话文本记录。
-
-- **会议标签**
-
-    会议记录支持空标签、多选 `thought` / `diary` 预设和自定义标签；标签作为 metadata 随网页、REST API 和 CLI 数据读取流转。
-
-- **API-first ASR provider**
-
-    默认生产方向是 `api-server`：后端通过 HTTP API 调云 ASR 或自建 GPU ASR server，不把 GPU runtime 绑死在 Web 进程里。
-
-- **运行目录与部署计划**
-
-    `chatvoice paths` 和 `chatvoice service plan` 回读 ChatArch home 下的数据、日志、运行和缓存目录。
-
-- **健康检查**
-
-    `chatvoice health status` 读取运行中服务的 `/api/status`。
-
-- **本地一次性声音复刻**
-
-    登录用户可在声音工作室上传或录制授权参考音频，输入新文本，经 ChatVoice 代理提交给 hitk VoiceClone sidecar / IndexTTS-2.5，页面显示进度并返回本次试听/下载音频。
-
-</div>
-
-## 状态表
-
-| 能力 | 状态 | 说明 |
+| 能力 | 当前入口 | 依赖与边界 |
 | --- | --- | --- |
-| CLI 基础入口 | 已实现 | `--help`、`--version`、共享 ChatStyle `--tree` 与 `--tree-brief`。 |
-| 运行目录 | 已实现 | 默认 `<chatarch-home>/chatvoice/`，可由 runtime-home overrides 调整。 |
-| packaged Web 启动 | 已实现 | `chatvoice serve app` 调用 `chatvoice.web.server:create_app`。 |
-| 受邀账号 CLI | 已实现 | `chatvoice accounts add/list`，密码只从环境变量读取。 |
-| API Token 管理 | 已实现 | 网页设置面板 + CLI token lifecycle；服务端只存 token hash。 |
-| 数据读取 API/CLI | 已实现 | Bearer token 读取会议标签、摘要和 realtime conversations。 |
-| 会议标签 | 已实现 | 默认空标签；预设和自定义标签保存为 `meeting_records.tags_json`。 |
-| 本地一次性声音复刻 | 已实现 | `/api/voice-clone/*` 代理 VoiceClone sidecar；不保存 voice profile，不保存生成历史。 |
-| ASR API provider | 已实现 | `CHATVOICE_ASR_CHANNEL=api-server` + the ASR API URL setting。 |
-| 本地合同 smoke | 已实现 | `CHATVOICE_ASR_CHANNEL=stub-local` 可无 GPU/云凭据启动全链路。 |
-| 本地 FunASR 兼容通道 | 保留 | `funasr-gpu` / `funasr-cpu` 仍可用，但生产建议改成外部 ASR API server。 |
-| SQLite WAL 存储 | 已实现 | 单服务进程、轻并发默认；`api_tokens` 表只保存 hash/prefix/metadata。 |
-| Postgres/MySQL 存储 | 未实现 | 未提供 `DATABASE_URL` 开关；高并发 Postgres/MySQL 是未来单独 storage-layer migration。 |
+| 录音转写 | 网页、ASR HTTP/WebSocket | 麦克风权限与已配置 ASR；stub 仅供验证 |
+| 摘要与完善 | 网页、纪要接口 | 独立文本模型；保留转写 |
+| Markdown Todo | 网页、Todo 接口、Python 回调模块 | 手动触发、可编辑/对话/撤销/导出，不执行任务 |
+| 会议与实时对话存储 | 网页、账号数据接口 | 账号 SQLite；访客 IndexedDB |
+| 只读数据接入 | Token、CLI、Python | scope 与所有权检查 |
+| 系统语音合成 | 声音工作室、TTS 接口 | 独立 TTS 配置与动态音色 |
+| 一次性声音复刻 | 声音工作室、复刻代理 | 账号、授权参考与独立 sidecar |
+| 实时语音对话 | 网页与 WebSocket | 对应实时模型权限，不等于 TTS 权限 |
+| 运行诊断与备份 | CLI、Python | 本地路径与单文件 SQLite |
 
-## 不在当前范围
+## 状态如何理解
 
-- 不把 GPU 模型下载、CUDA/PyTorch 安装和 Web 服务打成一个默认进程。
-- 不在 v0.1.15 里宣称 MySQL/Postgres 已经完成；高并发数据库迁移需要单独版本。
-- 不输出 token、cookie、Authorization header 或原始录音；完整 transcript 只通过用户显式调用的数据读取接口返回。
-- 不把一次性声音复刻说成永久 voice profile；当前流程每次都需要参考音频和目标文本。
-- 不用 `kill` / `kill -9` 管理服务；重启类命令要先有 supervisor/graceful 方案。
+| 证据 | 能证明 | 不能证明 |
+| --- | --- | --- |
+| 命令出现在 `--tree` | 可调用的已注册接口 | 所有外部服务已配置 |
+| 离线测试通过 | 约定的业务回归行为 | 麦克风、网络或模型额度 |
+| 状态端点正常 | 当时可读的服务状态 | 合成输出一定正确 |
+| 真实生成、保存与读回 | 被验证路径的结果 | 所有供应商与全部场景均可用 |
+
+## 不属于当前能力
+
+- 自动执行 Todo、思维导图或跨系统任务调度。
+- 原始会议录音档案、永久克隆音色库、生成音频历史。
+- Postgres/MySQL 切换或分布式存储。
+- 自动安装、迁移所有模型后端或管理反向代理。
+
+[快速上手](quickstart.md) · [网页使用](web-guide.md) · [配置参考](configuration.md)
