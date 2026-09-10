@@ -1,67 +1,33 @@
 # Capability Map
 
-This page checks the first-class capabilities currently owned by `ChatVoice`, their verification state, and current boundaries.
+This map explains what ChatVoice owns. Invocation details live in the [CLI tree](cli-tree.md), [HTTP API](api-access.md) and [Python interface tree](interface-tree.md).
 
-## Current capabilities
-
-<div class="grid cards" markdown>
-
-- **Packaged web service**
-
-    Installing `ChatVoice[web]` lets operators start the current Speakr FastAPI + browser service with `chatvoice serve app`.
-
-- **Fresh-start accounts and API tokens**
-
-    `chatvoice accounts add` creates invited accounts in the packaged runtime database. Signed-in users can create one-time-visible API tokens from the web settings panel; the CLI can also create/list/revoke token metadata.
-
-- **Data read API / CLI**
-
-    `GET /api/data/...` and `chatvoice data ...` use bearer tokens to read meeting tags, meeting transcripts, meeting summaries, and realtime conversation text records.
-
-- **Meeting tags**
-
-    Meeting records support empty tags, multi-select `thought` / `diary` presets, and custom tags. Tags move as metadata through the web app, REST API, and CLI data reads.
-
-- **API-first ASR provider**
-
-    The production direction is `api-server`: the backend calls a managed ASR API or self-hosted GPU ASR server over HTTP instead of embedding GPU runtime in the web process.
-
-- **Runtime paths and service plan**
-
-    `chatvoice paths` and `chatvoice service plan` read back data, log, run, temp, and model-cache paths under ChatArch home.
-
-- **Health checks**
-
-    `chatvoice health status` reads `/api/status` from a running service.
-
-- **Local one-shot voice cloning**
-
-    Signed-in users can upload or record authorized reference audio in Voice Studio, enter new text, and submit a job through ChatVoice to the hitk VoiceClone sidecar / IndexTTS-2.5. The page shows progress and returns a current-job preview/download audio.
-
-</div>
-
-## Status table
-
-| Capability | Status | Notes |
+| Capability | Entry | Dependency/boundary |
 | --- | --- | --- |
-| Base CLI entries | Implemented | `--help`, `--version`, and shared ChatStyle `--tree` / `--tree-brief`. |
-| Runtime paths | Implemented | Default `<chatarch-home>/chatvoice/`, override with runtime-home overrides. |
-| Packaged web startup | Implemented | `chatvoice serve app` calls `chatvoice.web.server:create_app`. |
-| Invited account CLI | Implemented | `chatvoice accounts add/list`; passwords are read from environment variables only. |
-| API token management | Implemented | Web settings panel + CLI token lifecycle; the server stores hashes only. |
-| Data read API/CLI | Implemented | Bearer token reads for meeting tags, summaries, and realtime conversations. |
-| Meeting tags | Implemented | Default empty tags; presets and custom tags are stored as `meeting_records.tags_json`. |
-| Local one-shot voice cloning | Implemented | `/api/voice-clone/*` proxies the VoiceClone sidecar; no voice profile or generated-audio history is saved. |
-| ASR API provider | Implemented | `CHATVOICE_ASR_CHANNEL=api-server` + the ASR API URL setting. |
-| Local contract smoke | Implemented | `CHATVOICE_ASR_CHANNEL=stub-local` starts the full path without GPU/cloud credentials. |
-| Local FunASR compatibility | Preserved | `funasr-gpu` / `funasr-cpu` remain available, but production should prefer an external ASR API server. |
-| SQLite WAL storage | Implemented | Default for one service process and light concurrency; the `api_tokens` table stores only hash/prefix/metadata. |
-| Postgres/MySQL storage | Not implemented | No `DATABASE_URL` switch is provided; future high-concurrency Postgres/MySQL support is a separate storage-layer migration. |
+| Recording and transcription | Web, ASR HTTP/WebSocket | Microphone permission and configured ASR; stub is only a fixture |
+| Summaries and refinement | Web, notes API | Independent text model; transcript is retained |
+| Markdown Todo | Web, Todo API, Python callback module | Explicit conversion/edit/refinement/undo/export; no task execution |
+| Meeting and conversation storage | Web and account APIs | Account SQLite or guest IndexedDB |
+| Read-only data integration | Token, CLI, Python | Scopes and ownership |
+| System speech synthesis | Voice studio, TTS API | Independent TTS settings and dynamic voices |
+| One-shot cloning | Voice studio, clone proxy | Account, authorized reference and independent sidecar |
+| Realtime voice conversation | Web and WebSocket | Realtime entitlement is separate from TTS entitlement |
+| Diagnostics and backup | CLI, Python | Local paths and single-file SQLite |
 
-## Out of scope now
+## Interpret evidence correctly
 
-- Do not bundle GPU model download, CUDA/PyTorch installation, and the web process as one default runtime.
-- Do not claim MySQL/Postgres is complete in v0.1.15; high-concurrency storage migration needs a separate release.
-- Do not print tokens, cookies, Authorization headers, or raw recordings; full transcripts are returned only by explicit data-read commands.
-- Do not present one-shot voice cloning as a permanent voice profile; the current flow needs reference audio and target text for each generation.
-- Do not manage services with `kill` / `kill -9`; restart commands need supervisor/graceful boundaries first.
+| Evidence | Establishes | Does not establish |
+| --- | --- | --- |
+| Registered `--tree` command | An implemented invocation surface | External-service configuration |
+| Offline regression | Tested business contracts | Microphone/network/model quota |
+| Healthy status endpoint | Readable state at that time | Correct generated audio |
+| Real generation/save/readback | The exercised path's result | Every provider and scenario |
+
+## Outside current scope
+
+- Todo execution, mind maps or cross-system task orchestration.
+- Raw meeting-audio archives, permanent cloned-voice libraries or audio history.
+- Postgres/MySQL switching or distributed storage.
+- Automatic deployment/migration of every model backend or proxy management.
+
+[Quick start](quickstart.md) · [Web guide](web-guide.md) · [Configuration](configuration.md)

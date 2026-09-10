@@ -1,69 +1,41 @@
+"""Public docs preserve contracts without duplicating every detail on every page."""
 from pathlib import Path
-
+import re
 from chatvoice import __version__
 
-
 ROOT = Path(__file__).resolve().parents[1]
-PUBLIC_DOCS = [
-    ROOT / "README.md",
-    ROOT / "README.en.md",
-    ROOT / "docs" / "deployment.md",
-    ROOT / "docs" / "deployment.en.md",
-    ROOT / "docs" / "api-access.md",
-    ROOT / "docs" / "api-access.en.md",
-    ROOT / "docs" / "index.md",
-    ROOT / "docs" / "index.en.md",
-]
 
-
-def _read(path: Path) -> str:
-    return path.read_text(encoding="utf-8")
+def text(relative):
+    return (ROOT / relative).read_text(encoding="utf-8")
 
 
 def test_public_fresh_install_examples_track_package_version():
-    install_snippet = f'python -m pip install "ChatVoice[web]=={__version__}"'
-    for path in PUBLIC_DOCS:
-        text = _read(path)
-        assert "ChatVoice[web]==0.1.0" not in text, path
-        assert install_snippet in text, path
+    for name in ("README.md", "README.en.md", "docs/quickstart.md", "docs/quickstart.en.md", "docs/deployment.md", "docs/deployment.en.md"):
+        assert f'python -m pip install "ChatVoice[web]=={__version__}"' in text(name), name
+    for path in (ROOT / "docs").glob("*.md"):
+        versions = re.findall(r"ChatVoice\[web\]==([\d.]+)", path.read_text())
+        assert all(version == __version__ for version in versions), path
 
 
 def test_public_docs_use_executable_asr_api_url_setting_name():
-    for path in [ROOT / "README.md", ROOT / "README.en.md", ROOT / "docs" / "deployment.md", ROOT / "docs" / "deployment.en.md"]:
-        text = _read(path)
-        assert "<ASR_API_URL_SETTING>" not in text, path
-        assert "CHATVOICE_ASR_API_URL" in text, path
-        assert "the ASR API URL setting" not in text, path
+    for name in ("docs/quickstart.md", "docs/quickstart.en.md", "docs/configuration.md", "docs/configuration.en.md", "docs/deployment.md", "docs/deployment.en.md"):
+        assert "CHATVOICE_ASR_API_URL" in text(name), name
+        assert "<ASR_API_URL_SETTING>" not in text(name)
 
 
-def test_public_docs_state_summary_configuration_boundary():
-    expected_fragments = [
-        "summary",
-        "server-side",
-        "model",
-    ]
-    for path in [ROOT / "README.md", ROOT / "README.en.md", ROOT / "docs" / "deployment.md", ROOT / "docs" / "deployment.en.md"]:
-        text = _read(path).lower()
-        for fragment in expected_fragments:
-            assert fragment in text, path
+def test_summary_boundary_respects_each_document_language():
+    for name in ("README.md", "docs/deployment.md"):
+        assert "摘要" in text(name) and "服务端" in text(name), name
+    for name in ("README.en.md", "docs/deployment.en.md"):
+        assert "summary" in text(name).lower() and "server-side" in text(name).lower(), name
+    for name in ("docs/configuration.md", "docs/configuration.en.md"):
+        assert "CHATVOICE_MEETING_NOTES_API_KEY" in text(name)
+        assert "CHATVOICE_MEETING_TITLE_API_KEY" in text(name)
 
 
-def test_public_docs_explain_runtime_layout_data_schema_and_concurrency_todo():
-    required = [
-        "site-packages",
-        "~/.chatarch/chatvoice",
-        "CHATVOICE_HOME",
-        "CHATARCH_HOME",
-        "meetings.sqlite3",
-        "accounts",
-        "api_tokens",
-        "meeting_records",
-        "conversation_records",
-        "temp/asr",
-        "model-cache",
-        "Postgres/MySQL",
-    ]
-    for path in [ROOT / "README.md", ROOT / "README.en.md", ROOT / "docs" / "deployment.md", ROOT / "docs" / "deployment.en.md"]:
-        text = _read(path)
-        for fragment in required:
-            assert fragment in text, (path, fragment)
+def test_runtime_details_live_on_the_linked_runtime_reference():
+    required = ("site-packages", "~/.chatarch/chatvoice", "CHATVOICE_HOME", "CHATARCH_HOME", "meetings.sqlite3", "accounts", "api_tokens", "meeting_records", "conversation_records", "temp/asr", "model-cache", "Postgres/MySQL")
+    for name in ("docs/runtime-layout.md", "docs/runtime-layout.en.md"):
+        assert all(fragment in text(name) for fragment in required), name
+    for name in ("README.md", "README.en.md", "docs/deployment.md", "docs/deployment.en.md"):
+        assert "runtime-layout" in text(name), name

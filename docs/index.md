@@ -1,92 +1,67 @@
 # ChatVoice 文档
 
-ChatVoice 是 ChatArch 系列 Python 包，用于把 Speakr 录音、转写、会议纪要和语音工作区能力打包成可安装、可启动、可维护、可通过 API 读取数据的服务。
-
-站点入口：<https://arch.gh.wzhecnu.cn/ChatVoice/>
-
-## 按场景选择文档
-
-| 场景 | 文档 |
-| --- | --- |
-| 通过 PyPI 包安装并启动服务 | [部署与启动](deployment.md) |
-| 查看安装位置、运行目录和 SQLite/IndexedDB 数据结构 | [运行目录与数据结构](runtime-layout.md) |
-| 理解当前版本为什么不保存原始录音 | [录音保存边界](recording-storage.md) |
-| 使用声音工作室的一次性本地复刻 | [声音复刻使用指南](voice-cloning.md) |
-| 生成 API Token 并读取会议/摘要数据 | [API 访问](api-access.md) |
-| 回读真实命令树和命令边界 | [CLI 树](cli-tree.md) |
-| 校对当前包有哪些一等能力和边界 | [能力地图](capability-map.md) |
-| 从 Python 代码调用包能力 | [Python 接口树](interface-tree.md) |
-
-## 核心入口
+从语音记录到清晰的下一步。ChatVoice 提供 Speakr 网页、命令行和 Python 接口；按你的目标选择入口，不必从头阅读整套文档。
 
 <div class="grid cards" markdown>
 
-- **部署与启动**
+- :material-rocket-launch: **先把服务跑起来**
 
-    从 `python -m pip install "ChatVoice[web]==0.2.0"` 到 `chatvoice serve app`，说明运行目录、账号创建、ASR API provider、数据库并发边界。
+    ---
+    安装、无模型体验、真实 ASR 选择与第一份会议记录。
 
-    [查看部署教程](deployment.md)
+    [快速上手](quickstart.md)
 
-- **API 访问**
+- :material-microphone: **录音与整理纪要**
 
-    说明网页登录、API Token 生命周期，以及 `chatvoice data ...` 读取会议转写、会议摘要和实时对话记录。
+    ---
+    理解暂停、继续、摘要、手工编辑和对话改写。
 
-    [查看 API 访问](api-access.md)
+    [网页使用](web-guide.md)
 
-- **运行目录与数据结构**
+- :material-checkbox-marked-outline: **把想法转为 Todo**
 
-    说明 `site-packages` 安装位置、`~/.chatarch/chatvoice` 默认运行目录、SQLite 表结构、IndexedDB、`temp/asr` 和 `model-cache`。
+    ---
+    由你点击转换，继续对话完善，保留标准 Markdown。
 
-    [查看运行目录](runtime-layout.md)
+    [Markdown Todo](markdown-todo.md)
 
-- **录音保存边界**
+- :material-cog: **配置模型与部署**
 
-    说明会议记录页只保存文字和摘要，不保存原始录音；如果未来要做纯录音，应作为单独能力设计。
+    ---
+    分清 ASR、文本、TTS、实时语音和声音复刻的设置。
 
-    [查看录音保存边界](recording-storage.md)
+    [配置参考](configuration.md) · [部署](deployment.md)
 
-- **声音复刻使用指南**
+- :material-console: **接入脚本或其他应用**
 
-    说明“上传/录制参考音频 -> 输入新文本 -> 生成复刻试听 -> 播放/下载”的完整 Voice Cloning 流程、进度条、验收标准和当前边界。
+    ---
+    查看真实命令拓扑、HTTP 协议与可导入的 Python 接口。
 
-    [查看声音复刻使用指南](voice-cloning.md)
+    [CLI 树](cli-tree.md) · [HTTP 接口](api-access.md) · [Python 接口树](interface-tree.md)
 
-- **CLI 树**
+- :material-shield-check: **理解边界与验证**
 
-    从命令行入口开始，记录真实已实现命令、命令状态和交互约定。
+    ---
+    看清保存什么、需要什么权限，以及失败时如何检查。
 
-    [查看 CLI 树](cli-tree.md)
-
-- **能力地图**
-
-    用于 review 当前包的能力边界，避免把规划写成已实现功能。
-
-    [查看能力地图](capability-map.md)
-
-- **Python 接口树**
-
-    保持命令行是薄入口，实质能力放在可 import 的 Python 接口中。
-
-    [查看接口树](interface-tree.md)
+    [数据保留](recording-storage.md) · [排障](troubleshooting.md) · [测试](testing.md)
 
 </div>
 
-## 0.1.10 部署边界
+## 按角色选择
 
-- Web 服务由 `chatvoice serve app` 启动 packaged FastAPI app。
-- Fresh start 可通过 `chatvoice accounts add` 创建受邀账号，不依赖源码根目录脚本。
-- 登录后可在页面生成 API Token；CLI 可用 token 读取会议、摘要和实时对话数据。
-- 登录后可在声音工作室上传或录制授权参考音频，通过 hitk VoiceClone sidecar + IndexTTS-2.5 一次性生成复刻试听音频。
-- 会议记录页不提供原始录音保存或下载；服务器只保存文字、摘要和元数据。
-- ASR 生产推荐通过 `api-server` 调云服务或自建 GPU ASR server。
-- `stub-local` 只用于无凭据/无 GPU 的合同 smoke。
-- 默认使用 SQLite WAL，适合单服务进程轻并发；高并发数据库迁移需单独版本。
+| 角色 | 推荐阅读顺序 |
+| --- | --- |
+| 网页使用者 | 网页使用 → Markdown Todo / 声音复刻 |
+| 服务部署者 | 快速上手 → 配置参考 → 部署与启动 → 排障 |
+| 集成开发者 | 能力地图 → CLI 树 / HTTP 接口 / Python 接口树 |
+| 贡献者 | Python 接口树 → 开发与验证 |
 
-## 本地预览文档
+## 核心边界
 
-```bash
-python -m pip install -e ".[docs]"
-mkdocs serve
-```
+- 账号记录保存在服务端，访客记录保存在当前浏览器。
+- 会议录音不进入长期音频档案；摘要、Todo 和文字记录可以保存。
+- Todo 仅在用户主动转换时生成，不自动执行任务。
+- 安装包、配置字段存在、模型列表可读与真实功能可用，是不同层次的状态。
 
-英文首页见站点语言入口：<https://arch.gh.wzhecnu.cn/ChatVoice/en/>。
+[查看能力地图](capability-map.md)

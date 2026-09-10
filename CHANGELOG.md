@@ -1,4 +1,4 @@
-# Changelog
+# 更新日志
 
 ## 0.2.0 - 2026-09-11
 
@@ -9,213 +9,132 @@
 - 登录前保存访客草稿并等待 IndexedDB 事务提交；请求成功但事务未提交时不得跳转，中止/失败时保留当前页。录音或实时对话进行中拒绝离开，访客回流不自动上传本地记录。
 - 原 `account` 输入继续有效，共享表单可使用 `username`，新增安全本地 `next` 回跳。
 - 正常回归与 CI 安装包验证覆盖真实 loopback 登录服务、模板资源、会话、CSRF 和退出重放拒绝。
-- 保留 0.1.16 的 Markdown Todo、独立文本/TTS 与既有业务修复。
+- 保留 0.1.16 的业务修复与 0.1.17 的双语文档规范。
+
+## 0.1.17 - 2026-09-11
+
+### 文档
+
+- 按 ChatArch 规范重组双语文档：场景式首页、快速上手、网页操作、完整配置与分栏导航。
+- 从真实 CLI 树生成分组参考；补齐 Python 接口英文镜像、HTTP 契约、Todo 工作流和故障排查。
+- 明确声音复刻的独立 sidecar、持久监督器、健康状态与真实生成验收边界。
+- 统一中文默认 README 与历史更新说明，清除正式文档中的部署流水账；启用 Material 图标渲染与完整语言镜像检查。
+- 增加文档结构/配置覆盖测试，并让公开文档契约按页面职责和语言校验。
+
+运行逻辑和模型配置不变。
 
 ## 0.1.16 - 2026-09-11
 
-### Added
+### 新增
 
-- Add an explicit summary-to-Todo action and independent Markdown Todo workspace: direct editing, conversation refinement, undo, copy and `.md` export. Summary updates never generate tasks automatically.
-- Persist Todo text and its conversation with each meeting; guest data stays in browser IndexedDB, while older clients preserve Todo fields they omit.
-- Include the previously deployed independent meeting-text and configurable TTS support, with endpoint/key/model isolation and the existing no-overage guard for legacy audio.
-- Add normal browser-free interaction and route regression, plus separate opt-in real-service verification.
+- 摘要下方增加手动“转为 Todo”，提供独立 Markdown 待办页、直接编辑、对话完善、撤销、复制和导出；摘要更新不自动生成任务。
+- 随会议保存 Todo 正文与对话；访客保留在浏览器，旧客户端省略 Todo 字段时不清空已有内容。
+- 纳入已部署的独立文本模型与可配置 TTS 支持，隔离用途、端点、密钥和模型，并保留遗留语音的无超额计费保护。
+- 补充无浏览器业务回归与独立真实服务验收入口。
 
-### Fixed
+### 修复
 
-- Reject malformed or incomplete model output and keep manual content when requests fail, are cancelled, or become stale.
-- Preserve existing accounts, sessions and storage while integrating the released ChatLogin adapter.
+- 拒绝畸形或不完整模型输出；失败、取消和过期响应不覆盖手工正文。
+- 集成 ChatLogin 适配层时保留原账号、会话与存储。
 
 ## 0.1.15 - 2026-09-09
 
-### 更改
-
-- 通过公开 Python 依赖 ChatLogin 0.1.1 复用账号校验、opaque 会话生命周期和 CSRF 核心。
-- 采用宿主适配层保留原账户、PBKDF2 材料、SQLite 表、Cookie/HTTP 契约和原生前端；不新建用户库、不要求改密码，不注入默认登录页。
-- 访客仍由浏览器 IndexedDB 保存本地记录；云端 owner 隔离、API Token scope 与原界面保持独立。
+- 使用 ChatLogin 0.1.1 的公开依赖复用账号校验、不透明会话与 CSRF 核心。
+- 宿主适配层保留原账号、PBKDF2 材料、SQLite 表、Cookie/HTTP 契约与原生前端；不新建用户库或要求重置密码。
+- 保留访客 IndexedDB、云端所有权隔离与 API Token scope。
 
 ## 0.1.14 - 2026-08-26
 
-### Added
-
-- Add meeting tags to the Speakr recorder: signed-in and guest meetings now carry a `tags` metadata list, with default empty tags for existing records.
-- Add a compact `#` tag picker in the meeting header with multi-select `thought` / `diary` presets, a `None` clear action, removable selected chips, and repeated custom tag entry.
-- Expose meeting tags through authenticated meeting storage and bearer-token data exports so `chatvoice data meetings --json` and `chatvoice data meeting <id> --json` include tag metadata.
-
-### Changed
-
-- Extend the SQLite `meeting_records` schema with a non-destructive `tags_json TEXT NOT NULL DEFAULT '[]'` migration; existing databases remain readable and old meetings default to `[]`.
+- 账号和访客会议增加 `tags`，旧记录默认为空列表。
+- 增加紧凑标签选择器、`thought` / `diary` 预设、清空、移除与连续添加自定义标签。
+- 会议存储、只读 API 与 `chatvoice data` 输出包含标签。
+- 非破坏性增加 `tags_json` 列，保持旧数据库可读。
 
 ## 0.1.13 - 2026-08-23
 
-### Fixed
-
-- Destructive recorder actions now interrupt active recording resources before clearing or switching records. Clearing the current session, creating a new meeting, and deleting the active meeting close the live ASR WebSocket, stop microphone tracks, close the audio graph, clear timers and pending ASR commits, and ignore late ASR events from the interrupted stream.
-- Add regression coverage for recorder boundary cases that previously allowed recording to continue after delete/clear/new-meeting actions.
+- 清空、创建或删除录音中记录时，先关闭 ASR WebSocket、麦克风、音频图、计时器与待提交窗口。
+- 忽略已中断流的晚到事件，增加录音边界回归。
 
 ## 0.1.12 - 2026-08-23
 
-### Fixed
-
-- Stop silently falling back from in-process FunASR to a short-lived subprocess worker by default. The subprocess compatibility path reloads the GPU ASR model per request/chunk and can cause repeated one-minute cold starts.
-- Add startup prewarming for persistent FunASR channels (`CHATVOICE_ASR_PREWARM=1` by default), so the model loads during service startup rather than when the user starts a recording.
-- Add explicit `CHATVOICE_FUNASR_ALLOW_SUBPROCESS_WORKER=0` production guidance; enable it only for debugging/compatibility.
+- 默认不再静默退回每请求重新加载模型的 FunASR 子进程。
+- `CHATVOICE_ASR_PREWARM=1` 默认在启动时预热持久模型。
+- `CHATVOICE_FUNASR_ALLOW_SUBPROCESS_WORKER=0` 为生产建议，兼容子进程仅用于明确调试。
 
 ## 0.1.11 - 2026-08-22
 
-### Changed
-
-- Move ChatVoice model-provider ChatEnv fields from global `OPENAI_API_BASE` / `OPENAI_API_KEY` / `OPENAI_API_MODEL` names to service-scoped `CHATVOICE_OPENAI_API_BASE` / `CHATVOICE_OPENAI_API_KEY` / `CHATVOICE_OPENAI_API_MODEL`, so ChatVoice no longer overlaps the built-in ChatEnv OpenAI provider.
-- Remove `CHATVOICE_DATABASE_URL` from the ChatVoice schema and service plan; packaged storage is one SQLite file, with file-level dump/import as the supported backup path.
-- Add `chatvoice data dump` and `chatvoice data import` for local single-file SQLite backup/restore, including integrity checks and a current-database backup before import.
+- 模型字段从全局 `OPENAI_*` 迁为服务范围的 `CHATVOICE_OPENAI_*`，避免与 ChatEnv 内置 OpenAI provider 混用。
+- 删除未实现的 `CHATVOICE_DATABASE_URL` 切换；正式存储保持单个 SQLite 文件。
+- 增加 `chatvoice data dump/import`，包含完整性检查与导入前备份。
 
 ## 0.1.10 - 2026-08-22
 
-### Fixed
-
-- Fix the Voice Studio reference-audio form layout so the `录参考音` button stays inside the left composer column instead of overflowing underneath the right `试听结果` panel on medium-width screens.
-- Align ChatVoice runtime configuration with the ChatArch ChatEnv/ChatStyle standard: ChatEnv storage is now the canonical `ChatVoice` namespace, the CLI relies directly on ChatStyle `add_tree_option()`, and the web app reads the active ChatEnv profile instead of a package-local env-file pointer.
-- Configure model-provider access through OpenAI-compatible `CHATVOICE_OPENAI_API_BASE` / `CHATVOICE_OPENAI_API_KEY` / `CHATVOICE_OPENAI_API_MODEL` only. The system voice path rejects non-Token-Plan `sk-...` keys by default and requires an `sk-sp...` Token Plan key to avoid usage-billed calls.
-- Remove the legacy direct voice-enrollment key path from the product surface; one-shot voice cloning uses the local VoiceClone sidecar (`/api/voice-clone/*`) only.
-- Add static and API contract assertions for the flexible clone form layout, canonical ChatEnv storage, ChatStyle CLI tree integration, ChatEnv model-key loading, and Token Plan key guard.
+- 修复参考音频表单在中等宽度页面的溢出。
+- 统一 `ChatVoice` ChatEnv 存储、ChatStyle CLI 树与活动 profile 读取，移除包内独立 env 文件指针。
+- 当时的系统语音路径限定为 Token Plan 凭据，避免按量调用；后续独立 TTS 协议见 0.1.16。
+- 移除旧音色注册密钥入口，复刻仅使用一次性 sidecar；补充布局、配置与凭据策略测试。
 
 ## 0.1.9 - 2026-08-22
 
-### Added
-
-- Voice Studio is now one unified `生成声音` panel: system voices (龙安灵心 / 龙安鲁风) and **我的复刻声音** are selectable voice cards in the same list, sharing one text box.
-- Local one-shot voice cloning via the VoiceClone sidecar: upload or record an authorized reference audio sample, enter new text, and generate a temporary preview audio with progress, playback, and download.
-- The cloned voice is reusable within the session: switching between system voices and the cloned voice keeps the reference audio, and new text can be generated repeatedly without re-uploading.
-- The studio text box now ships with a pre-filled default example so the flow can be tested without typing first.
-- New authenticated APIs: `GET /api/voice-clone/status`, `POST /api/voice-clone/jobs`, `GET /api/voice-clone/jobs/{id}`, `GET /api/voice-clone/jobs/{id}/audio`, `DELETE /api/voice-clone/jobs/{id}`.
-- New user guide: `docs/voice-cloning.md` / `docs/voice-cloning.en.md`.
-
-### Changed
-
-- System TTS without a model key now shows a clear `未配置模型 Key` disabled state and `/api/tts` returns `503` instead of `500`.
-- Removed the separate "文字与声音" composer and the separate "本地复刻 · 一次性生成" card; legacy custom voice-id enrollment UI is removed from Voice Studio.
-- `chatvoice.cli` keeps working with older public ChatStyle wheels via a fallback `add_tree_option`.
+- 声音工作室统一系统音色与“我的复刻声音”卡片，共用文字输入。
+- 支持上传/录制授权参考、生成进度、试听与下载；当前会话内可复用参考。
+- 增加默认示例文字、账号复刻任务代理和双语使用指南。
+- 未配置系统语音密钥时明确提示并返回 503；移除旧独立表单和音色注册界面。
+- 保留旧版 ChatStyle 树接口兼容。
 
 ## 0.1.8 - 2026-08-22
 
-### Changed
-
-- Replace the package-local Click tree renderer with ChatStyle `add_tree_option()`, explicitly name the `chatvoice` root, and add `--tree-brief` alongside the existing `--version` and full `--tree` contract.
-- Align the runtime with `chatstyle>=0.2.0,<0.3.0`, `chatenv>=0.2.10,<0.3.0`, bounded Click/docs dependencies, typed ChatEnv provider storage checks, and installed/built-wheel CLI release gates.
+- 用 ChatStyle `add_tree_option()` 取代包内树渲染器，提供 `--tree-brief`。
+- 对齐有界 ChatStyle、ChatEnv、Click 和文档依赖，补充安装包 CLI 验收。
 
 ## 0.1.7 - 2026-08-22
 
-### Changed
-
-- Move recorder copy actions into their content areas: transcript copy stays in the transcript panel, summary copy stays in the summary panel, and the global top-right copy action is removed.
-- Replace the top-right toolbar action with a compact vertical `•••` menu containing only Settings, Docs, and GitHub; keep the three top-level workspace tabs visible for page switching.
-- Rework API Token creation around a one-time-visible token result: generation attempts clipboard copy, the manual copy button remains available before closing, delete wording replaces revoke wording, revoked/deleted tokens are hidden, and expiry choices are limited to 7/15/30/90 days or permanent.
-- Make meeting title actions icon-only (`↻` and `＋`) with hover/focus tooltips, keeping the mobile title row compact.
-- Remove the meeting recorder's browser-local raw-audio archive/download control. The current recorder now presents one clear boundary: audio is used for realtime transcription only, while durable storage is text, summaries, and metadata.
-- Add MkDocs recording-storage boundary docs explaining that pure recording/file-library support should be designed as a separate future capability.
+- 复制操作归属各自正文区；顶部采用设置、文档、源码菜单。
+- API Token 仅一次展示，支持复制与删除，并隐藏失效项。
+- 标题操作改为紧凑图标与提示。
+- 移除录音器的原始音频归档/下载，明确仅持久保存文字、摘要与元数据。
 
 ## 0.1.6 - 2026-08-20
 
-### Changed
-
-- Make the recorder audio-retention/privacy notice more prominent in the recording console so users do not miss that original audio is not saved by default.
+- 强化录音区不默认保存原始音频的提示。
 
 ## 0.1.5 - 2026-08-20
 
-### Changed
-
-- Clarify the recorder homepage toolbar: move the history/sidebar menu to the left, remove the inactive language button, and replace ambiguous icon-only controls with labeled `设置/状态` and `复制` actions.
-- Make recorder header actions more visible with stronger `刷新标题` and `新建` affordances.
-- Change raw audio retention to explicit opt-in. By default, ChatVoice does not save original recordings in the browser or on the server; users can click `保存音频` to keep local browser chunks for download after the recording ends.
-- Clarify privacy copy across entry, sidebar, and recorder console: logged-in accounts sync text, summaries, and metadata, while original audio is not uploaded or saved by default.
+- 调整历史入口、设置/状态、复制、刷新标题与新建控件。
+- 当时原始音频保存改为用户显式选择；该功能后来在 0.1.7 移除。
+- 明确账号同步文字与元数据，默认不上传/保存原始录音。
 
 ## 0.1.4 - 2026-08-19
 
-### Added
-
-- Add a direct **新建** button in the recorder header for faster mobile topic creation.
-- Add a **刷新标题** button that regenerates the meeting title from the current full transcript and summary context.
-- Add a confirmation guard before clearing/resetting a meeting with existing content.
-
-### Changed
-
-- Pausing a recording now commits the current ASR window so pending rewrite/live text can be finalized while paused.
-- Automatic title refresh can update AI-generated titles from later full-session content, while manual titles remain protected unless the user explicitly clicks refresh.
+- 增加新建、刷新标题和有内容时的清空确认。
+- 暂停时提交当前 ASR 窗口；自动更新 AI 标题时保护手工标题。
 
 ## 0.1.3 - 2026-08-19
 
-### Added
-
-- Add `GET /api/heartbeat` with lightweight service/database/ASR health, model warm-up, and recent ASR success/failure metadata.
-- Add Web Settings ASR heartbeat display so operators can see whether recognition is ready, processing, or degraded.
-- Emit `asr.stream.processing` and periodic `asr.stream.heartbeat` WebSocket events while realtime recognition is running.
-
-### Fixed
-
-- Avoid silent recorder behavior during FunASR GPU cold start or long ASR chunks by surfacing model-loading, processing, and failure messages in the browser.
+- 增加 `/api/heartbeat`、页面 ASR 心跳与流式处理中事件。
+- 冷启动和较长识别请求显示加载、处理与失败状态。
 
 ## 0.1.2 - 2026-08-18
 
-### Added
-
-- Add a server-side API key status panel in web settings. The browser can see whether ASR, summary/realtime model, and voice-cloning keys are configured, but it never stores or submits raw key values.
-- Document the installed code location, default runtime root, `~/.chatarch/chatvoice` directory layout, SQLite tables, browser IndexedDB boundary, `temp/asr`, `model-cache`, and the high-concurrency Postgres/MySQL TODO.
-- Add runtime layout docs to MkDocs navigation.
-
-### Fixed
-
-- Expose sanitized `/api/status` fields for API-key readiness and ASR endpoint host without leaking key values.
+- 设置页增加脱敏配置状态，不向浏览器传递原始模型密钥。
+- 补充安装位置、运行目录、SQLite/IndexedDB 边界与布局文档。
+- `/api/status` 暴露脱敏 ASR 端点与配置状态。
 
 ## 0.1.1 - 2026-08-18
 
-### Fixed
-
-- Reject explicit empty API-token scope lists instead of silently granting the default read scopes; omitted `scopes` still receives the default `read:meetings` and `read:conversations` scopes.
-- Keep list data endpoints metadata-only; meeting/conversation detail endpoints return transcripts, summaries, and messages.
-- Clear one-time token values from the web settings DOM on unauthenticated render, mode switch, dialog close/cancel, and logout.
-- Align `chatvoice.paths`, `chatvoice accounts`, and the packaged web app on `CHATVOICE_RUNTIME_ROOT`, `CHATVOICE_HOME`, `CHATARCH_HOME`, `MEETING_DB_PATH`, and `CHATVOICE_SQLITE_PATH` resolution.
-- Update public install/docs examples to `ChatVoice[web]==0.1.1` and replace ASR URL placeholders with executable `CHATVOICE_ASR_API_URL` setup.
+- 拒绝显式空 Token scope；未提供时保留默认只读 scope。
+- 列表仅返回元数据，详情返回正文。
+- 模式切换、关闭对话框和退出登录时清除一次性 Token 展示。
+- 对齐路径与 SQLite 覆盖规则，修正安装与 ASR 设置示例。
 
 ## 0.1.0 - 2026-08-18
 
-### Added
-
-- Packaged fresh-start account provisioning with `chatvoice accounts add/list`, using environment-provided passwords and the same SQLite runtime database as the web service.
-- Web settings API Token panel for signed-in users: create, list, and revoke token metadata while showing token values only once.
-- Server-side `api_tokens` SQLite table storing token hash, prefix, scopes, creation time, optional expiry, revocation time, and last-used time.
-- Bearer-token data endpoints for automation: `GET /api/data/meetings[/<id>]` and `GET /api/data/conversations[/<id>]`.
-- CLI data export commands: `chatvoice data meetings`, `chatvoice data meeting`, `chatvoice data conversations`, and `chatvoice data conversation`.
-- Importable HTTP client helpers in `chatvoice.client` so CLI handlers stay thin.
-- API access documentation covering browser token generation, CLI token lifecycle, and fresh-start data reads.
-
-### Changed
-
-- Version bumped from `0.0.2` to `0.1.0` for the first minor release.
-- README, MkDocs deployment guide, CLI tree, capability map, and interface tree now document the full install → account → service → token → data-read flow.
-- Source readiness messages now describe the v0.1.0 SQLite concurrency boundary.
-
-### Notes
-
-- SQLite WAL remains the packaged storage backend and should run with one service process. Postgres/MySQL storage migration remains a separate release task for high-concurrency deployment.
-- API tokens are read-only for data export; they do not write meetings, edit summaries, or manage accounts.
-- Raw recording blobs remain browser-local for meeting-history download and are not returned by data APIs.
+- 首次次版本发布：账号创建、Token 管理、所有权隔离的只读数据 API、CLI 导出与可导入 HTTP 客户端。
+- 统一安装、账号、服务、Token 与数据读取文档。
+- SQLite WAL 作为单进程存储；Token 只读。当时的浏览器原始录音归档后来已移除。
 
 ## 0.0.2 - 2026-08-18
 
-### Added
-
-- Packaged Speakr FastAPI/browser app entrypoint: `chatvoice serve app`.
-- Runtime path APIs and CLI readback under ChatArch home: `chatvoice paths` and `chatvoice service plan`.
-- ASR API provider configuration for `api-server`, the ASR API URL setting, and an optional server-side credential setting.
-- Health and doctor commands: `chatvoice health status`, `chatvoice doctor`, and `chatvoice asr channels`.
-- MkDocs deployment guide covering PyPI install, service startup, API-first GPU ASR server integration, and SQLite concurrency boundary.
-
-### Changed
-
-- Version bumped from the `0.0.1` placeholder to `0.0.2` patch release.
-- CI now installs the `web` extra so packaged FastAPI app smoke tests run on GitHub.
-- Docs dependency bounds allow current MkDocs Material 9.x while staying below the next major line.
-
-### Notes
-
-- SQLite WAL is the v0.0.2 packaged storage backend and should run with one service process. Postgres/MySQL storage migration remains a separate release task for high-concurrency deployment.
-- GPU ASR should normally run behind an API provider/server; local FunASR channels remain compatibility modes.
+- 提供 `chatvoice serve app`、运行路径、服务计划、健康/诊断命令和 ASR HTTP 配置。
+- CI 安装 Web extra；补充安装、GPU ASR 接入与 SQLite 边界文档。
+- 文档依赖保持兼容的主版本范围。此版本以外部 ASR 为主要建议；后续持久 FunASR 改进见 0.1.12。

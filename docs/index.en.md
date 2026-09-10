@@ -1,92 +1,67 @@
-# ChatVoice Docs
+# ChatVoice Documentation
 
-ChatVoice is a ChatArch Python package that packages the Speakr recording, transcription, meeting-notes, and voice-workspace service into an installable, maintainable, API-readable runtime.
-
-Documentation entry: <https://arch.gh.wzhecnu.cn/ChatVoice/en/>
-
-## Choose by scenario
-
-| Scenario | Document |
-| --- | --- |
-| Install from PyPI and start the service | [Deployment and Startup](deployment.md) |
-| Inspect install location, runtime directories, and SQLite/IndexedDB data structure | [Runtime Layout and Data Structure](runtime-layout.md) |
-| Understand why original recordings are not saved | [Recording Storage Boundary](recording-storage.md) |
-| Use one-shot local voice cloning in Voice Studio | [Voice Cloning Guide](voice-cloning.md) |
-| Generate API tokens and read meeting/summary data | [API Access](api-access.md) |
-| Read back the real command tree and boundaries | [CLI Tree](cli-tree.md) |
-| Check first-class capabilities and current boundaries | [Capability Map](capability-map.md) |
-| Call package behavior directly from Python | [Python Interface Tree](interface-tree.md) |
-
-## Core entries
+Move from speech to a clear next step. ChatVoice provides the Speakr web app, CLI and Python interfaces. Choose a task rather than reading a linear setup diary.
 
 <div class="grid cards" markdown>
 
-- **Deployment and Startup**
+- :material-rocket-launch: **Run the service**
 
-    From `python -m pip install "ChatVoice[web]==0.2.0"` to `chatvoice serve app`, including runtime paths, account provisioning, ASR API provider wiring, and database concurrency boundaries.
+    ---
+    Install, try the UI without a model, and choose real transcription.
 
-    [Read deployment guide](deployment.md)
+    [Quick start](quickstart.md)
 
-- **API Access**
+- :material-microphone: **Record and refine notes**
 
-    Browser login, API token lifecycle, and `chatvoice data ...` reads for meeting transcripts, meeting summaries, and realtime conversation records.
+    ---
+    Recording, pause/resume, summaries, manual edits and conversation refinement.
 
-    [Read API access](api-access.md)
+    [Web guide](web-guide.md)
 
-- **Runtime Layout and Data Structure**
+- :material-checkbox-marked-outline: **Turn ideas into Todo**
 
-    `site-packages` install path, `~/.chatarch/chatvoice` runtime root, SQLite tables, IndexedDB, `temp/asr`, and `model-cache`.
+    ---
+    Explicit conversion, continued refinement and ordinary Markdown export.
 
-    [Read runtime layout](runtime-layout.md)
+    [Markdown Todo](markdown-todo.md)
 
-- **Recording Storage Boundary**
+- :material-cog: **Configure and deploy**
 
-    The meeting recorder saves text and summaries only. It does not save original recordings; future pure-recording support should be designed as a separate capability.
+    ---
+    Separate ASR, text, TTS, realtime and voice-cloning requirements.
 
-    [Read recording storage boundary](recording-storage.md)
+    [Configuration](configuration.md) · [Deployment](deployment.md)
 
-- **Voice Cloning Guide**
+- :material-console: **Integrate applications**
 
-    Complete workflow for reference-audio upload/recording, new text entry, progress, preview playback, download, and current one-shot boundaries.
+    ---
+    Inspect real commands, HTTP contracts and importable Python functions.
 
-    [Read voice cloning guide](voice-cloning.md)
+    [CLI tree](cli-tree.md) · [HTTP API](api-access.md) · [Python interfaces](interface-tree.md)
 
-- **CLI Tree**
+- :material-shield-check: **Understand boundaries**
 
-    The real implemented command tree, command status, and update rules.
+    ---
+    Retention, authorization, failure handling and verification.
 
-    [Read CLI tree](cli-tree.md)
-
-- **Capability Map**
-
-    Review current package boundaries and avoid presenting planned work as implemented functionality.
-
-    [Read capability map](capability-map.md)
-
-- **Python Interface Tree**
-
-    Keep the CLI thin and put substantive behavior in importable Python APIs.
-
-    [Read interface tree](interface-tree.md)
+    [Data retention](recording-storage.md) · [Troubleshooting](troubleshooting.md) · [Testing](testing.md)
 
 </div>
 
-## Deployment boundary
+## Choose by role
 
-- The packaged FastAPI app starts with `chatvoice serve app`.
-- Fresh start can create invited accounts with `chatvoice accounts add`; no source-tree script is required.
-- Signed-in users can create API tokens in the web UI; the CLI can use tokens to read meetings, summaries, and realtime conversations.
-- Signed-in users can upload or record authorized reference audio in Voice Studio and run a one-shot VoiceClone/IndexTTS-2.5 preview through the hitk sidecar.
-- The meeting recorder does not save or download original recordings; the server stores text, summaries, and metadata only.
-- Production ASR should use `api-server` against a managed API or self-hosted GPU ASR server.
-- `stub-local` is only for credential-free / GPU-free contract smoke.
-- The package defaults to SQLite WAL for one service process and light concurrency; high-concurrency storage migration needs a separate release.
+| Role | Suggested path |
+| --- | --- |
+| Web user | Web guide, then Todo or voice cloning |
+| Operator | Quick start, configuration, deployment, troubleshooting |
+| Integrator | Capability map, CLI tree, HTTP/Python reference |
+| Contributor | Python interfaces, testing |
 
-## Preview docs locally
+## Core boundaries
 
-```bash
-python -m pip install -e ".[docs]"
-mkdocs serve
-```
+- Account records live on the server; guest records live in the current browser.
+- Meeting audio is not retained as a recording archive. Text, summaries and Todo can be saved.
+- Todo conversion is explicit and never executes tasks automatically.
+- Installation, configured fields, model discovery and successful live operations are separate states.
 
-Chinese home is available at <https://arch.gh.wzhecnu.cn/ChatVoice/>.
+[Capability map](capability-map.md)

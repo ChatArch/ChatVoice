@@ -1,31 +1,50 @@
 # Markdown Todo
 
-Turn selected ideas into an action plan only when you choose to.
+Discuss ideas first, then decide whether to make an action plan. Todo is an independent Markdown document, not an automatic executor.
 
-## Convert a summary
+| Goal | Action |
+| --- | --- |
+| Convert an existing summary | Click Convert to Todo below the summary |
+| Start empty or write manually | Open the Todo tab and edit |
+| Split steps, reorder or clarify completion | Use the Todo conversation panel |
+| Restore pre-revision content | Undo the model change |
+| Use another tool | Copy Markdown or export `.md` |
 
-Generate or refine a meeting summary, then click **转为 Todo** below it. The dedicated **Todo** tab receives a Markdown plan without changing the transcript or summary. It starts empty; opening the tab or refreshing the summary never creates tasks automatically. Regeneration asks before replacing existing text, and the previous version can be undone in the current page.
+## Explicit conversion
 
-## Refine and export
+1. Generate or refine the current meeting summary.
+2. Decide that the idea should move forward and click **Convert to Todo**.
+3. Review groups, tasks and substeps. Do not treat invented owners, dates or commitments as agreed facts.
 
-Edit Markdown directly or use the conversation panel to split steps, reorder work, and clarify completion criteria. Cancellation, model errors, and stale responses must not overwrite manual edits. The task syntax is standard Markdown:
+Opening the tab and refreshing a summary never trigger conversion. Regeneration asks before replacing an existing Todo, and the prior text can be restored in the current page. The source summary and transcript stay unchanged.
+
+## Edit and continue the conversation
+
+The left panel is a Markdown text editor. The right panel is a conversation dedicated to this Todo. Ask to split the first task into concrete steps, reorder dependencies or preserve completed work. The model returns the full document and a short explanation.
 
 ```markdown
-# Release preparation
-- [x] Confirm scope
-- [ ] Prepare a test report
-  - [ ] Collect failed cases
-  - [ ] Document reproduction steps
+# Technical article
+
+## Prepare
+- [x] Confirm the topic
+- [ ] Collect key conclusions and sources
+
+## Write
+- [ ] Draft the article
+  - [ ] Outline the sections
+  - [ ] Add examples
+- [ ] Check citations before publishing
 ```
 
-Copy Markdown or download `.md` to use elsewhere. There is no mind-map integration, external task creation, or automatic execution in this version.
+Change `- [ ]` to `- [x]` to mark completion. The undo button restores model-revision/regeneration history kept in the current page, not a full cross-device version archive.
 
-## Storage and privacy
+Cancellation, request errors and stale responses do not overwrite newer manual edits. A source without actionable commitments can remain without tasks.
 
-Todo text and its refinement conversation belong to the meeting. Signed-in users use the existing meeting database; guest records stay in the current browser. Generation sends the supplied summary, Todo and relevant conversation to the existing summary model. No additional model configuration is required. Old meetings start with an empty Todo. Clearing a meeting also clears its Todo; switching meetings must not mix records. Review AI suggestions before treating them as agreed commitments.
+## Save, export and boundaries
 
-## API
+- Todo and its refinement conversation belong to the meeting: server storage for accounts, current-browser storage for guests.
+- Copy Markdown and export `.md` preserve ordinary text for other tools.
+- No mind-map view, external task synchronization, reminders or task execution are included.
+- Todo reuses the configured notes model. Conversion sends the summary; refinement sends the summary, current Todo and relevant conversation.
 
-- `POST /api/meeting-notes/todo` takes `summary`, returns `content` (Markdown) and `model`.
-- `POST /api/meeting-notes/todo/revise` takes `summary`, `current_todo`, `instruction` and optional `messages`; returns the complete `content`, a short `reply`, and `model`.
-- Meeting detail and authorized data exports contain `todo_markdown` and `todo_chat_messages`. Older clients omitting these fields do not clear saved Todo content.
+See [HTTP API](api-access.md#todo) for `todo_markdown` and `todo_chat_messages`.
