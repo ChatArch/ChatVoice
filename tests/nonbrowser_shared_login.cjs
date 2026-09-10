@@ -19,6 +19,31 @@ const {harness, assert, json} = require('./nonbrowser_harness.cjs');
     assert.match(app.stores.get('meetings').get(id).transcript_segments.map(x => x.text).join(''), /访客草稿/);
     assert.equal(app.run('storageMode'), 'guest');
     assert.equal(app.requests.length, 0);
+  } else if (test.startsWith('txn-')) {
+    await app.run("activateStorageMode('guest')");
+    const conversation = test.includes('conversation');
+    if (conversation) app.run("activeMeetingId=null; ensureActiveConversation(); realtimeMessages=[{role:'user',text:'未提交的对话',final:true}]");
+    else app.run("appendTranscript('未提交的访客草稿')");
+    const id = app.run(conversation ? 'activeConversationId' : 'activeMeetingId');
+    const store = app.stores.get(conversation ? 'conversations' : 'meetings');
+    const before = structuredClone(store.get(id));
+    app.transactionControl.holdWrites = true;
+    const count = app.transactions.length;
+    const work = app.element('show-login').click();
+    await app.settle(() => app.transactions.slice(count).some(tx => tx.mode === 'readwrite' && tx.requestSucceeded));
+    const tx = app.transactions.slice(count).find(tx => tx.mode === 'readwrite');
+    assert.equal(tx.completed, false);
+    assert.deepEqual(moves, [], 'request success must not navigate before transaction commit');
+    if (test.endsWith('abort')) {
+      tx.abort(); await work;
+      assert.deepEqual(moves, []);
+      assert.deepEqual(store.get(id), before, 'aborted transaction must not change committed data');
+      assert.match(app.element('toast').textContent, /事务中止/);
+    } else {
+      tx.commit(); await work;
+      assert.deepEqual(moves, ['/login?next=%2F']);
+      assert.ok(store.get(id));
+    }
   } else if (test.startsWith('failed-')) {
     app.run("storageMode='account'; authUser={id:'fixture'}; csrfToken='fixture'");
     if (test === 'failed-meeting-save') app.run("ensureActiveMeeting(); appendTranscript('Unsaved draft');");
