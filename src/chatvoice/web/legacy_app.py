@@ -42,7 +42,9 @@ from chatvoice.config import ChatVoiceConfig
 from chatvoice.paths import state_paths
 from chatlogin import AccessDenied, StoreFull
 from chatvoice.web.auth_adapter import AuthAdapter
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
+from chatlogin.security import safe_next
+from chatvoice.web.login_ui import install_login_ui
 
 try:
     import websockets
@@ -285,8 +287,9 @@ class ConversationRecordInput(BaseModel):
 
 
 class AccountCredentials(BaseModel):
-    account: str = Field(..., min_length=3, max_length=80)
+    account: str = Field(..., min_length=3, max_length=80, validation_alias=AliasChoices("account", "username"))
     password: str = Field(..., min_length=8, max_length=128)
+    next: str = Field("/", max_length=2048)
 
 
 class ApiTokenCreateRequest(BaseModel):
@@ -628,6 +631,9 @@ def _legacy_tts_blocking(req: TTSRequest) -> dict[str, Any]:
     }
 
 
+install_login_ui(app, STATIC_DIR)
+
+
 @app.get("/", response_class=HTMLResponse)
 def index() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
@@ -931,7 +937,9 @@ def login(credentials: AccountCredentials, request: Request) -> JSONResponse:
     row = _AUTH.resolve_row(issued.token)
     if row is None:
         raise HTTPException(status_code=401, detail="账号或密码不正确")
-    response = JSONResponse(_auth_payload(row, row["csrf_token"]))
+    payload = _auth_payload(row, row["csrf_token"])
+    payload["next"] = safe_next(credentials.next)
+    response = JSONResponse(payload)
     _set_auth_cookie(response, request, issued.token)
     return response
 

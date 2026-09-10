@@ -20,7 +20,7 @@ ChatVoice is the ChatArch Python package behind the Speakr recording and meeting
 Python 3.10+ is required. Use a dedicated virtual environment.
 
 ```bash
-python -m pip install "ChatVoice[web]==0.1.17"
+python -m pip install "ChatVoice[web]==0.2.0"
 chatvoice --version
 chatvoice --tree
 chatvoice serve app --dry-run --json
@@ -43,7 +43,7 @@ Model configuration is server-side. Independent text settings serve notes and ti
 
 Account records use SQLite below `~/.chatarch/chatvoice`. Guest records remain in the browser. Audio passes through transcription processing but is not retained as a meeting recording archive. Provider keys never reach the browser.
 
-Public registration is disabled; operators provision invited accounts. ChatLogin supplies authentication/session/CSRF primitives while ChatVoice keeps record ownership and token-scope enforcement. See the [retention boundary](https://arch.gh.wzhecnu.cn/ChatVoice/en/recording-storage/).
+Self-registration is disabled; operators provision invited accounts. ChatVoice uses the built-in `ChatVoiceAuth` backend from ChatLogin 0.1.2 and a customizable shared `LoginUI` at `/login`. Existing accounts, sessions and CSRF remain compatible; ChatVoice retains owner and token policy. Guest drafts must commit their IndexedDB transaction before login navigation.
 
 ## Development
 

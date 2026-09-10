@@ -79,11 +79,43 @@ function harness(mutation) {
   }
   const document = { body, title: '', getElementById: id => elements.find(element => element.id === id), querySelectorAll: selector => elements.filter(element => matches(element, selector)), createElement: tag => new Element(tag), addEventListener: (...args) => body.addEventListener(...args) };
   const later = callback => { const id = ++serial; timers.set(id, callback); return id; };
-  const request = value => { const result = {}; queueMicrotask(() => { result.result = structuredClone(value); result.onsuccess?.(); }); return result; };
+  const transactions = [];
+  const transactionControl = { holdWrites: false };
   const database = {
     objectStoreNames: { contains: name => stores.has(name) },
     createObjectStore(name) { stores.set(name, new Map()); return { createIndex() {} }; },
-    transaction(name) { const store = stores.get(name); assert.ok(store, `unknown store ${name}`); return { objectStore: () => ({ getAll: () => request([...store.values()]), get: id => request(store.get(id)), put: value => { store.set(value.id, structuredClone(value)); return request(value.id); }, delete: id => { store.delete(id); return request(undefined); } }) }; },
+    transaction(name, mode = 'readonly') {
+      const store = stores.get(name); assert.ok(store, `unknown store ${name}`);
+      const staged = new Map([...store].map(([key, value]) => [key, structuredClone(value)]));
+      const tx = { mode, name, pending: 0, requestSucceeded: false, completed: false, aborted: false,
+        commit() {
+          if (this.completed || this.aborted || this.pending) return;
+          if (mode === 'readwrite') { store.clear(); for (const [key, value] of staged) store.set(key, value); }
+          this.completed = true; this.oncomplete?.();
+        },
+        abort() {
+          if (this.completed || this.aborted) return;
+          this.aborted = true; this.error = new Error('浏览器事务中止'); this.onabort?.();
+        },
+      };
+      transactions.push(tx);
+      const request = value => {
+        const result = {}; tx.pending++;
+        queueMicrotask(() => {
+          if (tx.aborted) return;
+          result.result = structuredClone(value); result.onsuccess?.();
+          tx.requestSucceeded = true; tx.pending--;
+          queueMicrotask(() => { if (!(mode === 'readwrite' && transactionControl.holdWrites)) tx.commit(); });
+        });
+        return result;
+      };
+      tx.objectStore = () => ({
+        getAll: () => request([...staged.values()]), get: id => request(staged.get(id)),
+        put: value => { assert.equal(mode, 'readwrite'); staged.set(value.id, structuredClone(value)); return request(value.id); },
+        delete: id => { assert.equal(mode, 'readwrite'); staged.delete(id); return request(undefined); },
+      });
+      return tx;
+    },
   };
   class Socket {
     static OPEN = 1; static CONNECTING = 0;
@@ -106,7 +138,7 @@ function harness(mutation) {
     stop() { this.state = 'inactive'; this.ondataavailable?.({ data: new Blob(['reference'], { type: this.mimeType }) }); this.onstop?.(); }
   }
   const context = vm.createContext({ console, Blob, FormData, TextDecoder, TextEncoder, AbortController, Uint8Array, Float32Array, Int16Array, ArrayBuffer, Date, Intl, crypto: require('node:crypto').webcrypto,
-    document, location: { protocol: 'https:', host: 'app.example.test' }, confirm: () => true,
+    document, URLSearchParams, location: { protocol: 'https:', host: 'app.example.test', search: '' }, confirm: () => true,
     navigator: { clipboard: { async writeText(text) { clipboard = text; } }, mediaDevices: { async getUserMedia() { const track = { stop() { this.stopped = true; } }; tracks.push(track); return { getTracks: () => [track] }; } } },
     localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
     indexedDB: { open() { const pending = {}; queueMicrotask(() => { pending.result = database; pending.onupgradeneeded?.(); pending.onsuccess?.(); }); return pending; } },
@@ -118,7 +150,7 @@ function harness(mutation) {
     addEventListener() {}, matchMedia: () => ({ matches: false }), innerWidth: 1200,
   });
   context.window = context; context.globalThis = context;
-  const api = { context, document, timers, stores, requests, downloads, tracks, graphs, sockets, revoked,
+  const api = { context, document, timers, stores, requests, downloads, tracks, graphs, sockets, revoked, transactions, transactionControl,
     get clipboard() { return clipboard; },
     respond: async url => { throw new Error(`Unexpected offline request: ${url}`); },
     run: code => vm.runInContext(code, context),

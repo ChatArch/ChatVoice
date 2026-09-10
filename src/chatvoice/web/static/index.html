@@ -1198,20 +1198,7 @@
         </div>
         <p class="privacy-note">隐私提示：音频只用于实时识别；服务器不保存录音，只保存文本和摘要。</p>
       </div>
-      <div class="auth-view" id="auth-view" hidden>
-        <button class="auth-back" id="auth-back" type="button">← 返回使用方式</button>
-        <h2>账号登录</h2>
-        <p class="access-intro">登录后，会议记录会安全同步到服务器。</p>
-        <p class="managed-account-note">仅限受邀账号使用。本站不开放自行注册，如需账号请联系管理员创建。</p>
-        <form class="auth-form" id="auth-form">
-          <label for="auth-account">用户名或邮箱</label>
-          <input id="auth-account" name="account" autocomplete="username" minlength="3" maxlength="80" required placeholder="name@example.com" />
-          <label for="auth-password">密码</label>
-          <input id="auth-password" name="password" type="password" autocomplete="current-password" minlength="8" maxlength="128" required placeholder="至少 8 位" />
-          <button class="auth-submit" id="auth-submit" type="submit">登录并同步</button>
-          <p class="auth-message" id="auth-message" role="status"></p>
-        </form>
-      </div>
+      <p class="managed-account-note">仅限受邀账号使用。如需账号请联系管理员；登录页面由 ChatLogin 提供。</p>
     </section>
   </dialog>
 
@@ -2426,9 +2413,21 @@
       const db = await openGuestDb();
       return new Promise((resolve, reject) => {
         const transaction = db.transaction(storeName, mode);
-        const request = operation(transaction.objectStore(storeName));
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error || new Error('浏览器存储操作失败'));
+        let request;
+        let result;
+        // Request success is not a committed transaction. Navigation must wait
+        // for completion, and an abort must keep the unsaved draft on the page.
+        transaction.oncomplete = () => resolve(result);
+        transaction.onabort = () => reject(transaction.error || request?.error || new Error('浏览器存储事务已中止'));
+        transaction.onerror = () => reject(transaction.error || request?.error || new Error('浏览器存储事务失败'));
+        try {
+          request = operation(transaction.objectStore(storeName));
+          request.onsuccess = () => { result = request.result; };
+          request.onerror = () => reject(request.error || new Error('浏览器存储操作失败'));
+        } catch (error) {
+          try { transaction.abort(); } catch (_) {}
+          reject(error);
+        }
       });
     }
 
@@ -2831,8 +2830,10 @@
             conversationIndex = [meta, ...conversationIndex.filter((conversation) => conversation.id !== meta.id)];
             renderConversationIndex();
           }
+          return true;
         } catch (error) {
           if (targetMode === storageMode) showToast(error.message || '对话记录暂未保存，请稍后重试');
+          return false;
         }
       });
       return conversationSaveChain;
@@ -2991,8 +2992,10 @@
             meetingIndex = [meta, ...meetingIndex.filter((meeting) => meeting.id !== meta.id)];
             renderMeetingIndex();
           }
+          return true;
         } catch (error) {
           if (targetMode === storageMode) showToast(error.message || '会议记录暂未保存，请稍后重试');
+          return false;
         }
       });
       return meetingSaveChain;
@@ -3113,11 +3116,29 @@
     }
 
     function showEntryDialog(view = 'mode') {
-      $('mode-view').hidden = view === 'auth';
-      $('auth-view').hidden = view !== 'auth';
-      $('auth-message').textContent = '';
+      if (view === 'auth') return openSharedLogin();
       if (!$('entry-dialog').open) $('entry-dialog').showModal();
-      if (view === 'auth') setTimeout(() => $('auth-account').focus(), 0);
+    }
+
+    async function openSharedLogin() {
+      if (isRealtimeActive()) {
+        showToast('请先结束实时对话，再进入登录页面。');
+        return;
+      }
+      if (['recording', 'paused', 'connecting', 'finishing'].includes(recorderState)) {
+        showToast('请先完成当前录音，再进入登录页面。');
+        return;
+      }
+      try {
+        clearTimeout(meetingSaveTimer);
+        clearTimeout(conversationSaveTimer);
+        if (storageMode && activeMeetingId && !showingDemo && await saveActiveMeeting() === false) return;
+        if (storageMode && activeConversationId && await saveActiveConversation() === false) return;
+        await Promise.all([meetingSaveChain, conversationSaveChain]);
+        location.assign('/login?next=' + encodeURIComponent('/'));
+      } catch (error) {
+        showToast(error.message || '当前记录尚未保存，请重试。');
+      }
     }
 
     async function activateStorageMode(mode, user = null, nextCsrfToken = '') {
@@ -3153,29 +3174,12 @@
       showToast(mode === 'guest' ? '已进入访客模式，记录只保存在当前浏览器' : '登录成功，会议记录将同步到服务器');
     }
 
-    async function submitAuth(event) {
-      event.preventDefault();
-      const account = $('auth-account').value.trim();
-      const password = $('auth-password').value;
-      $('auth-submit').disabled = true;
-      $('auth-message').textContent = '';
-      try {
-        const response = await fetch('/api/auth/login', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ account, password }),
-        });
-        const payload = await response.json();
-        if (!response.ok) throw new Error(typeof payload.detail === 'string' ? payload.detail : '登录失败，请检查输入');
-        $('auth-form').reset();
-        await activateStorageMode('account', payload.user, payload.csrf_token || '');
-      } catch (error) {
-        $('auth-message').textContent = error.message || '登录服务暂不可用';
-      } finally {
-        $('auth-submit').disabled = false;
-      }
-    }
-
     async function bootstrapAccess() {
       updateAccountUi();
+      if (new URLSearchParams(location.search).get('mode') === 'guest') {
+        await activateStorageMode('guest');
+        return;
+      }
       try {
         const response = await fetch('/api/auth/session');
         const payload = await response.json();
@@ -4134,8 +4138,6 @@
     $('account-action').addEventListener('click', handleAccountAction);
     $('enter-guest').addEventListener('click', () => activateStorageMode('guest'));
     $('show-login').addEventListener('click', () => showEntryDialog('auth'));
-    $('auth-back').addEventListener('click', () => showEntryDialog('mode'));
-    $('auth-form').addEventListener('submit', submitAuth);
     $('entry-dialog').addEventListener('cancel', (event) => event.preventDefault());
     $('record-toggle').addEventListener('click', () => {
       if (recorderState === 'recording') pauseRecording();

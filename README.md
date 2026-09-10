@@ -20,7 +20,7 @@ ChatVoice 是 ChatArch 的录音转写与会议工作区 Python 包，包含 Spe
 要求 Python 3.10 或更高版本，建议安装到独立虚拟环境。
 
 ```bash
-python -m pip install "ChatVoice[web]==0.1.17"
+python -m pip install "ChatVoice[web]==0.2.0"
 chatvoice --version
 chatvoice --tree
 chatvoice serve app --dry-run --json
@@ -43,7 +43,7 @@ chatvoice serve app --dry-run --json
 
 账号记录保存到 `~/.chatarch/chatvoice` 下的 SQLite；访客记录仅存于当前浏览器。录音会为识别而短暂经过浏览器和服务端，但不作为会议音频档案保存。密钥不进入浏览器。
 
-自助注册关闭，由部署者创建受邀账号。ChatLogin 复用现有账号、会话和 CSRF 核心，会议所有权和 Token 权限仍由 ChatVoice 控制。详见[数据保留边界](https://arch.gh.wzhecnu.cn/ChatVoice/recording-storage/)。
+自助注册关闭，由部署者创建受邀账号。ChatVoice 直接依赖 ChatLogin 0.1.2 的内建 `ChatVoiceAuth`，复用既有账号、会话和 CSRF；`/login` 使用可定制的共享 `LoginUI`。会议所有权和 Token 权限仍由 ChatVoice 控制，访客草稿等待 IndexedDB 事务提交后才跳转登录。详见[数据保留边界](https://arch.gh.wzhecnu.cn/ChatVoice/recording-storage/)。
 
 ## 开发
 

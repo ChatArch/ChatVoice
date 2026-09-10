@@ -57,4 +57,9 @@ jobs:
             "$RUNNER_TEMP/chatvoice-wheel/bin/chatenv" --home "$RUNNER_TEMP/chatvoice-wheel-home" test -t chatvoice -I
             "$RUNNER_TEMP/chatvoice-wheel/bin/chatenv" --home "$RUNNER_TEMP/chatvoice-wheel-home" new ci -t chatvoice -I --yes
           )
+      - name: Verify built wheel shared login service
+        run: |
+          "$RUNNER_TEMP/chatvoice-wheel/bin/python" -m pip install "$(printf '%s' dist/*.whl)[web]" pytest "httpx>=0.27,<1.0"
+          "$RUNNER_TEMP/chatvoice-wheel/bin/python" -c "import chatvoice; from chatlogin.backends import ChatVoiceAuth; assert 'site-packages' in chatvoice.__file__; print(chatvoice.__version__, ChatVoiceAuth.__module__)"
+          CHATARCH_HOME="$RUNNER_TEMP/chatvoice-login-smoke" PYTHONPATH= "$RUNNER_TEMP/chatvoice-wheel/bin/python" -m pytest --noconftest tests/test_login_service.py -q
       - run: mkdocs build --strict

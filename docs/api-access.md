@@ -13,13 +13,32 @@
 !!! warning "公开入口需要访问与额度控制"
     模型处理接口不是 Bearer 数据导出接口。部署者应限制滥用并核实上游额度，不要把“密钥未暴露给浏览器”误当成无限制开放模型调用。
 
+## 共享登录组件 {#login-ui}
+
+ChatVoice 使用 `ChatLogin>=0.1.2,<0.2.0` 内建的 `ChatVoiceAuth`，直接复用旧账号/会话 schema、密码材料与 Cookie；不另建用户库。宿主只保留连接、HTTP 响应与业务权限映射。
+
+`/login` 使用共享 `LoginUI` 的表单、CSS 和脚本，并提供声笺品牌覆盖。需要其他主题或宿主模板时，通过 Python 入口配置，无需编辑 site-packages：
+
+```python
+from chatlogin.ui import LoginUI
+from chatvoice.web import create_app
+
+app = create_app(login_ui=LoginUI(
+    title="我的语音工作台", palette="forest", layout="split",
+    appearance="system", guest_url="/?mode=guest",
+))
+```
+
+登录前先保存当前草稿并等待 IndexedDB 事务完成。事务中止、保存失败、录音或实时对话尚未结束时，不离开当前页面。访客记录不自动上传，密码、会话和 CSRF 不写入浏览器持久存储。
+
 ## 健康、会话与数据 {#records}
 
 | 方法与路径 | 说明 |
 | --- | --- |
 | `GET /api/heartbeat` | 服务版本、数据库状态、ASR 心跳与预热状态 |
 | `GET /api/status` | 脱敏配置/模型/语音后端状态 |
-| `POST /api/auth/login` | `account`、`password`；返回用户与 CSRF 信息，并设置会话 Cookie |
+| `GET /login` | 可定制的 ChatLogin 共享登录页 |
+| `POST /api/auth/login` | `account` 或 `username`、`password`，可选安全本地 `next`；返回用户、CSRF 和回跳信息，并设置会话 Cookie |
 | `GET /api/auth/session` | 当前会话状态 |
 | `POST /api/auth/logout` | 退出会话；需 CSRF |
 | `POST /api/auth/register` | 自助注册关闭，返回 403 |

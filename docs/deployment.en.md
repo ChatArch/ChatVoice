@@ -12,7 +12,7 @@ Choose a service shape first. ChatVoice ships a web server, not a system-service
 ## Install and inspect
 
 ```bash
-python -m pip install "ChatVoice[web]==0.1.17"
+python -m pip install "ChatVoice[web]==0.2.0"
 chatvoice paths --json
 chatvoice doctor --json
 chatvoice service plan --ensure-dirs --json

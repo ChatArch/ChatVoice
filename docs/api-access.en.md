@@ -13,13 +13,32 @@ Web sessions, stored records and model processing have distinct boundaries. All 
 !!! warning "Protect public processing endpoints"
     Model-processing routes are not Bearer data-export routes. Operators must control abuse and upstream quota. Hiding credentials from the browser does not make unrestricted model access safe.
 
+## Shared login component {#login-ui}
+
+ChatVoice directly uses `ChatLogin>=0.1.2,<0.2.0` and its built-in `ChatVoiceAuth` backend, preserving existing account/session schema, password material and cookies. The host retains only connection callbacks, HTTP mapping and business policy.
+
+`/login` renders shared LoginUI forms, CSS and scripts with host branding. Supply another theme or trusted template from the Python entrypoint without editing site-packages:
+
+```python
+from chatlogin.ui import LoginUI
+from chatvoice.web import create_app
+
+app = create_app(login_ui=LoginUI(
+    title="My voice workspace", palette="forest", layout="split",
+    appearance="system", guest_url="/?mode=guest",
+))
+```
+
+Drafts are saved and the IndexedDB transaction must complete before leaving for login. Abort/save failure or an active recording/realtime conversation prevents navigation. Guest records are not uploaded automatically; passwords, sessions and CSRF are not written to browser persistent storage.
+
 ## Health, sessions and records {#records}
 
 | Method and path | Purpose |
 | --- | --- |
 | `GET /api/heartbeat` | Version, database state and ASR prewarm/heartbeat |
 | `GET /api/status` | Sanitized configuration and model/backend status |
-| `POST /api/auth/login` | `account` and `password`; returns user/CSRF data and sets a session cookie |
+| `GET /login` | Customizable shared ChatLogin page |
+| `POST /api/auth/login` | `account` or `username`, `password`, optional safe local `next`; returns user/CSRF/redirect data and sets a session cookie |
 | `GET /api/auth/session` | Current session state |
 | `POST /api/auth/logout` | End a session; CSRF required |
 | `POST /api/auth/register` | Disabled self-registration; HTTP 403 |

@@ -12,7 +12,7 @@
 ## 安装和预检
 
 ```bash
-python -m pip install "ChatVoice[web]==0.1.17"
+python -m pip install "ChatVoice[web]==0.2.0"
 chatvoice paths --json
 chatvoice doctor --json
 chatvoice service plan --ensure-dirs --json
