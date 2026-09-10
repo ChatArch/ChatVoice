@@ -1,6 +1,6 @@
 # Independent notes and title models
 
-The source-built `0.1.15.post1` hotfix gives meeting notes and titles independent OpenAI-compatible Chat Completions settings. Do not assume this hotfix is already published on PyPI.
+Meeting notes and titles have independent OpenAI-compatible Chat Completions settings. Markdown Todo reuses the meeting-notes model without additional configuration.
 
 Each purpose uses its own Base, sensitive Key and Model in ChatEnv's canonical `ChatVoice` provider:
 

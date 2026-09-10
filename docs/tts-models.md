@@ -1,6 +1,6 @@
 # 独立 TTS 配置
 
-`0.1.15.post2` 是本地源码 hotfix，尚未发布。仅扩展系统语音合成；ASR、实时对话、纪要/标题、VoiceClone、账号和数据库保持不变。配置仍使用 ChatEnv 的同一个 `ChatVoice` provider，不新增浏览器设置页。
+系统语音合成支持独立配置；ASR、实时对话、纪要/标题、VoiceClone、账号和数据库保持不变。配置仍使用 ChatEnv 的同一个 `ChatVoice` provider，不新增浏览器设置页。
 
 ## 配置字段
 

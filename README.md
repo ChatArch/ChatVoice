@@ -14,6 +14,8 @@ The former `qwen-audio-demo.public.wzhecnu.cn` entry is retired and returns HTTP
 
 ## Features
 
+- **Markdown Todo**：摘要下方点击“转为 Todo”，在独立页面编辑、通过对话完善、撤销并导出 `.md`；不自动生成或执行任务，原摘要保持不变。详见 [Markdown Todo](docs/markdown-todo.md)。
+
 - **语音合成 (TTS)**: server-side proxy for `qwen-audio-3.0-tts-plus`, returning playable MP3/WAV audio when the model provider key is configured.
 - **本地声音复刻**: Voice Studio is one unified panel: choose **系统音色** (built-in TTS voices) or **我的复刻声音** (upload/record an authorized reference audio sample) and share the same text box. The clone path runs a one-shot VoiceClone/IndexTTS-2.5 job through a local sidecar; the browser receives a playable/downloadable result for the current job only. Within a session the reference audio is kept so the cloned voice can be reused for new text until the page is left. No voice profile or generated-audio history is saved. See [声音复刻使用指南](docs/voice-cloning.md).
 - **实时对话**: 独立的豆包式语音对话页；browser WebSocket -> FastAPI proxy -> Qwen Realtime，支持服务端模型列表、VAD、流式文字、24 kHz PCM 播放、自然打断、对话历史和 Markdown 导出。
@@ -30,6 +32,12 @@ The former `qwen-audio-demo.public.wzhecnu.cn` entry is retired and returns HTTP
 - **双模式会议历史**: guests keep meeting text and summaries only in browser IndexedDB; signed-in accounts sync records through authenticated server storage.
 - **0.1 API 访问**: signed-in users can generate one-time-visible API tokens from the web settings panel; `chatvoice data ...` can then read meetings, summaries, and realtime conversations from a running service.
 - **受邀账号登录**: public registration is disabled. Accounts are provisioned by `chatvoice accounts add`; passwords use salted PBKDF2 hashes, sessions use HttpOnly cookies, and record writes require CSRF tokens.
+
+## 登录后端与前端边界
+
+ChatVoice 依赖 `ChatLogin>=0.1.1,<0.2.0` 的认证与会话核心，但保留自己的 HTML、CSS、原生 JavaScript 和登录/访客弹窗，不注入 ChatLogin 默认模板。宿主适配层复用现有 `accounts` 与 `auth_sessions` 表、原账号 ID、PBKDF2 材料和 Cookie；不新建第二套用户库、不强制改密码。
+
+`/api/auth/*` 和原 JSON 字段保持兼容。已有账号映射为普通用户，不引入 Web Admin；会议/对话 owner 检查与 API Token scope 仍由 ChatVoice 负责。访客记录继续保存在浏览器 IndexedDB，不因接入登录库而自动上传。部署与生产数据迁移仍是独立操作，发布包不等于重启服务。
 
 ## Security model
 
@@ -49,7 +57,7 @@ The former `qwen-audio-demo.public.wzhecnu.cn` entry is retired and returns HTTP
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "ChatVoice[web]==0.1.15.post3"
+python -m pip install "ChatVoice[web]==0.1.16"
 
 chatvoice --tree
 chatvoice --tree-brief
@@ -118,7 +126,7 @@ chatvoice data conversations --url http://127.0.0.1:18087 --token-env CHATVOICE_
 
 ## Database and concurrency
 
-The packaged v0.1.15 web app stores service data in one SQLite WAL file at:
+The packaged web app stores service data in one SQLite WAL file at:
 
 ```text
 <chatarch-home>/chatvoice/data/meetings.sqlite3
@@ -140,7 +148,7 @@ Use one service process (`--workers 1`) with SQLite. Back up and move data with 
 └── model-cache/
 ```
 
-后端 SQLite `meetings.sqlite3` 目前包含 `accounts`、`auth_sessions`、`api_tokens`、`meeting_records`、`conversation_records`。转写、summary、会议标签、实时对话消息以 JSON 字符串保存；原始音频不进后端数据库。访客模式仍使用浏览器 IndexedDB 保存本地会议文字、标签和摘要，不保存录音分片。当前 `0.1.15` 支持 SQLite WAL + 单服务进程；数据备份/迁移使用 CLI 单文件 dump/restore。高并发 Postgres/MySQL 是未来单独 storage-layer migration。详见 [运行目录与数据结构](docs/runtime-layout.md) 和 [录音保存边界](docs/recording-storage.md)。
+后端 SQLite `meetings.sqlite3` 目前包含 `accounts`、`auth_sessions`、`api_tokens`、`meeting_records`、`conversation_records`。转写、summary、会议标签、实时对话消息以 JSON 字符串保存；原始音频不进后端数据库。访客模式仍使用浏览器 IndexedDB 保存本地会议文字、标签和摘要，不保存录音分片。当前版本支持 SQLite WAL + 单服务进程；数据备份/迁移使用 CLI 单文件 dump/restore。高并发 Postgres/MySQL 是未来单独 storage-layer migration。详见 [运行目录与数据结构](docs/runtime-layout.md) 和 [录音保存边界](docs/recording-storage.md)。
 
 ## API surface
 

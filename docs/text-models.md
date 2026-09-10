@@ -1,6 +1,6 @@
 # 独立配置纪要与标题模型
 
-`0.1.15.post1` 兼容修复允许会议纪要、标题分别配置独立的 OpenAI-compatible Chat Completions 接口，不再要求文字任务借用语音凭据。本次版本为源码构建的 hotfix；不要假定它已经发布到 PyPI。
+会议纪要、标题可以分别配置独立的 OpenAI-compatible Chat Completions 接口，文字任务不借用语音凭据。Markdown Todo 复用会议纪要模型，无需新增配置。
 
 ## 配置边界
 

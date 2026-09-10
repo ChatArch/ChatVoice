@@ -1,6 +1,6 @@
 # Independent TTS Configuration
 
-`0.1.15.post2` is a local, unpublished source hotfix. Only system speech synthesis changes; ASR, realtime conversation, notes/title, VoiceClone, accounts and storage remain unchanged. Configuration uses the same ChatEnv `ChatVoice` provider, with no new browser settings page.
+System speech synthesis supports independent configuration; ASR, realtime conversation, notes/title, VoiceClone, accounts and storage remain unchanged. Configuration uses the same ChatEnv `ChatVoice` provider, with no new browser settings page.
 
 ## Configuration
 

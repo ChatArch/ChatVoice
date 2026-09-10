@@ -1,47 +1,26 @@
 # Changelog
 
-## 0.1.15.post3 (local hotfix, unpublished)
+## 0.1.16 - 2026-09-11
 
 ### Added
 
-- Browser-free operation regression using shipped JavaScript controllers, deterministic device boundaries, isolated ASGI routes and SQLite, with Node 22 configured in CI and bilingual flow-to-test documentation.
-- Isolate test home directories before application imports to avoid accidental production profile or database access.
-- Add an explicit live HTTP/SSE/WebSocket verifier with audio decoding, owned clone-job cleanup and fail-closed results, separate from normal offline pytest.
+- Add an explicit summary-to-Todo action and independent Markdown Todo workspace: direct editing, conversation refinement, undo, copy and `.md` export. Summary updates never generate tasks automatically.
+- Persist Todo text and its conversation with each meeting; guest data stays in browser IndexedDB, while older clients preserve Todo fields they omit.
+- Include the previously deployed independent meeting-text and configurable TTS support, with endpoint/key/model isolation and the existing no-overage guard for legacy audio.
+- Add normal browser-free interaction and route regression, plus separate opt-in real-service verification.
 
 ### Fixed
 
-- Preserve notes when revision streams fail, end without an explicit completion event, arrive after reset, or return empty summaries.
-- Reject empty system TTS audio, ignore stale clone generation after reference replacement, and release realtime output audio resources on connection closure.
+- Reject malformed or incomplete model output and keep manual content when requests fail, are cancelled, or become stale.
+- Preserve existing accounts, sessions and storage while integrating the released ChatLogin adapter.
 
-## 0.1.15.post2 - 2026-09-08 (local hotfix, unpublished)
+## 0.1.15 - 2026-09-09
 
-### Added
+### 更改
 
-- Add explicit independent `qwen` WebSocket TTS with configurable exact endpoint/model/voices, its own `sk-sp` key, bounded per-call connections, and no DashScope global mutation or fallback.
-- Independent TTS adapters for configurable Volcengine HTTP NDJSON and OpenAI-compatible speech endpoints, models, credentials, resource identifiers and voice catalogs.
-- Fail-closed configuration, bounded audio parsing, redirect refusal, sanitized status/errors, generic TTS response metadata, and a synthetic ChatEnv probe using the selected home without saving audio.
-- Dynamic system voice cards with the configured first voice as default; preserve clone selection and the shared studio panel.
-
-### Fixed
-
-- Reject premature TTS HTTP EOF when Content-Length bytes remain, and accept valid signed-int16 PCM without magic-prefix heuristics.
-
-### Unchanged
-
-- Empty independent TTS fields retain the existing Qwen `sk-sp` gate and synthesis path. ASR, realtime, notes/title, VoiceClone, authentication, storage and service supervision are unchanged.
-- This source-only hotfix does not imply publication, deployment or verified cloud synthesis.
-
-## 0.1.15 - 2026-08-26
-
-### Added
-
-- Add a separate CRS-backed meeting-notes provider for summarize/polish/revise: `CHATVOICE_MEETING_NOTES_PROVIDER=crs-chat-completions` with `CHATVOICE_MEETING_NOTES_CRS_PROFILE=apple` can call CRS `/chat/completions` in streaming mode.
-- Keep system TTS and realtime voice on the existing Token Plan `CHATVOICE_OPENAI_API_*` configuration while meeting notes can use a different CRS key/profile.
-- Surface sanitized meeting-notes provider status through `/api/status` and the Settings API-key panel.
-
-### Fixed
-
-- Refuse non-CRS API bases when the meeting-notes CRS provider is selected, so ChatVoice does not accidentally consume unrelated OpenAI-compatible ENV values.
+- 通过公开 Python 依赖 ChatLogin 0.1.1 复用账号校验、opaque 会话生命周期和 CSRF 核心。
+- 采用宿主适配层保留原账户、PBKDF2 材料、SQLite 表、Cookie/HTTP 契约和原生前端；不新建用户库、不要求改密码，不注入默认登录页。
+- 访客仍由浏览器 IndexedDB 保存本地记录；云端 owner 隔离、API Token scope 与原界面保持独立。
 
 ## 0.1.14 - 2026-08-26
 

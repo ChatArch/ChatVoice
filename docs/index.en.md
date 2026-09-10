@@ -23,7 +23,7 @@ Documentation entry: <https://arch.gh.wzhecnu.cn/ChatVoice/en/>
 
 - **Deployment and Startup**
 
-    From `python -m pip install "ChatVoice[web]==0.1.15.post3"` to `chatvoice serve app`, including runtime paths, account provisioning, ASR API provider wiring, and database concurrency boundaries. This version is a local, unpublished hotfix; see [independent TTS](tts-models.en.md) for system speech configuration.
+    From `python -m pip install "ChatVoice[web]==0.1.16"` to `chatvoice serve app`, including runtime paths, account provisioning, ASR API provider wiring, and database concurrency boundaries.
 
     [Read deployment guide](deployment.md)
 
@@ -71,7 +71,7 @@ Documentation entry: <https://arch.gh.wzhecnu.cn/ChatVoice/en/>
 
 </div>
 
-## v0.1.15 deployment boundary
+## Deployment boundary
 
 - The packaged FastAPI app starts with `chatvoice serve app`.
 - Fresh start can create invited accounts with `chatvoice accounts add`; no source-tree script is required.
@@ -80,7 +80,7 @@ Documentation entry: <https://arch.gh.wzhecnu.cn/ChatVoice/en/>
 - The meeting recorder does not save or download original recordings; the server stores text, summaries, and metadata only.
 - Production ASR should use `api-server` against a managed API or self-hosted GPU ASR server.
 - `stub-local` is only for credential-free / GPU-free contract smoke.
-- v0.1.15 defaults to SQLite WAL for one service process and light concurrency; high-concurrency storage migration needs a separate release.
+- The package defaults to SQLite WAL for one service process and light concurrency; high-concurrency storage migration needs a separate release.
 
 ## Preview docs locally
 

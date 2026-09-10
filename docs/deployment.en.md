@@ -1,6 +1,6 @@
 # Deployment and Startup
 
-This page explains how to run a ChatVoice / Speakr service from the released Python package in v0.1.15: install, create an account, start the service, generate an API token, and read meeting tag/summary data.
+This page explains how to run a ChatVoice / Speakr service from the released Python package: install, create an account, start the service, generate an API token, and read meeting tag/summary data.
 
 ## Minimal install
 
@@ -8,7 +8,7 @@ This page explains how to run a ChatVoice / Speakr service from the released Pyt
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "ChatVoice[web]==0.1.15.post3"
+python -m pip install "ChatVoice[web]==0.1.16"
 ```
 
 Read back the real CLI tree and runtime paths first:
@@ -66,7 +66,7 @@ For production, put the service behind a controlled reverse proxy. API keys stay
 
 ## ASR provider: API first
 
-The recommended production shape in v0.1.15 is **ChatVoice calls ASR through an API provider**. That provider can be:
+The recommended production shape is **ChatVoice calls ASR through an API provider**. That provider can be:
 
 - a managed cloud ASR API with an API key;
 - a self-hosted GPU ASR server exposing HTTP;
@@ -81,7 +81,7 @@ export CHATVOICE_ASR_API_URL="https://<asr-service>/v1/transcribe"
 chatvoice serve app --host 127.0.0.1 --port 18087
 ```
 
-The browser **Settings -> Server-side API Key** panel displays ASR, system TTS, realtime Token Plan, text and local VoiceClone readiness without storing raw credentials. `0.1.15.post3` is a local, unpublished hotfix: review the local wheel first. Configure the six `CHATVOICE_TTS_*` fields in ChatEnv `ChatVoice` for [independent TTS](tts-models.en.md). Any nonempty field opts in; incomplete configuration returns 503 without borrowed credentials or fallback. All fields empty preserve legacy TTS through `CHATVOICE_OPENAI_API_BASE` / `CHATVOICE_OPENAI_API_KEY` / `CHATVOICE_OPENAI_API_MODEL`; legacy TTS and realtime still require `sk-sp...`. ASR, realtime, notes/title, VoiceClone, accounts, storage and supervisors are unchanged. The deployment owner handles real synthesis, billing confirmation, backup and rollback acceptance.
+The browser **Settings -> Server-side API Key** panel displays ASR, system TTS, realtime Token Plan, text and local VoiceClone readiness without storing raw credentials. `0.1.16` includes independent text, TTS settings and Markdown Todo. Configure the six `CHATVOICE_TTS_*` fields in ChatEnv `ChatVoice` for [independent TTS](tts-models.en.md). Any nonempty field opts in; incomplete configuration returns 503 without borrowed credentials or fallback. All fields empty preserve legacy TTS through `CHATVOICE_OPENAI_API_BASE` / `CHATVOICE_OPENAI_API_KEY` / `CHATVOICE_OPENAI_API_MODEL`; legacy TTS and realtime still require `sk-sp...`. ASR, realtime, notes/title, VoiceClone, accounts, storage and supervisors are unchanged. The deployment owner handles real synthesis, billing confirmation, backup and rollback acceptance.
 
 Meeting notes can use CRS independently from voice model keys:
 
@@ -121,7 +121,7 @@ See [API Access](api-access.md) for details.
 
 ## Database and concurrency boundary
 
-The v0.1.15 packaged web app uses SQLite WAL by default:
+The packaged web app uses SQLite WAL by default:
 
 ```text
 <chatarch-home>/chatvoice/data/meetings.sqlite3
