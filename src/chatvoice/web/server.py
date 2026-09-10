@@ -8,7 +8,7 @@ from pathlib import Path
 from chatvoice.paths import ensure_runtime_dirs
 
 
-def create_app():
+def create_app(*, login_ui=None):
     """Create the packaged Speakr FastAPI app.
 
     The legacy application computes several paths at import time, so the factory
@@ -25,6 +25,11 @@ def create_app():
     os.environ.setdefault("TRANSFORMERS_CACHE", str(paths.model_cache_dir / "transformers"))
     from chatvoice.web.legacy_app import app
 
+    if login_ui is not None:
+        from chatlogin.ui import LoginUI
+        if not isinstance(login_ui, LoginUI):
+            raise TypeError("login_ui must be a ChatLogin LoginUI")
+        app.state.login_ui = login_ui
     return app
 
 

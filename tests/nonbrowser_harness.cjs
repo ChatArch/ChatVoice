@@ -106,7 +106,7 @@ function harness(mutation) {
     stop() { this.state = 'inactive'; this.ondataavailable?.({ data: new Blob(['reference'], { type: this.mimeType }) }); this.onstop?.(); }
   }
   const context = vm.createContext({ console, Blob, FormData, TextDecoder, TextEncoder, AbortController, Uint8Array, Float32Array, Int16Array, ArrayBuffer, Date, Intl, crypto: require('node:crypto').webcrypto,
-    document, location: { protocol: 'https:', host: 'app.example.test' }, confirm: () => true,
+    document, URLSearchParams, location: { protocol: 'https:', host: 'app.example.test', search: '' }, confirm: () => true,
     navigator: { clipboard: { async writeText(text) { clipboard = text; } }, mediaDevices: { async getUserMedia() { const track = { stop() { this.stopped = true; } }; tracks.push(track); return { getTracks: () => [track] }; } } },
     localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
     indexedDB: { open() { const pending = {}; queueMicrotask(() => { pending.result = database; pending.onupgradeneeded?.(); pending.onsuccess?.(); }); return pending; } },

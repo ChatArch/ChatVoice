@@ -25,19 +25,19 @@ Documentation entry: <https://arch.gh.wzhecnu.cn/ChatVoice/en/>
 
 ## Login Backend and Frontend Boundary
 
-ChatVoice depends on the authentication/session core from `ChatLogin>=0.1.1,<0.2.0` while retaining its original HTML, CSS, vanilla JavaScript, and login/guest dialog. It does not inject ChatLogin's default templates. A host adapter reuses the existing `accounts` and `auth_sessions` tables, account IDs, PBKDF2 material, and cookie. No second user database or forced password reset is introduced.
+ChatVoice directly uses the built-in `ChatVoiceAuth` backend from `ChatLogin>=0.1.2,<0.2.0`, reusing existing accounts, sessions, IDs, PBKDF2 material and cookies without another user database or password reset. `/login` uses the shared LoginUI form and assets with host branding; the main business pages and guest choice remain host-owned.
 
 Existing `/api/auth/*` endpoints and JSON fields remain compatible. Existing accounts map to ordinary users, not a new Web Admin. ChatVoice retains meeting/conversation owner checks and API-token scopes. Guest records remain in browser IndexedDB and are not automatically uploaded. Package release is separate from production deployment, restart, or data migration.
 
 ## Quick start from PyPI
 
-This branch contains the local, unpublished `0.1.15.post3` hotfix; the pinned PyPI examples below require publication first. Until then, install the reviewed local wheel. [Independent TTS](docs/tts-models.en.md) supports configurable protocols, endpoints, models, credentials and voice catalogs, failing closed for incomplete configuration. ASR, realtime and VoiceClone are unchanged. See [independent text models](docs/text-models.en.md) for unchanged notes/title configuration.
+The package combines shared login integration with the existing text, TTS and Markdown Todo capabilities. [Independent TTS](docs/tts-models.en.md) supports configurable protocols, endpoints, models, credentials and voice catalogs, failing closed for incomplete configuration. ASR, realtime and VoiceClone are unchanged. See [independent text models](docs/text-models.en.md) for unchanged notes/title configuration.
 
 ```bash
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "ChatVoice[web]==0.1.16"
+python -m pip install "ChatVoice[web]==0.2.0"
 
 chatvoice --tree
 chatvoice --tree-brief

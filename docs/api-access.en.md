@@ -4,9 +4,25 @@ Sign in to ChatVoice with an invited account, create an API token, then read you
 
 ## Login Backend and Frontend Boundary
 
-ChatVoice depends on authentication/session primitives from `ChatLogin>=0.1.1,<0.2.0` while keeping its own HTML, CSS, vanilla JavaScript and login/guest dialog. Default ChatLogin templates are not injected. A host adapter reuses `accounts`, `auth_sessions`, existing IDs and PBKDF2 material without creating another user database or forcing password resets.
+ChatVoice directly uses the built-in `ChatVoiceAuth` backend from `ChatLogin>=0.1.2,<0.2.0`, retaining the existing account/session schema, IDs and password material. `/login` renders shared LoginUI templates and assets with host CSS branding; business pages and guest IndexedDB remain unchanged.
 
 Existing `/api/auth/*` routes, JSON fields and cookie contracts remain compatible. Existing accounts map to ordinary users, not a new Web Admin. ChatVoice retains resource ownership and API-token scopes; guest IndexedDB records are not automatically uploaded. A package release is not a production restart or data migration.
+
+## Customize the shared login page
+
+The default `/login` uses host-owned monochrome branding. Supply a `LoginUI` from your Python entrypoint to select another theme or trusted host template without editing site-packages:
+
+```python
+from chatlogin.ui import LoginUI
+from chatvoice.web import create_app
+
+app = create_app(login_ui=LoginUI(
+    title="My voice workspace", palette="forest", layout="split",
+    appearance="system", guest_url="/?mode=guest",
+))
+```
+
+Guest drafts are saved before entering login; active recordings and realtime conversations prevent navigation. The shared form submits `username`, while existing `account` clients remain supported. Returned `next` values are constrained to safe local paths. Passwords, sessions and CSRF values are not saved in browser persistent storage.
 
 ## Access model
 
@@ -24,7 +40,7 @@ A token value is returned only once at creation. SQLite stores its digest, prefi
 ## Fresh-start local flow
 
 ```bash
-python -m pip install "ChatVoice[web]==0.1.16"
+python -m pip install "ChatVoice[web]==0.2.0"
 chatvoice service plan --ensure-dirs --json
 export CHATVOICE_ASR_CHANNEL=stub-local
 chatvoice serve app --host 127.0.0.1 --port 18087

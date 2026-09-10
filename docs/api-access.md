@@ -4,9 +4,25 @@
 
 ## 登录后端与前端边界
 
-ChatVoice 依赖 `ChatLogin>=0.1.1,<0.2.0` 的认证/会话核心，保留自己的 HTML、CSS、原生 JavaScript 和登录/访客弹窗，不注入默认登录模板。宿主适配层沿用 `accounts`、`auth_sessions`、原账号 ID 和 PBKDF2 材料，不新增用户库、不强制改密码。
+ChatVoice 直接依赖 `ChatLogin>=0.1.2,<0.2.0` 内建的 `ChatVoiceAuth`，沿用 `accounts`、`auth_sessions`、原账号 ID 和 PBKDF2 材料，不新增用户库、不强制改密码。`/login` 使用共享 `LoginUI` 表单与资源；声笺品牌通过 CSS 变量定制，业务页面和访客 IndexedDB 保留。
 
 原 `/api/auth/*`、JSON 字段和 Cookie 契约保持兼容。已有账号映射为普通用户，不新增 Web Admin。会议/对话 owner 检查和 API Token scope 仍由 ChatVoice 负责；访客 IndexedDB 记录不会自动上传。发布包不等于重启服务或迁移生产数据。
+
+## 定制共享登录页面
+
+默认 `/login` 使用声笺黑白品牌覆盖。需要其他主题或宿主模板时，在 Python 入口传入 `LoginUI`，无需修改 site-packages：
+
+```python
+from chatlogin.ui import LoginUI
+from chatvoice.web import create_app
+
+app = create_app(login_ui=LoginUI(
+    title="我的语音工作台", palette="forest", layout="split",
+    appearance="system", guest_url="/?mode=guest",
+))
+```
+
+选择账号登录前会保存当前访客草稿；录音或实时对话尚未结束时不会跳离页面。共享表单提交 `username`，旧客户端提交 `account` 仍有效；返回的 `next` 只允许安全的本地路径。密码、会话和 CSRF 不保存在浏览器持久存储中。
 
 ## 访问模型
 
@@ -24,7 +40,7 @@ Token 明文仅在创建时返回一次。SQLite 保存摘要、前缀、scope�
 ## Fresh-start 本地流程
 
 ```bash
-python -m pip install "ChatVoice[web]==0.1.16"
+python -m pip install "ChatVoice[web]==0.2.0"
 chatvoice service plan --ensure-dirs --json
 export CHATVOICE_ASR_CHANNEL=stub-local
 chatvoice serve app --host 127.0.0.1 --port 18087

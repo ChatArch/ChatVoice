@@ -1,0 +1,17 @@
+/* Host presentation only: the form and controller are supplied by ChatLogin. */
+.chatlogin {
+  --cl-bg: #f7f7f5;
+  --cl-card: #fff;
+  --cl-text: #202124;
+  --cl-muted: #62646b;
+  --cl-accent: #202124;
+  --cl-button-text: #fff;
+  --cl-ring: #b9bbc1;
+  --cl-input: #fff;
+  --cl-border: #d8d9dc;
+  --cl-radius: 1.25rem;
+  --cl-shadow: 0 16px 60px rgb(20 20 24 / 8%);
+  background: var(--cl-bg);
+}
+.chatlogin h1 { font-size: clamp(1.8rem, 5vw, 2.4rem); }
+.chatlogin__panel { border: 1px solid var(--cl-border); }

@@ -23,7 +23,7 @@ ChatVoice 是 ChatArch 系列 Python 包，用于把 Speakr 录音、转写、�
 
 - **部署与启动**
 
-    从 `python -m pip install "ChatVoice[web]==0.1.16"` 到 `chatvoice serve app`，说明运行目录、账号创建、ASR API provider、数据库并发边界。
+    从 `python -m pip install "ChatVoice[web]==0.2.0"` 到 `chatvoice serve app`，说明运行目录、账号创建、ASR API provider、数据库并发边界。
 
     [查看部署教程](deployment.md)
 

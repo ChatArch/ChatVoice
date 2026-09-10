@@ -55,7 +55,7 @@ def test_host_uses_chatlogin_adapter():
 
 def test_real_core_handles_login_resolve_csrf_revoke(host, monkeypatch):
     app, client = host
-    import chatvoice.web.auth_adapter as adapter
+    import chatlogin.backends.chatvoice as adapter
     calls = []
     def spy(obj, name):
         original = getattr(obj, name)
@@ -101,7 +101,7 @@ def test_legacy_session_and_live_account_join(host, monkeypatch):
 
 def test_missing_and_bad_password_fail_without_identity(host, monkeypatch):
     _, client = host
-    import chatvoice.web.auth_adapter as adapter
+    import chatlogin.backends.chatvoice as adapter
     original = adapter.verify_pbkdf2
     checked = []
     def verify(*args, **kwargs):
@@ -133,12 +133,11 @@ def test_schema_and_auth_dialog_bytes_unchanged(host):
     with closing(app._meeting_db()) as db:
         assert db.execute("SELECT name, sql FROM sqlite_master WHERE type='table' ORDER BY name").fetchall() == before
         assert db.execute("SELECT password_salt, password_hash FROM accounts ORDER BY id").fetchall() == hashes
-    # Preserve the released login/guest UI, not unrelated product features.
-    # This golden fragment also works without Git history in installed wheels.
+    # The host retains its guest choice; credential UI comes from ChatLogin.
     html = (files("chatvoice.web") / "static" / "index.html").read_text(encoding="utf-8")
-    start = html.index('<dialog id="entry-dialog"')
-    dialog = html[start:html.index('</dialog>', start) + len('</dialog>')]
-    assert hashlib.sha256(dialog.encode()).hexdigest() == "fbc54c0acb7fa6a9d0ccacc9cc7dd6910e372b2dfc66838ddcacaa665a3e779c"
+    assert 'id="enter-guest"' in html and 'id="show-login"' in html
+    assert 'id="auth-form"' not in html
+    assert 'class="chatlogin__form"' in client.get('/login').text
 
 
 def test_owner_isolation_same_id_and_guest_cloud_denial(host):

@@ -10,22 +10,24 @@ function meeting(mutation) {
 const cases = {
   async access(mode = 'success') {
     const app = harness();
+    let restored = false;
+    const moves = [];
+    app.context.location.assign = url => moves.push(url);
     app.respond = async (url, options) => {
-      if (url === '/api/auth/login') return json(mode === 'failure' ? {detail: '拒绝'} : {user: {id: 'offline', display_name: 'Offline'}, csrf_token: 'csrf'}, mode === 'failure' ? 401 : 200);
       if (url === '/api/meetings') return json({meetings: []});
       if (url === '/api/conversations') return json({conversations: []});
       if (url === '/api/auth/logout') { assert.equal(options.headers['X-CSRF-Token'], 'csrf'); return json({authenticated: false}); }
-      if (url === '/api/auth/session') return json({authenticated: false});
+      if (url === '/api/auth/session') return json(restored && mode !== 'failure' ? {authenticated: true, user: {id: 'offline', display_name: 'Offline'}, csrf_token: 'csrf'} : {authenticated: false});
       if (url === '/api/tokens') return json({tokens: []});
       throw new Error(`Unexpected request ${url}`);
     };
     await app.run('bootstrapAccess()');
     assert.ok(app.element('entry-dialog').open);
-    app.element('auth-account').value = 'offline@example.test';
-    app.element('auth-password').value = 'offline-password';
-    await app.element('auth-form').dispatch('submit');
-    assert.equal(app.element('auth-submit').disabled, false);
-    if (mode === 'failure') { assert.equal(app.run('storageMode'), null); assert.match(app.element('auth-message').textContent, /拒绝/); return; }
+    await app.element('show-login').click();
+    assert.deepEqual(moves, ['/login?next=%2F']);
+    restored = true; // The shared page completed login; host restores its session.
+    await app.run('bootstrapAccess()');
+    if (mode === 'failure') { assert.equal(app.run('storageMode'), null); assert.ok(app.element('entry-dialog').open); return; }
     assert.equal(app.run('storageMode'), 'account');
     assert.equal(app.run('csrfToken'), 'csrf');
     await app.element('account-action').click();

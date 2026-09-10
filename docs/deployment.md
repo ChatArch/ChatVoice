@@ -8,7 +8,7 @@
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "ChatVoice[web]==0.1.16"
+python -m pip install "ChatVoice[web]==0.2.0"
 ```
 
 安装后先回读真实 CLI 树和运行目录：
@@ -81,7 +81,7 @@ export CHATVOICE_ASR_API_URL="https://<asr-service>/v1/transcribe"
 chatvoice serve app --host 127.0.0.1 --port 18087
 ```
 
-Web 的 **识别设置 → 服务端 API Key** 显示 ASR、系统 TTS、realtime Token Plan、文本与本地 VoiceClone 状态，不在浏览器保存密钥。`0.1.16` 支持独立文本、语音配置和 Markdown Todo。[独立 TTS](tts-models.md) 在 ChatEnv `ChatVoice` profile 配置六个 `CHATVOICE_TTS_*` 字段；任意非空即启用，缺失配置返回 503，不借用其他用途 key、不回退。全部为空时保留原 `CHATVOICE_OPENAI_API_BASE` / `CHATVOICE_OPENAI_API_KEY` / `CHATVOICE_OPENAI_API_MODEL` 旧 TTS 路径，旧 TTS 与实时仍要求 `sk-sp...`。TTS 修改不涉及 ASR、实时、纪要/标题、VoiceClone、账号、数据库或服务监督。真实合成、备份与发布回滚由部署负责人在确认费用后验收。
+Web 的 **识别设置 → 服务端 API Key** 显示 ASR、系统 TTS、realtime Token Plan、文本与本地 VoiceClone 状态，不在浏览器保存密钥。`0.2.0` 支持独立文本、语音配置和 Markdown Todo。[独立 TTS](tts-models.md) 在 ChatEnv `ChatVoice` profile 配置六个 `CHATVOICE_TTS_*` 字段；任意非空即启用，缺失配置返回 503，不借用其他用途 key、不回退。全部为空时保留原 `CHATVOICE_OPENAI_API_BASE` / `CHATVOICE_OPENAI_API_KEY` / `CHATVOICE_OPENAI_API_MODEL` 旧 TTS 路径，旧 TTS 与实时仍要求 `sk-sp...`。TTS 修改不涉及 ASR、实时、纪要/标题、VoiceClone、账号、数据库或服务监督。真实合成、备份与发布回滚由部署负责人在确认费用后验收。
 
 会议摘要可单独切到 CRS，不复用语音模型 Key：
 

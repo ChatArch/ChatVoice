@@ -1,4 +1,4 @@
-ChatLogin>=0.1.1,<0.2.0
+ChatLogin>=0.1.2,<0.2.0
 dashscope>=1.20.0
 fastapi>=0.110.0
 uvicorn[standard]>=0.27.0

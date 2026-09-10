@@ -28,14 +28,14 @@ The former `qwen-audio-demo.public.wzhecnu.cn` entry is retired and returns HTTP
 - **语音转写**: the recorder streams microphone PCM16 to the ASR WebSocket and appends normalized final segments to the timeline.
 - **API-first ASR**: production ASR is designed around `api-server`, where the ChatVoice backend calls either a managed ASR API or a self-hosted GPU ASR server. `stub-local` remains available for contract smoke, and `funasr-gpu` / `funasr-cpu` remain compatibility channels.
 - **Realtime ASR WebSocket**: `WS /ws/asr/stream` accepts continuous PCM16 microphone frames and returns cumulative revision events. Long recordings transparently roll a bounded context window while confirmed text continues to grow.
-- **会议纪要与标题独立模型**: 纪要、画布修改和标题可通过 ChatEnv 分别配置独立的 OpenAI-compatible Base/Key/Model；未配置时保留旧路径，不影响语音 Token Plan 保护。见 [独立文本配置](docs/text-models.md) / [English](docs/text-models.en.md)。`0.1.15.post1` 是源码构建 hotfix，不代表已经发布到 PyPI。
+- **会议纪要与标题独立模型**: 纪要、画布修改和标题可通过 ChatEnv 分别配置独立的 OpenAI-compatible Base/Key/Model；未配置时保留旧路径，不影响语音 Token Plan 保护。见 [独立文本配置](docs/text-models.md) / [English](docs/text-models.en.md)。这些能力已纳入正式包。
 - **双模式会议历史**: guests keep meeting text and summaries only in browser IndexedDB; signed-in accounts sync records through authenticated server storage.
 - **0.1 API 访问**: signed-in users can generate one-time-visible API tokens from the web settings panel; `chatvoice data ...` can then read meetings, summaries, and realtime conversations from a running service.
 - **受邀账号登录**: public registration is disabled. Accounts are provisioned by `chatvoice accounts add`; passwords use salted PBKDF2 hashes, sessions use HttpOnly cookies, and record writes require CSRF tokens.
 
 ## 登录后端与前端边界
 
-ChatVoice 依赖 `ChatLogin>=0.1.1,<0.2.0` 的认证与会话核心，但保留自己的 HTML、CSS、原生 JavaScript 和登录/访客弹窗，不注入 ChatLogin 默认模板。宿主适配层复用现有 `accounts` 与 `auth_sessions` 表、原账号 ID、PBKDF2 材料和 Cookie；不新建第二套用户库、不强制改密码。
+ChatVoice 直接使用 `ChatLogin>=0.1.2,<0.2.0` 内建的 `ChatVoiceAuth`，复用现有 `accounts` / `auth_sessions`、账号 ID、PBKDF2 材料与 Cookie，不再在宿主重复保存整套认证适配实现。`/login` 使用 ChatLogin 的共享表单、CSS 和 JavaScript，保留声笺品牌样式；主页面仍保留访客入口及原业务界面。
 
 `/api/auth/*` 和原 JSON 字段保持兼容。已有账号映射为普通用户，不引入 Web Admin；会议/对话 owner 检查与 API Token scope 仍由 ChatVoice 负责。访客记录继续保存在浏览器 IndexedDB，不因接入登录库而自动上传。部署与生产数据迁移仍是独立操作，发布包不等于重启服务。
 
@@ -51,13 +51,13 @@ ChatVoice 依赖 `ChatLogin>=0.1.1,<0.2.0` 的认证与会话核心，但保留�
 
 ## Quick start from the released package
 
-本分支 `0.1.15.post3` 是本地源码 hotfix，尚未发布；下面锁定版本的 PyPI 命令仅在正式发布后可用，发布前应安装经过验证的本地 wheel。[独立 TTS 配置](docs/tts-models.md) 支持可配置协议、端点、模型、凭据和音色，配置不完整时拒绝而不回退；ASR、实时对话和 VoiceClone 不变。纪要和标题配置仍见[独立文本模型](docs/text-models.md)。
+正式包同时提供共享登录后端/页面与既有文本、TTS、Markdown Todo 能力。[独立 TTS 配置](docs/tts-models.md) 支持可配置协议、端点、模型、凭据和音色，配置不完整时拒绝而不回退；ASR、实时对话和 VoiceClone 不变。纪要和标题配置仍见[独立文本模型](docs/text-models.md)。
 
 ```bash
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "ChatVoice[web]==0.1.16"
+python -m pip install "ChatVoice[web]==0.2.0"
 
 chatvoice --tree
 chatvoice --tree-brief
