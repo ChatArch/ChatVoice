@@ -1,100 +1,114 @@
-# API 访问
+# HTTP 接口
 
-通过受邀账号登录 ChatVoice，创建 API Token，再从数据接口或 `chatvoice data` 读取自己的会议与对话。
+网页操作、账号数据和模型处理是不同的接口边界。使用自己的服务根地址；下文路径均为相对路径。
 
-## 登录后端与前端边界
-
-ChatVoice 依赖 `ChatLogin>=0.1.1,<0.2.0` 的认证/会话核心，保留自己的 HTML、CSS、原生 JavaScript 和登录/访客弹窗，不注入默认登录模板。宿主适配层沿用 `accounts`、`auth_sessions`、原账号 ID 和 PBKDF2 材料，不新增用户库、不强制改密码。
-
-原 `/api/auth/*`、JSON 字段和 Cookie 契约保持兼容。已有账号映射为普通用户，不新增 Web Admin。会议/对话 owner 检查和 API Token scope 仍由 ChatVoice 负责；访客 IndexedDB 记录不会自动上传。发布包不等于重启服务或迁移生产数据。
-
-## 访问模型
-
-系统语音支持[独立 TTS 协议配置](tts-models.md)：`POST /api/tts` 仍接受 text、可选 voice 和 mp3/wav；默认音色取配置首项，响应使用 `X-TTS-Provider/Model/Voice`。`GET /api/status` 新增安全 `tts` 对象；配置错误返回 503，上游失败返回固定脱敏 502。数据访问、鉴权和复刻接口不变。
-
-| 入口 | 凭证 | 用途 |
+| 接口组 | 授权方式 | 主要用途 |
 | --- | --- | --- |
-| 浏览器登录 | HttpOnly session cookie + CSRF | 保存会议/对话、创建和撤销 API Token |
-| 浏览器声音复刻 | HttpOnly session cookie + CSRF | 授权参考音频和一次性 VoiceClone job |
-| 数据 API Token | Bearer 认证方案 | 自动化读取自己被 scope 允许的文本/标签/摘要 |
-| 访客模式 | 浏览器 IndexedDB | 本机试用，不写入后端账户记录，不创建 API Token |
+| 会话与账号 | 账号登录后使用 Cookie；写操作验证 CSRF | 受邀账号会话 |
+| 会议/对话存储 | Cookie + 所有权检查；写操作需 `X-CSRF-Token` | 保存自己的记录 |
+| 数据导出 | Bearer Token 与对应 scope | 程序化只读导出 |
+| 文本/ASR/TTS 处理 | 当前可供访客调用；服务端持有模型密钥 | 转换内容，不代表已保存记录 |
+| 声音复刻任务 | 账号会话、任务所有权，创建/删除需 CSRF | 授权声音的一次性生成 |
 
-Token 明文仅在创建时返回一次。SQLite 保存摘要、前缀、scope、创建/到期/撤销与最近使用时间，不保存明文 Token。
+!!! warning "公开入口需要访问与额度控制"
+    模型处理接口不是 Bearer 数据导出接口。部署者应限制滥用并核实上游额度，不要把“密钥未暴露给浏览器”误当成无限制开放模型调用。
 
-## Fresh-start 本地流程
+## 健康、会话与数据 {#records}
+
+| 方法与路径 | 说明 |
+| --- | --- |
+| `GET /api/heartbeat` | 服务版本、数据库状态、ASR 心跳与预热状态 |
+| `GET /api/status` | 脱敏配置/模型/语音后端状态 |
+| `POST /api/auth/login` | `account`、`password`；返回用户与 CSRF 信息，并设置会话 Cookie |
+| `GET /api/auth/session` | 当前会话状态 |
+| `POST /api/auth/logout` | 退出会话；需 CSRF |
+| `POST /api/auth/register` | 自助注册关闭，返回 403 |
+| `GET /api/meetings` | 当前账号会议元数据列表 |
+| `GET/PUT/DELETE /api/meetings/{id}` | 当前账号会议详情/保存/删除 |
+| `GET /api/conversations` | 当前账号实时对话元数据 |
+| `GET/PUT/DELETE /api/conversations/{id}` | 实时对话详情/保存/删除 |
+
+会议保存包含标题、时间、时长、标签、转写片段、摘要、完善对话，以及 `todo_markdown`、`todo_chat_messages`。详情返回正文，列表保持轻量。旧客户端省略 Todo 字段不会清空既有值，显式空字符串/空列表可以清空。
+
+## 文本处理 {#text}
+
+| 方法与路径 | 请求关键字段 | 返回 |
+| --- | --- | --- |
+| `POST /api/meeting-title` | `transcript`，可选 `model` | `title`、`model` |
+| `POST /api/meeting-notes/polish` | `transcript`、可选 `instruction`/`model` | `content`、`model` |
+| `POST /api/meeting-notes/revise/stream` | `transcript`、`current_summary`、`instruction`、可选 `messages`/`model` | SSE：`meta`、`delta`、`done` 或 `error` |
+
+纪要修改流的 `delta.text` 使用画布/回复分隔标记；消费者必须等待明确 `done`，不能把连接断开当成完成。失败时保留当前正文。
+
+## Markdown Todo {#todo}
+
+生成只处理传入摘要；不会自动创建会议记录。
+
+```http
+POST /api/meeting-notes/todo
+Content-Type: application/json
+```
+
+```json
+{"summary":"先整理核心结论，再撰写初稿并检查引用。"}
+```
+
+返回 `content`（完整 Markdown）和 `model`。没有明确行动时可返回“暂无明确待办。”，不强行生成任务。
+
+继续对话修改：
+
+```http
+POST /api/meeting-notes/todo/revise
+Content-Type: application/json
+```
+
+```json
+{
+  "summary": "整理研究结果并撰写文章。",
+  "current_todo": "# Todo\n- [x] 确认主题\n- [ ] 撰写初稿",
+  "instruction": "把撰写初稿拆成两个步骤，保留完成状态。",
+  "messages": []
+}
+```
+
+返回完整 `content`、简短 `reply` 和 `model`。摘要/正文各不超过 20000 字符，修改要求不超过 2000 字符，对话最多 12 条，每条为 `role: user|assistant` 与 `text`。当前 Todo 正文由调用方通过原会议保存接口写入。
+
+## 语音处理 {#audio}
+
+| 方法与路径 | 说明 |
+| --- | --- |
+| `GET /api/asr/channels` | 当前可选识别通道 |
+| `POST /api/asr` | multipart：`file`、可选 `channel`/`correct`；返回 `raw_text`、`corrected_text`、`channel`、`meta` |
+| `WS /ws/asr/stream` | 网页使用的有界 PCM16 流；不是通用云 ASR 协议 |
+| `POST /api/tts` | JSON：`text`、可选 `voice`、`format`（`mp3` / `wav`）；返回音频 |
+| `GET /api/realtime/models` | 实时模型选择列表，不代表生成权限 |
+| `WS /ws/realtime?model={id}` | 当前 Qwen 实时语音代理 |
+
+独立 TTS 响应提供 `X-TTS-Provider`、`X-TTS-Model`、`X-TTS-Voice` 等元数据。必须核对实际音频内容，而不仅是 HTTP 200。
+
+VoiceClone 使用 `GET /api/voice-clone/status`、`POST /api/voice-clone/jobs`、`GET/DELETE /api/voice-clone/jobs/{id}` 和 `GET /api/voice-clone/jobs/{id}/audio`。[声音复刻指南](voice-cloning.md)说明授权和临时任务边界。
+
+创建复刻任务使用 multipart 字段 `reference_audio`、`text`、可选 `lang` / `duration_factor`。声音授权确认由网页流程执行；此 API 没有 `consent` 字段，调用者仍需保证参考声音使用授权。
+
+## API Token 与导出 {#tokens}
+
+网页设置可创建和撤销 Token。也可用命令行：
 
 ```bash
-python -m pip install "ChatVoice[web]==0.1.16"
-chatvoice service plan --ensure-dirs --json
-export CHATVOICE_ASR_CHANNEL=stub-local
-chatvoice serve app --host 127.0.0.1 --port 18087
+chatvoice tokens create --url https://speakr.example.com --account member@example.com --password-env CHATVOICE_ACCOUNT_LOGIN --name export --expires-days 30 --scope read:meetings --json
+chatvoice data meetings --url https://speakr.example.com --token-env CHATVOICE_DATA_READ --json
+chatvoice data meeting MEETING_ID --url https://speakr.example.com --token-env CHATVOICE_DATA_READ --json
 ```
 
-在同一运行目录对应的另一个 shell 中创建受邀账号：
+将创建结果中的一次性密钥安全提供给 `CHATVOICE_DATA_READ`；不要把它写进公共日志。`read:meetings` 对应 `/api/data/meetings[/{id}]`，`read:conversations` 对应 `/api/data/conversations[/{id}]`。Token 不能跨账号或扩大 scope。
 
-```bash
-read -r -s CHATVOICE_ACCOUNT_LOGIN
-export CHATVOICE_ACCOUNT_LOGIN
-chatvoice accounts add person@example.com --display-name "Person" --password-env CHATVOICE_ACCOUNT_LOGIN --json
-chatvoice accounts list --json
-```
+| 状态码 | 常见含义 |
+| --- | --- |
+| 401 | 未登录、会话/Token 失效 |
+| 403 | CSRF、权限或明确关闭的操作 |
+| 404 | 记录不存在，或不属于当前用户 |
+| 422 | 请求形状或长度不合法 |
+| 503 | 所需模型配置不完整或能力未配置 |
+| 502 | 上游失败、响应无效或模型结果不完整 |
 
-测试入口是 `http://127.0.0.1:18087/`。`stub-local` 用于不调用真实模型的接口测试；正式转写和摘要需要单独配置服务器端模型服务。不要把这个回环地址当作已部署公网入口。
-
-## 从网页生成 Token
-
-在设置的 API Token 区域创建令牌，指定名称和有效期。复制创建时显示的唯一明文；关闭后只查看元数据。退出登录和切换存储模式时不要保留一次性 Token 显示。
-
-## 从 CLI 生成 / 查看 / 撤销 Token
-
-```bash
-chatvoice tokens create --url http://127.0.0.1:18087 --account person@example.com --password-env CHATVOICE_ACCOUNT_LOGIN --name automation --json
-chatvoice tokens list --url http://127.0.0.1:18087 --account person@example.com --password-env CHATVOICE_ACCOUNT_LOGIN --json
-chatvoice tokens revoke <token-id> --url http://127.0.0.1:18087 --account person@example.com --password-env CHATVOICE_ACCOUNT_LOGIN --json
-```
-
-密码由环境变量传递，不放进命令行参数值。创建输出含一次性 Token，不应粘贴到公共日志或 PR。
-
-## 读取会议和对话数据
-
-```bash
-read -r -s CHATVOICE_DATA_READ
-export CHATVOICE_DATA_READ
-chatvoice data meetings --url http://127.0.0.1:18087 --token-env CHATVOICE_DATA_READ --json
-chatvoice data meeting <meeting-id> --url http://127.0.0.1:18087 --token-env CHATVOICE_DATA_READ --json
-chatvoice data conversations --url http://127.0.0.1:18087 --token-env CHATVOICE_DATA_READ --json
-chatvoice data conversation <conversation-id> --url http://127.0.0.1:18087 --token-env CHATVOICE_DATA_READ --json
-```
-
-HTTP 客户端在 `Authorization` 请求头中使用 `Bearer` 认证方案，凭证是已创建的数据 API Token。
-
-```text
-GET /api/data/meetings
-GET /api/data/meetings/{meeting_id}
-GET /api/data/conversations
-GET /api/data/conversations/{conversation_id}
-```
-
-会议列表返回元数据/预览和 `tags`，详情再返回转写与摘要。对话详情返回 realtime messages。不要把完整正文用于普通轮询日志。
-
-## 声音复刻 job API
-
-这不是数据 Bearer Token 接口。网页使用登录 Cookie 和 CSRF，提交 multipart 表单：
-
-```text
-GET    /api/voice-clone/status
-POST   /api/voice-clone/jobs
-GET    /api/voice-clone/jobs/{job_id}
-GET    /api/voice-clone/jobs/{job_id}/audio
-DELETE /api/voice-clone/jobs/{job_id}
-```
-
-创建字段为 `text`、`lang`、`duration_factor` 与 `reference_audio`。接口代理本地 sidecar；provider secret 不发送给浏览器。生成音频是临时 job 产物，不创建 voice profile，也不进入会议历史。参见 [声音复刻使用指南](voice-cloning.md)。
-
-## Scope 和边界
-
-- 支持 `read:meetings` 和 `read:conversations`。
-- Token 只读，不能写会议、改摘要或管理账号；省略 scopes 使用两个默认读权限，显式空数组被拒绝。
-- 到期或撤销后立即不可用，读取仍按 Token owner 隔离。
-- 会议标签为去重字符串数组，旧数据缺失标签时返回 `[]`。
-- 原始录音不进入后端数据库，也不通过数据接口返回。
+[Python 客户端](interface-tree.md) · [排障](troubleshooting.md)

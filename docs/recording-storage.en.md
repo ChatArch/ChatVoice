@@ -1,60 +1,31 @@
-# Recording Storage Boundary
+# Data Retention Boundary
 
-The current ChatVoice / Speakr meeting recorder saves text and summaries only. It does not save original recording files.
+Saving a meeting means saving text and metadata, not an archive of its raw recording.
 
-## What the current version saves
+| Data | Account mode | Guest mode |
+| --- | --- | --- |
+| Title, tags, transcript | Owner-isolated server SQLite | Current-browser IndexedDB |
+| Summary and refinement chat | Stored with the meeting | Stored with the local meeting |
+| Markdown Todo and refinement chat | Stored with the meeting | Stored with the local meeting |
+| Realtime conversation text | Stored with the conversation | Browser-local record |
+| Raw meeting recording | No recording archive | No recording-chunk archive |
+| Provider credentials | Server-side configuration only | Never sent to the browser |
 
-Signed-in account mode stores on the server:
+## Processing is not archiving
 
-- meeting title, timestamps, duration, and metadata;
-- realtime transcript segments;
-- AI summaries, action items, and note-editing content;
-- API token hash, prefix, scopes, expiration, and delete/revoke state.
+Microphone audio passes through the browser, ChatVoice and the selected ASR backend. The server may temporarily use `temp/asr` for decoding/recognition and cleans files during normal processing. External ASR/text providers have their own data policies.
 
-Guest mode stores in the current browser:
+Not retaining meeting recordings does not mean audio never crosses the network or disk, nor that guest recognition runs offline.
 
-- guest meeting text, summaries, and metadata;
-- guest realtime conversation text.
+## Voice studio output
 
-## What the current version does not save
+System TTS and cloning generate task audio for preview/download; this is distinct from downloading a meeting recording. Cloning requires an authorized reference and does not create a reusable voice library or generation history. Session reference audio is not a permanent asset.
 
-The meeting recorder does not save:
+## Deletion and backups
 
-- original recording files;
-- replayable full meeting audio;
-- browser-local audio chunks;
-- raw audio in backend object storage or SQLite;
-- recording files readable through API tokens.
+- Clearing browser data deletes guest records. Signing in does not automatically upload them.
+- Deleting server records requires ownership and CSRF validation.
+- Exported Markdown, database backups and third-party copies have their own lifecycle.
+- Code rollback must not restore a stale database over newer records.
 
-In short: the meeting recorder has no “save recording” or “download recording” feature. Audio is used only for realtime transcription; the durable result is text and summaries.
-
-## How audio flows during transcription
-
-During recording, the browser streams microphone audio to the backend ASR channel:
-
-```text
-microphone audio -> ChatVoice ASR WebSocket -> ASR service -> transcript text -> meeting record / summary
-```
-
-This flow exists to produce text. The current version does not persist that audio stream as a replayable file and does not keep audio chunks in browser IndexedDB.
-
-## Why there is no “save locally” button
-
-A “save locally” control makes users wonder whether the system already saved audio, or whether the server also has a copy. The current product boundary is:
-
-> The server stores text and summaries only; original recordings are not saved.
-
-For that reason, the current version does not expose local recording archive/download controls. This keeps the recorder privacy model simple and avoids extra user burden.
-
-## Future pure-recording support
-
-If ChatVoice later adds “pure recording” or a recording file library, it should be a separate feature instead of part of the default meeting transcription flow. That design should explicitly cover:
-
-- whether files are stored on the server;
-- whether files are browser-local only;
-- file format, size, and retention period;
-- deletion policy;
-- whether API tokens may read recordings;
-- how the UI separates “meeting text records” from “recording files”.
-
-Until that feature is designed and shipped, the meeting recorder does not save original audio.
+[Runtime and backup](runtime-layout.md) · [Access and API](api-access.md)

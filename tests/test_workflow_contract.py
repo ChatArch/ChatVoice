@@ -60,10 +60,18 @@ def test_publish_workflow_is_tag_only_oidc_and_main_guarded():
 
 
 def test_bilingual_tree_docs_match_registered_full_and_brief_trees():
-    expected = [
-        render_click_tree(main, root_name="chatvoice"),
-        render_click_tree(main, root_name="chatvoice", brief=True),
-    ]
+    rows = render_click_tree(main, root_name="chatvoice").splitlines()
+    roots = [i for i, line in enumerate(rows) if line.startswith(("├── ", "└── "))]
+    expected = ["\n".join([rows[0]] + [rows[i] for i in roots])]
+    for position, start in enumerate(roots):
+        end = roots[position + 1] if position + 1 < len(roots) else len(rows)
+        children = rows[start + 1:end]
+        if children:
+            group = rows[start][4:].split()[0]
+            expected.append("\n".join(["chatvoice " + group] + [line[4:] for line in children]))
+
+    def without_comments(block):
+        return "\n".join(line.split("  # ", 1)[0].rstrip() for line in block.strip().splitlines())
 
     for path in (
         ROOT / "docs" / "cli-tree.md",
@@ -71,4 +79,5 @@ def test_bilingual_tree_docs_match_registered_full_and_brief_trees():
     ):
         text = path.read_text(encoding="utf-8")
         assert "chatstyle.add_tree_option()" in text
-        assert _text_blocks(path)[:2] == expected
+        assert "--tree-brief" in text
+        assert [without_comments(block) for block in _text_blocks(path)] == [without_comments(block) for block in expected]

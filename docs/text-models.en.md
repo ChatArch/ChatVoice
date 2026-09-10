@@ -1,39 +1,52 @@
-# Independent notes and title models
+# Independent Text Models
 
-Meeting notes and titles have independent OpenAI-compatible Chat Completions settings. Markdown Todo reuses the meeting-notes model without additional configuration.
+Notes, titles and speech are separate capabilities. Text uses an OpenAI-compatible Chat Completions interface and need not share a provider with ASR or TTS.
 
-Each purpose uses its own Base, sensitive Key and Model in ChatEnv's canonical `ChatVoice` provider:
+| Purpose | Configuration prefix | Use |
+| --- | --- | --- |
+| Notes | `CHATVOICE_MEETING_NOTES_` | Summaries, note refinement, Todo conversion/refinement |
+| Titles | `CHATVOICE_MEETING_TITLE_` | Meeting titles |
+| Speech | Separate TTS settings | Never supplies fallback text credentials |
+
+## Configure complete triples
+
+Set these in the ChatEnv `ChatVoice` namespace:
 
 ```dotenv
-CHATVOICE_MEETING_NOTES_API_BASE=https://ark.cn-beijing.volces.com/api/plan/v3
-CHATVOICE_MEETING_NOTES_API_KEY=<your-Agent-Plan-key>
-CHATVOICE_MEETING_NOTES_MODEL=doubao-seed-2.0-lite
-CHATVOICE_MEETING_TITLE_API_BASE=https://ark.cn-beijing.volces.com/api/plan/v3
-CHATVOICE_MEETING_TITLE_API_KEY=<your-Agent-Plan-key>
-CHATVOICE_MEETING_TITLE_MODEL=doubao-seed-2.0-mini
+CHATVOICE_MEETING_NOTES_API_BASE=https://model.example.com/v1
+CHATVOICE_MEETING_NOTES_API_KEY=[REDACTED]
+CHATVOICE_MEETING_NOTES_MODEL=your-notes-model
+CHATVOICE_MEETING_TITLE_API_BASE=https://model.example.com/v1
+CHATVOICE_MEETING_TITLE_API_KEY=[REDACTED]
+CHATVOICE_MEETING_TITLE_MODEL=your-title-model
 ```
 
-Replace placeholders using secure stdin, never secret CLI arguments. Once either Base or Key is nonempty, all three fields for that purpose are required. Missing fields return HTTP 503 without borrowing voice, CRS, global OpenAI, or the other purpose's credentials. Empty Base and Key retain legacy behavior. Explicit independent settings take precedence over the legacy notes provider selector. The same key may be deliberately copied to both fields; there is no implicit sharing. Verify endpoint and model availability against your subscription; do not substitute a usage-billed endpoint.
+Replace the placeholders. Both purposes may use the same provider, but each triple is explicit. A nonempty independent base or key enables that purpose's independent path. Incomplete settings fail instead of borrowing speech, other-purpose or global OpenAI credentials.
 
-## Validate before deployment
+See [configuration](configuration.md) for profile import and activation.
 
-Keep validation secrets under managed ChatArch home, outside source trees:
+## Verification order
 
 ```bash
-chatenv --home "$CHATARCH_HOME/chatvoice/validation" paste --stdin -t chatvoice
-chatenv --home "$CHATARCH_HOME/chatvoice/validation" test -t chatvoice -I
+chatenv test -t chatvoice -I
 ```
 
-The test hook validates both boundaries before any request, then performs one synthetic request per configured purpose. Legacy-only profiles explicitly receive a schema-only result without network access. The hook does not import the web app, database or GPU models. `max_tokens` is an output parameter, not a hard reasoning-token or monetary budget.
+1. Summarize short synthetic text and verify final content, not reasoning alone.
+2. Test the title independently; working notes do not establish title readiness.
+3. Refine notes in the web app, then convert and refine a Todo.
+4. Confirm source preservation, saving and restoration after refresh.
 
-Back up the old wheel, active ChatEnv profile and SQLite file. Install only the verified wheel without upgrading GPU dependencies, activate the complete configuration, and gracefully restart ChatVoice through its existing supervisor. Do not restart unrelated gateways. Roll back the wheel and config if acceptance fails; do not overwrite an unchanged database unnecessarily.
+Connectivity tests call configured providers and consume their quota. Do not use private meeting content for production probes.
 
-## Acceptance
+## Errors and boundaries
 
-`/api/status` exposes separate `meeting_notes` and `meeting_title` summaries containing provider, model, base_host, key_configured and configured, without keys or complete base URLs. The legacy `meeting_title_model` field remains.
+| State | Action |
+| --- | --- |
+| Configuration error / 503 | Check the complete purpose-specific triple |
+| Upstream/output error / 502 | Inspect service logs, network and provider state; preserve content |
+| Empty, truncated or reasoning-only output | Not a successful final document |
+| Quota/permission failure | Stop; do not silently switch to pay-as-you-go endpoints |
 
-Exercise real `POST /api/meeting-notes/polish`, `POST /api/meeting-title`, and `POST /api/meeting-notes/revise/stream` requests. The revision stream emits meta/delta/done events and the canvas protocol uses `[[[CANVAS]]]` and `[[[REPLY]]]`. HTTP errors, error objects inside HTTP 200, empty content, in-stream errors and incomplete streams must not become success. Error messages do not echo upstream bodies or credentials.
+Non-streaming text needs nonempty final content and explicit completion. Revision streams need a real terminal marker. Browser diagnostics expose sanitized state, never provider credentials.
 
-Click summary, title-refresh and revision controls on the public guest UI with a synthetic transcript; never replace model responses. Guest records remain in browser storage.
-
-This hotfix does not repair an unavailable voice subscription or change Token Plan validation, ASR, TTS, realtime voice, or voice-cloning settings.
+[Markdown Todo](markdown-todo.md) · [HTTP API](api-access.md) · [Troubleshooting](troubleshooting.md)

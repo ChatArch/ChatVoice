@@ -1,33 +1,17 @@
 # 运行目录与数据结构
 
-这一页说明 `pip install "ChatVoice[web]==0.1.16"` 之后，代码安装在哪里、运行数据默认写到哪里，以及 SQLite / 浏览器侧分别保存什么。
+源码、持久数据和临时处理文件分开管理。
 
-## 代码安装位置
+| 内容 | 位置或载体 |
+| --- | --- |
+| 安装代码 | 当前 Python 环境的 `site-packages/chatvoice` |
+| 配置 | ChatEnv 的 `envs/ChatVoice/` |
+| 账号记录 | 一个 SQLite 文件 |
+| 访客记录 | 当前浏览器 IndexedDB |
+| ASR 中间文件 | 运行根目录的 `temp/asr` |
+| 模型缓存 | 运行根目录的 `model-cache` 或显式指定的模型缓存 |
 
-`pip install` 安装的是 Python distribution，不需要源码目录即可运行：
-
-```text
-<venv>/lib/pythonX.Y/site-packages/chatvoice/
-<venv>/bin/chatvoice
-```
-
-如果没有虚拟环境，位置由当前 Python 的 `site-packages` 决定。生产建议使用独立 venv，例如：
-
-```text
-/opt/chatvoice/.venv/lib/pythonX.Y/site-packages/chatvoice/
-/opt/chatvoice/.venv/bin/chatvoice
-```
-
-## 默认运行根目录
-
-ChatVoice 的状态目录解析顺序：
-
-1. `CHATVOICE_RUNTIME_ROOT`
-2. `CHATVOICE_HOME`
-3. `CHATARCH_HOME/chatvoice`
-4. `~/.chatarch/chatvoice`
-
-默认结构：
+## 默认布局
 
 ```text
 ~/.chatarch/chatvoice/
@@ -40,94 +24,49 @@ ChatVoice 的状态目录解析顺序：
 └── model-cache/
 ```
 
-常用覆盖：
+```bash
+chatvoice paths --json
+chatvoice doctor --json
+```
+
+路径解析顺序为：Python 显式 `chatvoice_home` → 进程变量 `CHATVOICE_RUNTIME_ROOT`（兼容）→ `CHATVOICE_HOME` → `CHATARCH_HOME/chatvoice` → `~/.chatarch/chatvoice`。数据库可由进程变量 `MEETING_DB_PATH`（兼容）或 `CHATVOICE_SQLITE_PATH` 覆盖。
+
+ChatEnv 中登记了路径字段，但并不会替任意 CLI 进程自动导出变量。覆盖路径时，让账号命令、备份命令和服务启动环境使用同一值。
+
+## SQLite 数据 {#schema}
+
+| 表 | 内容 |
+| --- | --- |
+| `accounts` | 账号元数据与密码验证材料 |
+| `auth_sessions` | 会话摘要、CSRF 与过期时间 |
+| `api_tokens` | Token 摘要、scope、有效期、撤销状态 |
+| `meeting_records` | 转写、标签、摘要、纪要对话、Markdown Todo 与 Todo 对话 |
+| `conversation_records` | 实时对话文字与模型/音色元数据 |
+
+转写片段、标签与对话消息用 JSON 文本列保存；摘要与 `todo_markdown` 是正文文本。原始录音不是数据库字段。Todo 为空的旧记录仍可读取，旧客户端省略 Todo 字段不会清空它们。
+
+当前存储是单节点 SQLite WAL。Postgres/MySQL 没有可用切换配置；不要把增加进程数当作数据库迁移。
+
+## 一致性备份与恢复 {#backup}
 
 ```bash
-export CHATARCH_HOME=/srv/chatarch
-# runtime root => /srv/chatarch/chatvoice
-
-export CHATVOICE_HOME=/srv/chatvoice
-# runtime root => /srv/chatvoice
+chatvoice data dump --output "$HOME/.chatarch/chatvoice/backup.sqlite3" --json
 ```
 
-SQLite 文件也可以用兼容变量直接指定：
+备份使用 SQLite 一致性快照。不要在写入时仅复制主 `.sqlite3` 文件而忽略 WAL 状态。
+
+恢复会替换当前数据库。先正常停止服务，再确认目标和备份：
 
 ```bash
-export CHATVOICE_SQLITE_PATH=/srv/chatvoice/data/meetings.sqlite3
-# or legacy-compatible:
-export MEETING_DB_PATH=/srv/chatvoice/data/meetings.sqlite3
+systemctl --user stop chatvoice.service
+chatvoice data import "$HOME/.chatarch/chatvoice/backup.sqlite3" --yes --json
+systemctl --user start chatvoice.service
 ```
 
-## 后端 SQLite 数据结构
+默认先备份当前数据库；`--no-backup-current` 会关闭这项保护。恢复不是代码升级的默认步骤，不能用旧快照覆盖新记录。
 
-默认数据库：
+## 临时文件与日志
 
-```text
-~/.chatarch/chatvoice/data/meetings.sqlite3
-```
+ASR 可能为解码/识别短暂落盘，正常处理后清理；异常退出时应检查任务自有的残留。TTS/复刻的临时生成结果和会议原始录音是不同的数据类型，见[保留边界](recording-storage.md)。
 
-核心表：
-
-| Table | 内容 | 备注 |
-| --- | --- | --- |
-| `accounts` | 受邀账号、显示名、password salt/hash | 不保存明文密码 |
-| `auth_sessions` | 登录 session hash、CSRF、过期时间 | cookie 只保存 session token |
-| `api_tokens` | automation token id、hash、prefix、scope、撤销/过期时间 | 明文 token 只在创建时返回一次 |
-| `meeting_records` | 会议标题、时间、时长、tags JSON、transcript JSON、summary、preview | 原始音频不进数据库；旧记录标签默认为 `[]` |
-| `conversation_records` | 实时对话标题、message JSON、preview | 不保存对话音频 |
-
-会议标签、转写段落、会议摘要、纪要修改对话、实时对话消息以 JSON 字符串保存到 SQLite `TEXT` 字段。列表数据接口只返回 metadata / preview；详情接口才返回 transcript、summary 或 messages。
-
-## 浏览器本地数据
-
-访客模式数据保存在当前浏览器 IndexedDB：
-
-```text
-IndexedDB: speakr-meetings
-- guest meetings
-- guest summaries and metadata
-```
-
-登录账号模式下，会议/对话文本保存到服务端 SQLite。会议标签是轻量 metadata：账号模式进入 SQLite，访客模式进入 IndexedDB。当前会议记录页不提供录音保存/下载功能，也不在浏览器 IndexedDB 中保存录音分片。音频只用于实时 ASR，持久化结果是文字、标签和摘要。详见 [录音保存边界](recording-storage.md)。
-
-## 临时音频与模型缓存
-
-- `temp/asr/`：ASR 上传、转换或 worker 需要的临时文件位置；任务完成后应清理。
-- `model-cache/`：可选本地模型缓存目录。推荐生产形态是 `api-server`，把 GPU/模型放在独立 ASR API server 后面，ChatVoice Web 进程只通过 HTTP 调用。
-- `logs/`：服务日志建议由 supervisor/平台收集并轮转，不要记录 raw audio、完整 transcript、cookie、Authorization header 或 API key。
-- `run/`：PID/socket 等运行时控制文件位置。
-
-## API Key 配置边界
-
-Settings 页面只显示服务端 API key 是否已配置，不会在浏览器保存或提交密钥明文。生产密钥应放在服务端环境或受保护配置文件中：
-
-```bash
-export CHATVOICE_ASR_CHANNEL=api-server
-export CHATVOICE_ASR_API_URL="https://<asr-service>/v1/transcribe"
-# Store CHATVOICE_ASR_API_KEY in ChatEnv ChatVoice profile when the ASR endpoint requires it.
-# Store CHATVOICE_OPENAI_API_BASE / CHATVOICE_OPENAI_API_KEY / CHATVOICE_OPENAI_API_MODEL in ChatEnv ChatVoice profile for Token Plan voice/realtime.
-# Production CHATVOICE_OPENAI_API_KEY should be a Token Plan sk-sp... key, not a usage-billed sk-... key.
-# Store summarize/polish provider separately when using CRS:
-# CHATVOICE_MEETING_NOTES_PROVIDER=crs-chat-completions
-# CHATVOICE_MEETING_NOTES_CRS_PROFILE=apple
-```
-
-## 数据备份 / 恢复
-
-ChatVoice 的 packaged storage 是一个 SQLite 文件，不需要 `DATABASE_URL`。备份/迁移以单文件为单位：
-
-```bash
-chatvoice data dump --output backup.sqlite3 --json
-# 恢复前先停止正在写入的服务；import 会默认备份当前数据库。
-chatvoice data import backup.sqlite3 --yes --json
-```
-
-## 高并发 TODO
-
-打包后的存储层支持 SQLite WAL，适合单服务进程、轻并发和内部受控使用：
-
-```bash
-chatvoice serve app --workers 1
-```
-
-高并发 Postgres/MySQL 支持是未来单独 storage-layer migration，不是当前 `DATABASE_URL` 开关。在扩展到多 worker / 多节点前，需要把 `accounts`、`auth_sessions`、`api_tokens`、`meeting_records`、`conversation_records` 迁移到外部数据库，并增加对应 repository 层和迁移脚本。
+`logs/` 是可用的运行目录，不表示程序自动把所有请求写到固定日志文件。使用 systemd 部署时，优先查看该 unit 的 journal；日志位置由启动方式决定。

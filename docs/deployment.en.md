@@ -1,174 +1,91 @@
 # Deployment and Startup
 
-This page explains how to run a ChatVoice / Speakr service from the released Python package: install, create an account, start the service, generate an API token, and read meeting tag/summary data.
+Choose a service shape first. ChatVoice ships a web server, not a system-service installer or reverse-proxy manager.
 
-## Minimal install
+| Shape | Use | Requirement |
+| --- | --- | --- |
+| Foreground single process | Development and controlled trials | Stops when the terminal exits |
+| User-level systemd | Persistent Linux service | Durable virtual environment, data root and graceful shutdown |
+| Separate ASR HTTP service | Separate GPU and web runtime | Real endpoint in `CHATVOICE_ASR_API_URL` |
+| In-process FunASR | Prepared local model environment | Compatible CUDA/PyTorch, prewarm, no per-request reload |
 
-```bash
-python -m venv .venv
-. .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install "ChatVoice[web]==0.1.16"
-```
-
-Read back the real CLI tree and runtime paths first:
+## Install and inspect
 
 ```bash
-chatvoice --tree
-chatvoice --tree-brief
+python -m pip install "ChatVoice[web]==0.1.17"
 chatvoice paths --json
+chatvoice doctor --json
 chatvoice service plan --ensure-dirs --json
+chatvoice serve app --dry-run --json
 ```
 
-After `pip install`, package code lives under the active Python `site-packages/chatvoice/`, and the CLI entry point is the matching `bin/chatvoice`; production should use a dedicated venv. Runtime data is not written to the source checkout.
+Code lives in Python `site-packages`; state defaults to `~/.chatarch/chatvoice`. Use the [configuration reference](configuration.md) for server-side model credentials. Summary and title models are independent; Todo reuses the notes model.
 
-Default runtime state lives under ChatArch home:
-
-```text
-<chatarch-home>/chatvoice/
-├── data/          # default SQLite database
-├── logs/
-├── run/
-├── temp/
-│   └── asr/
-└── model-cache/
-```
-
-The runtime root resolves in this order: `CHATVOICE_RUNTIME_ROOT`, `CHATVOICE_HOME`, `CHATARCH_HOME/chatvoice`, then `~/.chatarch/chatvoice`. `temp/asr` holds ASR temporary files; see [Runtime Layout and Data Structure](runtime-layout.md) for the full layout and schema.
-
-## Create an invited account
-
-After installing `ChatVoice[web]`, no source-tree script is required. Use the packaged CLI. Passwords are read from environment variables only:
+When overriding paths, give the same process environment to local account commands and the web service:
 
 ```bash
-read -r -s CHATVOICE_ACCOUNT_LOGIN
-export CHATVOICE_ACCOUNT_LOGIN
-chatvoice accounts add person@example.com --display-name "Person" --password-env CHATVOICE_ACCOUNT_LOGIN --json
+export CHATARCH_HOME="$HOME/.chatarch"
+export CHATVOICE_HOME="$CHATARCH_HOME/chatvoice"
+export CHATVOICE_SQLITE_PATH="$CHATVOICE_HOME/data/meetings.sqlite3"
+```
+
+## Provision an account
+
+Supply `CHATVOICE_ACCOUNT_LOGIN` securely before running:
+
+```bash
+chatvoice accounts add member@example.com --display-name Member --password-env CHATVOICE_ACCOUNT_LOGIN
 chatvoice accounts list --json
 ```
 
-## Start the web service
+Self-registration is disabled. The ChatLogin host adapter reuses existing account IDs, password material and sessions without creating a replacement user database.
 
-Credential-free / GPU-free contract smoke:
-
-```bash
-export CHATVOICE_ASR_CHANNEL=stub-local
-chatvoice serve app --host 127.0.0.1 --port 18087
-```
-
-Open:
-
-```text
-http://127.0.0.1:18087/
-```
-
-For production, put the service behind a controlled reverse proxy. API keys stay server-side and must not appear in browser code, command argv, Git, logs, or public docs.
-
-## ASR provider: API first
-
-The recommended production shape is **ChatVoice calls ASR through an API provider**. That provider can be:
-
-- a managed cloud ASR API with an API key;
-- a self-hosted GPU ASR server exposing HTTP;
-- an internal GPU node fronted by a private route or reverse proxy.
-
-Configure it like this:
+## Foreground server
 
 ```bash
-export CHATVOICE_ASR_CHANNEL=api-server
-export CHATVOICE_ASR_API_URL="https://<asr-service>/v1/transcribe"
-# Configure the optional ASR bearer token in server-side config/env storage; do not put it in argv.
-chatvoice serve app --host 127.0.0.1 --port 18087
+chatvoice serve app --host 127.0.0.1 --port 18087 --workers 1
 ```
 
-The browser **Settings -> Server-side API Key** panel displays ASR, system TTS, realtime Token Plan, text and local VoiceClone readiness without storing raw credentials. `0.1.16` includes independent text, TTS settings and Markdown Todo. Configure the six `CHATVOICE_TTS_*` fields in ChatEnv `ChatVoice` for [independent TTS](tts-models.en.md). Any nonempty field opts in; incomplete configuration returns 503 without borrowed credentials or fallback. All fields empty preserve legacy TTS through `CHATVOICE_OPENAI_API_BASE` / `CHATVOICE_OPENAI_API_KEY` / `CHATVOICE_OPENAI_API_MODEL`; legacy TTS and realtime still require `sk-sp...`. ASR, realtime, notes/title, VoiceClone, accounts, storage and supervisors are unchanged. The deployment owner handles real synthesis, billing confirmation, backup and rollback acceptance.
+Loopback is for same-machine validation. Remote users need the deployed HTTPS entry. Forward WebSockets and avoid buffering revision SSE at the proxy; provider credentials remain server-side.
 
-Meeting notes can use CRS independently from voice model keys:
+## User-level systemd example
+
+Ensure the virtual environment and data root exist. Save this thin unit as `~/.config/systemd/user/chatvoice.service`. The `service plan` command does not install it.
+
+```ini
+[Unit]
+Description=ChatVoice Speakr
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/.chatarch/chatvoice
+Environment=CHATVOICE_HOME=%h/.chatarch/chatvoice
+ExecStart=%h/.chatarch/chatvoice/.venv/bin/chatvoice serve app --host 127.0.0.1 --port 18087 --workers 1
+Restart=on-failure
+KillSignal=SIGINT
+SendSIGKILL=no
+TimeoutStopSec=120
+
+[Install]
+WantedBy=default.target
+```
 
 ```bash
-export CHATVOICE_MEETING_NOTES_PROVIDER=crs-chat-completions
-export CHATVOICE_MEETING_NOTES_CRS_PROFILE=apple
-# Optional explicit override; otherwise use the CRS profile model, e.g. gpt-5.5.
-# export CHATVOICE_MEETING_NOTES_MODEL=gpt-5.5
+systemctl --user daemon-reload
+systemctl --user enable --now chatvoice.service
+systemctl --user status chatvoice.service
+journalctl --user -u chatvoice.service -n 100 --no-pager
 ```
 
-`crs-chat-completions` reads a ChatEnv built-in `OpenAI/<profile>` but only accepts CRS hosts such as `crs.tencent-am.wzhecnu.cn`, so unrelated OpenAI-compatible ENV values are refused. `CHATVOICE_MEETING_NOTES_CRS_API_BASE` / `CHATVOICE_MEETING_NOTES_CRS_API_KEY` are available only for controlled explicit overrides; prefer the CRS profile.
+Check host policy for user-service lifetime after logout. Proxy settings, `ffmpeg` and model dependencies must be available in the actual service environment; an interactive shell does not establish systemd readiness.
 
-ChatVoice sends uploaded audio to `CHATVOICE_ASR_API_URL` as multipart field `file` and reads `corrected_text`, `text`, `transcript`, `raw_text`, `data.text`, or `result.text` from the ASR JSON response.
+## Validate and upgrade
 
-`funasr-gpu` / `funasr-cpu` remain compatibility channels, but they are not the default recommended deployment. Starting with 0.1.15, production requires FunASR to load persistently inside the ChatVoice service process and prewarm during startup by default; the short-lived subprocess worker is disabled by default because it reloads the GPU model per request/chunk and causes repeated cold starts. Enable `CHATVOICE_FUNASR_ALLOW_SUBPROCESS_WORKER=1` only for explicit debugging. A more flexible approach is to run the GPU runtime as an ASR API server and let ChatVoice call it through `api-server`.
+1. Read version, `database.ok` and ASR state from `/api/heartbeat`.
+2. Use short synthetic content to test enabled ASR, summary, title, Todo and TTS paths independently.
+3. Verify account/guest storage, refresh and the real user-facing URL, not only loopback.
+4. Preserve the previous package, configuration and a consistent database backup. Pin the upgrade and avoid unrelated GPU dependency changes.
+5. Stop/start through the supervisor, then verify the new process, version, dependency diff and real operations.
 
-Meeting summary generation is also a server-side model boundary: configure the notes model/provider in server-side environment or config storage, and let the browser/API read only the saved summary text.
-
-## Generate a token and read data
-
-After browser login, create a token from **Settings → API Token**. Token values are shown once. The CLI can also create tokens:
-
-```bash
-chatvoice tokens create --url http://127.0.0.1:18087 --account person@example.com --password-env CHATVOICE_ACCOUNT_LOGIN --name automation --json
-```
-
-Put the token into the environment variable selected by `--token-env`, then read meeting tags/summaries/conversations:
-
-```bash
-read -r -s CHATVOICE_DATA_READ
-export CHATVOICE_DATA_READ
-chatvoice data meetings --url http://127.0.0.1:18087 --token-env CHATVOICE_DATA_READ --json
-chatvoice data conversations --url http://127.0.0.1:18087 --token-env CHATVOICE_DATA_READ --json
-```
-
-See [API Access](api-access.md) for details.
-
-## Database and concurrency boundary
-
-The packaged web app uses SQLite WAL by default:
-
-```text
-<chatarch-home>/chatvoice/data/meetings.sqlite3
-```
-
-Core tables are `accounts`, `auth_sessions`, `api_tokens`, `meeting_records`, and `conversation_records`. Meeting tags, transcripts, summary content, and realtime messages are stored as JSON strings. Raw audio is not stored in the backend database. Guest-mode local text, tags, summaries, and metadata stay in browser IndexedDB; the current meeting recorder does not store recording chunks and does not provide recording downloads. See [Recording Storage Boundary](recording-storage.md).
-
-This is suitable for one service process, light concurrency, and controlled internal use. The current boundary is:
-
-- run `chatvoice serve app --workers 1`;
-- do not run multiple workers/nodes writing the same SQLite file;
-- back up or move database state as one SQLite file with the CLI dump/restore commands;
-- future high-concurrency Postgres/MySQL support is a separate storage-layer migration, not a current `DATABASE_URL` switch;
-- there is no `DATABASE_URL` ChatVoice setting in the packaged storage layer; the active database is the resolved `meetings.sqlite3` file.
-
-Read back the effective plan:
-
-```bash
-chatvoice doctor --json
-chatvoice service plan --json
-```
-
-## Health checks
-
-```bash
-chatvoice health status --url http://127.0.0.1:18087 --json
-curl -s http://127.0.0.1:18087/api/heartbeat | python -m json.tool
-```
-
-Starting in `0.1.6`, the lightweight heartbeat separates “web service down”, “ASR is cold-starting/processing”, and “ASR recently failed”:
-
-- `ok`: whether the web service, read-only database probe, and ASR state are usable.
-- `asr.status`: `ready`, `processing`, or `degraded`.
-- `asr.funasr_model_warm`: whether the FunASR GPU model is loaded in-process; the first cold start can take about one minute.
-- `asr.recent.last_success_at` / `last_error_at`: most recent ASR success/failure timestamps.
-- `asr.recent.last_elapsed_ms` / `last_text_chars`: most recent ASR latency and output length.
-
-The recording WebSocket also emits `asr.stream.processing` and `asr.stream.heartbeat` while recognition is running. The browser shows model-loading/processing/failure state instead of silently recording with no transcript output.
-
-Core service endpoints:
-
-```text
-GET /api/status
-GET /api/heartbeat
-GET /api/asr/channels
-POST /api/asr
-WS  /ws/asr/stream
-GET /api/data/meetings
-GET /api/data/conversations
-```
+Do not restore an old database over new user records merely to roll back code. See [backup/restore](runtime-layout.md#backup) and [troubleshooting](troubleshooting.md).

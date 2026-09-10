@@ -1,51 +1,52 @@
-# 独立配置纪要与标题模型
+# 独立文本模型
 
-会议纪要、标题可以分别配置独立的 OpenAI-compatible Chat Completions 接口，文字任务不借用语音凭据。Markdown Todo 复用会议纪要模型，无需新增配置。
+纪要、标题与语音是不同能力。文本模型使用 OpenAI 兼容 Chat Completions 接口，不要求与 ASR 或 TTS 来自同一提供者。
 
-## 配置边界
+| 用途 | 配置前缀 | 作用 |
+| --- | --- | --- |
+| 纪要 | `CHATVOICE_MEETING_NOTES_` | 摘要、纪要对话、Todo 转换与改写 |
+| 标题 | `CHATVOICE_MEETING_TITLE_` | 会议标题 |
+| 语音 | 另见 TTS 配置 | 不向文本用途借用密钥 |
 
-每个用途各有三个字段，全部写入 ChatEnv 的 `ChatVoice` provider：
+## 配置完整三项
 
-| 用途 | Base | Key（敏感字段） | Model |
-| --- | --- | --- | --- |
-| 纪要、润色、画布修改 | `CHATVOICE_MEETING_NOTES_API_BASE` | `CHATVOICE_MEETING_NOTES_API_KEY` | `CHATVOICE_MEETING_NOTES_MODEL` |
-| 自动标题、刷新标题 | `CHATVOICE_MEETING_TITLE_API_BASE` | `CHATVOICE_MEETING_TITLE_API_KEY` | `CHATVOICE_MEETING_TITLE_MODEL` |
-
-一旦某用途的 Base 或 Key 任一非空，该用途必须同时提供 Base、Key、Model；缺项返回 HTTP 503，不会从语音、CRS profile、全局 OpenAI 或另一个用途借用配置。Base 与 Key 都为空时保留旧行为。`CHATVOICE_MEETING_NOTES_PROVIDER` 只控制旧路径，显式独立配置优先。
-
-以下 Agent Plan 示例需替换占位符，仅通过安全 stdin 写入 ChatEnv；不要把真实密钥放进命令参数、仓库、截图或聊天：
+在 ChatEnv 的 `ChatVoice` 类型中设置：
 
 ```dotenv
-CHATVOICE_MEETING_NOTES_API_BASE=https://ark.cn-beijing.volces.com/api/plan/v3
-CHATVOICE_MEETING_NOTES_API_KEY=<your-Agent-Plan-key>
-CHATVOICE_MEETING_NOTES_MODEL=doubao-seed-2.0-lite
-CHATVOICE_MEETING_TITLE_API_BASE=https://ark.cn-beijing.volces.com/api/plan/v3
-CHATVOICE_MEETING_TITLE_API_KEY=<your-Agent-Plan-key>
-CHATVOICE_MEETING_TITLE_MODEL=doubao-seed-2.0-mini
+CHATVOICE_MEETING_NOTES_API_BASE=https://model.example.com/v1
+CHATVOICE_MEETING_NOTES_API_KEY=[REDACTED]
+CHATVOICE_MEETING_NOTES_MODEL=your-notes-model
+CHATVOICE_MEETING_TITLE_API_BASE=https://model.example.com/v1
+CHATVOICE_MEETING_TITLE_API_KEY=[REDACTED]
+CHATVOICE_MEETING_TITLE_MODEL=your-title-model
 ```
 
-同一 Key 可以被明确写入两个独立字段；系统不会隐式共享。套餐入口和模型可用性应以当前账号为准，不可把此入口替换成按量计费入口。
+这些是示例占位值。两组配置可以指向同一后端，但每组都需完整声明。独立 base/key 任一非空即启用该用途的独立路径；缺字段会明确失败，不从语音、另一文本用途或全局 OpenAI 配置借值。
 
-## 自检与切换
+具体导入和激活命令见[配置参考](configuration.md)。
 
-先在隔离 ChatEnv home 中验证，再切生产。隔离 home 也应放在 `$CHATARCH_HOME` 管理目录下，而不是源码仓库：
+## 验证顺序
 
 ```bash
-chatenv --home "$CHATARCH_HOME/chatvoice/validation" paste --stdin -t chatvoice
-chatenv --home "$CHATARCH_HOME/chatvoice/validation" test -t chatvoice -I
+chatenv test -t chatvoice -I
 ```
 
-`test` 会先验证两个用途的完整性，再分别发一个合成文本请求；未配置独立接口时明确报告仅加载 schema，不访问网络。测试不导入 Web、数据库或 GPU 模型。`max_tokens` 是输出参数，不代表供应商推理 token 或费用的硬上限。
+1. 用短合成文字生成摘要，确认返回正文而非仅推理文本。
+2. 单独请求标题；摘要成功不代表标题配置正确。
+3. 在网页继续对话完善纪要，再转换为 Todo 并改写。
+4. 验证原摘要保留、保存与刷新恢复。
 
-生产切换前备份原 wheel、ChatEnv active profile 和 SQLite 文件；只安装已验证 wheel，不升级 GPU 依赖。激活完整配置后，通过现有 supervisor 优雅重启 ChatVoice。不要重启无关 gateway。验证失败时恢复原 wheel 和原配置；数据库没有变化时不应覆盖现有数据库。
+连通性测试会调用已配置的模型并消耗其额度。生产探测不要使用真实会议内容。
 
-## 验收
+## 错误与边界
 
-- `/api/status` 的 `meeting_notes`、`meeting_title` 返回 provider、model、base_host、key_configured、configured；不返回 Key 或完整 Base。旧 `meeting_title_model` 字段保留。
-- `POST /api/meeting-notes/polish` 返回非空 `content`。
-- `POST /api/meeting-title` 返回中文 `title`。
-- `POST /api/meeting-notes/revise/stream` 返回 `meta`、`delta`、`done`；画布协议包含 `[[[CANVAS]]]` 与 `[[[REPLY]]]`。
-- 上游 HTTP 错误、200 错误包、空正文、流中错误或未完成流不能当成成功；错误信息不复述上游正文或密钥。
-- 从真实公网访客页面点击更新摘要、刷新标题、完善纪要；只注入合成转写输入，不替换模型响应。
+| 状态 | 含义与处理 |
+| --- | --- |
+| 配置错误 / 503 | 检查该用途的完整三项，不更换无关语音配置 |
+| 上游或输出错误 / 502 | 检查服务日志、网络和提供者状态；保留原文后重试 |
+| 空、截断或仅推理输出 | 不视为成功正文 |
+| 额度或权限不足 | 停止请求；不要自动切到按量付费入口 |
 
-此次独立文字配置不会修复失效的语音套餐，也不改变 `CHATVOICE_OPENAI_*` 的 Token Plan 校验、ASR、TTS、实时语音或声音复刻配置。
+非流式完成要求非空正文和明确完成状态；纪要流式修改也需要真正的结束标记。页面展示的是脱敏状态，不返回模型密钥。
+
+[Markdown Todo](markdown-todo.md) · [HTTP 接口](api-access.md) · [故障排查](troubleshooting.md)

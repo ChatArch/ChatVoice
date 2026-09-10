@@ -1,33 +1,17 @@
 # Runtime Layout and Data Structure
 
-This page documents where `pip install "ChatVoice[web]==0.1.16"` installs code, where runtime data is written by default, and which data lives in SQLite versus the browser.
+Keep installed code, persistent state and temporary processing files separate.
 
-## Code install location
+| Data | Location |
+| --- | --- |
+| Package code | Current environment's `site-packages/chatvoice` |
+| Configuration | ChatEnv `envs/ChatVoice/` |
+| Account records | One SQLite file |
+| Guest records | Current-browser IndexedDB |
+| ASR intermediates | Runtime `temp/asr` |
+| Model cache | Runtime `model-cache` or explicitly selected model cache |
 
-`pip install` installs a Python distribution; the source checkout is not required at runtime:
-
-```text
-<venv>/lib/pythonX.Y/site-packages/chatvoice/
-<venv>/bin/chatvoice
-```
-
-Without a virtualenv, the location is controlled by the active Python `site-packages`. Production should use a dedicated venv, for example:
-
-```text
-/opt/chatvoice/.venv/lib/pythonX.Y/site-packages/chatvoice/
-/opt/chatvoice/.venv/bin/chatvoice
-```
-
-## Default runtime root
-
-ChatVoice resolves its state root in this order:
-
-1. `CHATVOICE_RUNTIME_ROOT`
-2. `CHATVOICE_HOME`
-3. `CHATARCH_HOME/chatvoice`
-4. `~/.chatarch/chatvoice`
-
-Default layout:
+## Default layout
 
 ```text
 ~/.chatarch/chatvoice/
@@ -40,94 +24,49 @@ Default layout:
 └── model-cache/
 ```
 
-Common overrides:
+```bash
+chatvoice paths --json
+chatvoice doctor --json
+```
+
+Root precedence is explicit Python `chatvoice_home`, process `CHATVOICE_RUNTIME_ROOT` (compatibility), `CHATVOICE_HOME`, `CHATARCH_HOME/chatvoice`, then `~/.chatarch/chatvoice`. Database overrides are process `MEETING_DB_PATH` (compatibility) and `CHATVOICE_SQLITE_PATH`.
+
+Typed ChatEnv registration does not export values into arbitrary CLI processes. Give account commands, backup commands and the service launcher the same path environment.
+
+## SQLite schema {#schema}
+
+| Table | Content |
+| --- | --- |
+| `accounts` | Account metadata and password-verification material |
+| `auth_sessions` | Session digests, CSRF and expiry |
+| `api_tokens` | Token digests, scopes, expiry and revocation |
+| `meeting_records` | Transcript, tags, summary/refinement history, Markdown Todo and Todo history |
+| `conversation_records` | Realtime conversation text and model/voice metadata |
+
+Transcript segments, tags and messages use JSON text columns; summaries and `todo_markdown` are document text. Raw recordings are not database fields. Old records have empty Todo content; clients omitting Todo fields do not clear stored values.
+
+Storage is single-node SQLite WAL. There is no implemented Postgres/MySQL switch; adding web workers is not a database migration.
+
+## Consistent backup and restore {#backup}
 
 ```bash
-export CHATARCH_HOME=/srv/chatarch
-# runtime root => /srv/chatarch/chatvoice
-
-export CHATVOICE_HOME=/srv/chatvoice
-# runtime root => /srv/chatvoice
+chatvoice data dump --output "$HOME/.chatarch/chatvoice/backup.sqlite3" --json
 ```
 
-The SQLite file can also be pointed directly:
+The command uses a consistent SQLite snapshot. Copying only the main database file during active writes can miss WAL state.
+
+Restore replaces the active database. Stop the service first and verify the input:
 
 ```bash
-export CHATVOICE_SQLITE_PATH=/srv/chatvoice/data/meetings.sqlite3
-# or legacy-compatible:
-export MEETING_DB_PATH=/srv/chatvoice/data/meetings.sqlite3
+systemctl --user stop chatvoice.service
+chatvoice data import "$HOME/.chatarch/chatvoice/backup.sqlite3" --yes --json
+systemctl --user start chatvoice.service
 ```
 
-## Backend SQLite schema
+Current data is backed up by default; `--no-backup-current` disables that protection. Database restore is not a routine code-upgrade step and must not overwrite newer records.
 
-Default database:
+## Temporary files and logs
 
-```text
-~/.chatarch/chatvoice/data/meetings.sqlite3
-```
+ASR may create temporary files for decoding/recognition and cleans them during normal processing. Inspect owned leftovers after abnormal termination. Temporary synthesized audio and raw meeting recordings have different retention boundaries; see [data retention](recording-storage.md).
 
-Core tables:
-
-| Table | Data | Notes |
-| --- | --- | --- |
-| `accounts` | invited accounts, display names, password salt/hash | no plaintext password |
-| `auth_sessions` | login session hash, CSRF token, expiry | cookie stores only the session token |
-| `api_tokens` | automation token id, hash, prefix, scopes, revoke/expiry metadata | raw token is returned once only |
-| `meeting_records` | meeting title, timestamps, duration, tags JSON, transcript JSON, summary, preview | raw audio is not stored in DB; old rows default to `[]` tags |
-| `conversation_records` | realtime conversation title, message JSON, preview | conversation audio is not stored |
-
-Meeting tags, transcript segments, summaries, summary-edit chat messages, and realtime messages are stored as JSON strings in SQLite `TEXT` columns. List data endpoints return metadata / preview only; detail endpoints return transcript, summary, or messages.
-
-## Browser-local data
-
-Guest-mode data lives in the current browser's IndexedDB:
-
-```text
-IndexedDB: speakr-meetings
-- guest meetings
-- guest summaries and metadata
-```
-
-For signed-in accounts, meeting/conversation text is saved to server-side SQLite. Meeting tags are lightweight metadata: account mode writes them to SQLite, and guest mode writes them to IndexedDB. The current meeting recorder does not provide recording archive/download controls and does not store recording chunks in browser IndexedDB. Audio is used only for realtime ASR; the durable result is text, tags, and summaries. See [Recording Storage Boundary](recording-storage.md).
-
-## Temporary audio and model cache
-
-- `temp/asr/`: temporary ASR upload, conversion, or worker files; jobs should clean this after processing.
-- `model-cache/`: optional local model cache. The recommended production shape is `api-server`: keep GPU/model runtime behind a separate ASR API server and let the ChatVoice web process call it over HTTP.
-- `logs/`: service logs should be collected/rotated by the supervisor/platform. Do not log raw audio, full transcripts, cookies, Authorization headers, or API keys.
-- `run/`: PID/socket/runtime-control files.
-
-## API key boundary
-
-The Settings page shows only whether server-side API keys are configured. It never stores or submits raw key values in the browser. Production keys belong in server-side environment or protected config storage:
-
-```bash
-export CHATVOICE_ASR_CHANNEL=api-server
-export CHATVOICE_ASR_API_URL="https://<asr-service>/v1/transcribe"
-# Store CHATVOICE_ASR_API_KEY in the ChatEnv ChatVoice profile when the ASR endpoint requires it.
-# Store CHATVOICE_OPENAI_API_BASE / CHATVOICE_OPENAI_API_KEY / CHATVOICE_OPENAI_API_MODEL in the ChatEnv ChatVoice profile for Token Plan voice/realtime.
-# Production CHATVOICE_OPENAI_API_KEY should be a Token Plan sk-sp... key, not a usage-billed sk-... key.
-# Store summarize/polish provider separately when using CRS:
-# CHATVOICE_MEETING_NOTES_PROVIDER=crs-chat-completions
-# CHATVOICE_MEETING_NOTES_CRS_PROFILE=apple
-```
-
-## Data backup / restore
-
-ChatVoice packaged storage is one SQLite file and does not need a `DATABASE_URL`. Backups and moves are file-level operations:
-
-```bash
-chatvoice data dump --output backup.sqlite3 --json
-# Stop the writing service before restore; import backs up the current DB by default.
-chatvoice data import backup.sqlite3 --yes --json
-```
-
-## High-concurrency TODO
-
-The packaged storage supports SQLite WAL. It is suitable for one service process, light concurrency, and controlled internal use:
-
-```bash
-chatvoice serve app --workers 1
-```
-
-Future high-concurrency Postgres/MySQL support is a separate storage-layer migration, not a current `DATABASE_URL` switch. Before scaling to multiple workers or nodes, migrate `accounts`, `auth_sessions`, `api_tokens`, `meeting_records`, and `conversation_records` to an external database and add a proper repository layer plus migration scripts.
+A `logs/` directory does not mean every request is automatically written to a fixed log file. For a systemd deployment, inspect the unit journal; logging destinations depend on the launcher.
