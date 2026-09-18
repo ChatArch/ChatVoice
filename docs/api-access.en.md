@@ -9,6 +9,7 @@ Web sessions, stored records and model processing have distinct boundaries. All 
 | Data export | Bearer token with matching scope | Programmatic read-only export |
 | Text/ASR/TTS processing | Currently callable by guests; model keys remain server-side | Process content, not automatically save records |
 | Voice-cloning jobs | Account, job ownership and CSRF for create/delete | Authorized one-shot synthesis |
+| Copilot | Account cookies and owner checks; CSRF for writes | Preview materials and fast answers |
 
 !!! warning "Protect public processing endpoints"
     Model-processing routes are not Bearer data-export routes. Operators must control abuse and upstream quota. Hiding credentials from the browser does not make unrestricted model access safe.
@@ -58,6 +59,22 @@ Meeting writes contain title, timestamps, duration, tags, transcript segments, s
 | `POST /api/meeting-notes/revise/stream` | `transcript`, `current_summary`, `instruction`, optional `messages`/`model` | SSE `meta`, `delta`, `done` or `error` |
 
 Revision deltas use canvas/reply separator markers. Require explicit `done`; socket EOF is not completion. Keep the prior document when the stream fails.
+
+## Copilot preview {#copilot}
+
+When `CHATVOICE_COPILOT_ENABLED=1` is set:
+
+| Method and path | Purpose |
+| --- | --- |
+| `GET /copilot` | Chinese-first in-meeting assistant page |
+| `GET /api/copilot/status` | Enabled state, material limits and preparation policy |
+| `GET /api/copilot/materials` | Current owner's materials |
+| `POST /api/copilot/materials` | Multipart `file`; TXT/MD/PDF/DOCX, CSRF required |
+| `DELETE /api/copilot/materials/{id}` | Delete your material, CSRF required |
+| `POST /api/copilot/answer/stream` | SSE fast answer, CSRF required |
+| `POST /api/copilot/prepare` | Optional speculative preparation; returns 409 when disabled |
+
+Answer stream events are `meta`, `delta`, `done` or `error`. `meta.evidence` contains retrieved material snippets, not verified external citations; clients must wait for `done.completion_marker == "copilot.answer.done"`. Requests bind `request_id`, `transcript_revision` and `material_revision`; late or stale results should be discarded by the client.
 
 ## Markdown Todo {#todo}
 

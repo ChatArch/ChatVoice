@@ -8,6 +8,7 @@ function meeting(mutation) {
 }
 
 const cases = {
+  ...require('./copilot_frontend_flows.cjs'),
   async access(mode = 'success') {
     const app = harness();
     let restored = false;
@@ -390,6 +391,73 @@ const cases = {
       assert.ok(link.href && !link.href.startsWith('javascript:'));
       assert.match(link.rel, /noopener|noreferrer/);
     }
+  },
+  async copilot(mode = 'success') {
+    const app = harness();
+    app.run("storageMode = 'account'; authUser = {id: 'offline'}; csrfToken = 'csrf';");
+    app.respond = async (url, options = {}) => {
+      if (url === '/api/copilot/status') return json({enabled: mode !== 'disabled', auto_prepare: false});
+      if (url === '/api/asr/channels') return json({default: 'stub-local', channels: [{id: 'stub-local'}], stream_policy: {}});
+      if (url === '/api/copilot/materials' && (!options.method || options.method === 'GET')) return json({materials: []});
+      if (url === '/api/copilot/answer/stream') return sse([
+        'event: meta\ndata: {"request_id":"manual-1"}\n\n',
+        'event: delta\ndata: {"text":"快速回答"}\n\n',
+        'event: done\ndata: {"completion_marker":"copilot.answer.done"}\n\n',
+      ]);
+      throw new Error(`Unexpected request ${url}`);
+    };
+    await app.run('showCopilotPage()');
+    assert.equal(app.run('activeProductView'), 'copilot');
+    assert.equal(app.element('copilot-disabled').hidden, mode !== 'disabled');
+    if (mode === 'disabled') return;
+    assert.equal(app.element('copilot-submit').disabled, true);
+    app.run("copilotTranscriptState.applyResult({corrected_text:'客户问是否支持 SSO？', stream:{revision:1, replace:true, final:false}});");
+    await app.element('copilot-submit').click();
+    await app.settle(() => !app.run('copilotAnswerRunning'));
+    assert.match(app.element('copilot-answer').textContent, /快速回答/);
+    assert.equal(JSON.parse(app.requests.find(item => item.url === '/api/copilot/answer/stream').body).transcript_revision, 1);
+    assert.equal(app.run('copilotLastCompletionMarker'), 'copilot.answer.done');
+  },
+  async copilotAudio(mode = 'mic') {
+    const app = harness();
+    app.run("storageMode = 'account'; authUser = {id: 'offline'}; csrfToken = 'csrf'; activeProductView = 'copilot';");
+    app.respond = async url => url === '/api/asr/channels' ? json({default: 'stub-local', channels: [{id: 'stub-local'}], stream_policy: {}}) : json({enabled: true});
+    if (mode === 'systemUnsupported') app.context.navigator.mediaDevices.getDisplayMedia = async () => ({ getAudioTracks: () => [], getTracks: () => [] });
+    await app.run(`startCopilotAudio(${JSON.stringify(mode === 'systemUnsupported' ? 'mic-tab' : 'mic')})`);
+    if (mode === 'systemUnsupported') {
+      assert.equal(app.run('copilotAudioState'), 'error');
+      assert.equal(app.sockets.length, 0);
+      assert.ok(app.tracks.every(track => track.stopped));
+      return;
+    }
+    assert.equal(app.run('copilotAudioState'), 'connecting');
+    const socket = app.sockets[0];
+    await socket.open();
+    socket.message({demo_event: 'asr.stream.started'});
+    assert.equal(app.run('copilotAudioState'), 'recording');
+    app.run('copilotAudioProcessor.onaudioprocess({inputBuffer:{getChannelData:()=>new Float32Array([.2,-.1])}})');
+    assert.equal(socket.sent.at(-1).type, 'asr.stream.append');
+    socket.message({demo_event:'asr.stream.result', result:{corrected_text:'新的问题', stream:{revision:2, replace:true}}});
+    assert.match(app.element('copilot-transcript').textContent, /新的问题/);
+    await app.run('stopCopilotAudio()');
+    assert.ok(socket.closed);
+    assert.ok(app.tracks.every(track => track.stopped));
+    assert.ok(app.graphs.every(graph => graph.closed));
+  },
+  async copilotDraft() {
+    const app = harness();
+    app.run("storageMode = 'account'; authUser = {id:'offline'}; csrfToken = 'csrf'; activeProductView = 'copilot'; copilotAutoPrepare = true;");
+    const pending = deferred();
+    app.respond = async url => url === '/api/copilot/prepare' ? pending.promise : json({enabled: true});
+    app.run("copilotTranscriptState.applyResult({corrected_text:'第一个问题？', stream:{revision:1, replace:true}}); scheduleCopilotPrepare();");
+    const prepareWork = app.timers.get(app.run('copilotPrepareTimer'))();
+    await app.settle(() => app.requests.some(item => item.url === '/api/copilot/prepare'));
+    app.run("copilotTranscriptState.applyResult({corrected_text:'第一个问题先不问，继续说明。', stream:{revision:2, replace:true}}); invalidateCopilotDraft('continued');");
+    pending.resolve(sse(['event: delta\ndata: {"text":"旧草稿"}\n\n', 'event: done\ndata: {"completion_marker":"copilot.answer.done"}\n\n']));
+    await prepareWork;
+    await app.settle(() => !app.run('copilotPrepareRunning'));
+    assert.doesNotMatch(app.element('copilot-prepared-answer').textContent, /旧草稿/);
+    assert.match(app.element('copilot-prepare-state').textContent, /已失效/);
   },
 };
 

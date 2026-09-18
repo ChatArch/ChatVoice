@@ -9,6 +9,7 @@
 | 数据导出 | Bearer Token 与对应 scope | 程序化只读导出 |
 | 文本/ASR/TTS 处理 | 当前可供访客调用；服务端持有模型密钥 | 转换内容，不代表已保存记录 |
 | 声音复刻任务 | 账号会话、任务所有权，创建/删除需 CSRF | 授权声音的一次性生成 |
+| 会中助手 | 账号 Cookie + 所有权检查；写操作需 CSRF | 预览版材料与快速回答 |
 
 !!! warning "公开入口需要访问与额度控制"
     模型处理接口不是 Bearer 数据导出接口。部署者应限制滥用并核实上游额度，不要把“密钥未暴露给浏览器”误当成无限制开放模型调用。
@@ -58,6 +59,22 @@ app = create_app(login_ui=LoginUI(
 | `POST /api/meeting-notes/revise/stream` | `transcript`、`current_summary`、`instruction`、可选 `messages`/`model` | SSE：`meta`、`delta`、`done` 或 `error` |
 
 纪要修改流的 `delta.text` 使用画布/回复分隔标记；消费者必须等待明确 `done`，不能把连接断开当成完成。失败时保留当前正文。
+
+## 会中助手预览 {#copilot}
+
+启用 `CHATVOICE_COPILOT_ENABLED=1` 后开放：
+
+| 方法与路径 | 说明 |
+| --- | --- |
+| `GET /copilot` | 中文优先的会中助手页面 |
+| `GET /api/copilot/status` | 启用状态、材料限制、后台准备策略 |
+| `GET /api/copilot/materials` | 当前账号材料列表 |
+| `POST /api/copilot/materials` | multipart `file`；支持 TXT/MD/PDF/DOCX，需 CSRF |
+| `DELETE /api/copilot/materials/{id}` | 删除自己的材料，需 CSRF |
+| `POST /api/copilot/answer/stream` | SSE 快速回答，需 CSRF |
+| `POST /api/copilot/prepare` | 可选后台准备；未启用自动准备时返回 409 |
+
+回答流事件为 `meta`、`delta`、`done` 或 `error`。`meta.evidence` 是检索到的材料片段，不是外部验证引用；调用方必须等待 `done.completion_marker == "copilot.answer.done"`。请求绑定 `request_id`、`transcript_revision`、`material_revision`，迟到或失效结果应由客户端丢弃。
 
 ## Markdown Todo {#todo}
 

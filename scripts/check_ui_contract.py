@@ -19,22 +19,26 @@ checks["meeting_recorder_is_primary_surface"] = all(
     )
 )
 checks["exact_product_tabs"] = (
-    text.count('<button class="content-tab') == 3
+    text.count('<button class="content-tab') == 4
     and 'id="transcript-tab"' in text
     and 'id="summary-tab"' in text
     and 'id="summary-chat-tab"' in text
+    and 'id="todo-tab"' in text
     and "文字记录" in text
     and "实时摘要" in text
     and "完善纪要" in text
+    and "Todo" in text
 )
 checks["top_level_workspaces_exist"] = (
-    text.count('<button class="product-tab') == 3
+    text.count('<button class="product-tab') == 4
     and 'id="meeting-product-tab"' in text
     and 'id="studio-product-tab"' in text
     and 'id="conversation-product-tab"' in text
+    and 'id="copilot-product-tab"' in text
     and 'data-product-view="meeting"' in text
     and 'data-product-view="studio"' in text
     and 'data-product-view="conversation"' in text
+    and 'data-product-view="copilot"' in text
 )
 checks["voice_studio_tts_is_wired"] = all(
     marker in text
@@ -133,9 +137,9 @@ checks["permission_error_is_handled"] = "NotAllowedError" in text and "未获得
 checks["navigation_guard_exists"] = "beforeunload" in text
 checks["meeting_sidebar_exists"] = all(marker in text for marker in ('id="meeting-sidebar"', 'id="new-meeting"', 'id="meeting-search"', 'id="meeting-groups"'))
 checks["guest_storage_is_browser_only"] = "indexedDB.open" in text and "GUEST_STORE" in text and "X-Client-Id" not in text
-checks["account_mode_is_available"] = all(marker in text for marker in ('id="entry-dialog"', "fetch('/api/auth/login'", "/api/auth/session", "/api/auth/logout"))
+checks["account_mode_is_available"] = all(marker in text for marker in ('id="entry-dialog"', "/login?next=", "/api/auth/session", "/api/auth/logout"))
 checks["self_registration_is_not_offered"] = all(
-    marker in text for marker in ("仅限受邀账号使用", "不开放自行注册", "fetch('/api/auth/login'")
+    marker in text for marker in ("仅限受邀账号使用", "如需账号请联系管理员", "/login?next=")
 ) and all(marker not in text for marker in ('data-auth-mode="register"', "创建账号并同步", "/api/auth/${authMode}"))
 checks["summary_reset_cancels_stale_request"] = all(marker in text for marker in ("summaryAbortController.abort()", "requestEpoch !== contentEpoch", "persist = true"))
 checks["transcript_has_three_stable_zones"] = all(

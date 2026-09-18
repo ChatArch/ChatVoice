@@ -542,3 +542,12 @@ def test_logged_in_recording_has_no_frontend_duration_cap():
     timer_body = _function_body(source, "startTimer")
     assert "storageMode === 'guest' && recordingPassSeconds >= asrPassLimitSeconds" in timer_body
     assert "访客试用已达到 10 分钟" in timer_body
+
+
+def test_copilot_mobile_layout_stacks_panels_without_fixed_columns():
+    source = _script_source()
+    mobile = source[source.index("@media (max-width: 900px)"):source.index("@media (max-width: 680px)")]
+    assert ".copilot-shell" in mobile
+    assert "grid-template-columns: minmax(0, 1fr)" in mobile
+    assert "height: auto" in mobile
+    assert "min-height: 0" in mobile

@@ -10,6 +10,7 @@
 | 系统音色 | TTS 协议、地址、密钥、模型、音色 | [语音合成](tts-models.md) |
 | 我的复刻声音 | VoiceClone 地址 | [声音复刻](voice-cloning.md) |
 | 实时对话 | 兼容语音配置与有效模型权限 | [网页使用](web-guide.md#realtime) |
+| 会中助手预览 | 功能开关、纪要文本模型、ASR | [网页使用](web-guide.md#copilot) |
 
 ## 使用 ChatEnv {#chatenv}
 
@@ -41,7 +42,7 @@ chatenv test -t chatvoice -I
 | `CHATVOICE_MEETING_TITLE_API_KEY` | 标题专用密钥，敏感 |
 | `CHATVOICE_MEETING_TITLE_MODEL` | 标题模型标识 |
 
-填写某用途的独立地址或密钥时，该用途的地址、密钥、模型必须齐全。两用途可以显式填写相同的服务值，但不会互相借用缺失字段。Todo 不需要新增模型配置。
+填写某用途的独立地址或密钥时，该用途的地址、密钥、模型必须齐全。两用途可以显式填写相同的服务值，但不会互相借用缺失字段。Todo 不需要新增模型配置。会中助手快速回答也复用纪要模型；缺失时返回 503，不借用语音、标题或浏览器提供的任意模型设置。
 
 ```dotenv
 CHATVOICE_MEETING_NOTES_API_BASE=https://model.example.com/v1
@@ -53,6 +54,17 @@ CHATVOICE_MEETING_TITLE_MODEL=title-model
 ```
 
 示例地址、密钥与模型名都是占位值，应替换为已获授权服务的真实设置。
+
+## 会中助手预览 {#copilot}
+
+| 字段 | 默认值 | 用途 |
+| --- | --- | --- |
+| `CHATVOICE_COPILOT_ENABLED` | `0` | 启用 `/copilot`、页面导航和 `/api/copilot/*` |
+| `CHATVOICE_COPILOT_AUTO_PREPARE` | `0` | 允许后台准备草稿；默认关闭，手动 Submit 始终可用 |
+| `CHATVOICE_COPILOT_THINKING_MODE` | `provider-default` | 快答思考策略：`provider-default` 不增加厂家字段；`ark-disabled` 仅对本次 Copilot 请求发送火山方舟 `thinking.type=disabled`；其他值拒绝启动请求 |
+| `CHATVOICE_ENV_PROFILE` | 空 | 加载指定 ChatEnv ChatVoice profile，不修改全局 active profile；缺失不会回退 active profile |
+
+材料上传支持 TXT、Markdown、PDF、DOCX；不支持 URL 抓取。PDF 没有可提取文字时返回 OCR 不支持。材料文本、会前说明和快速回答状态按登录账号隔离，写操作继续使用既有 Cookie + CSRF 边界。
 
 ## ASR {#asr}
 

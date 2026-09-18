@@ -35,9 +35,12 @@ Installation neither starts a service nor downloads GPU models. The quick start 
 - Explicit summary-to-Todo conversion, a separate Markdown editor and refinement conversation, copy and `.md` export. No automatic conversion or task execution.
 - Configurable system TTS and an independent one-shot voice-cloning service.
 - Qwen realtime voice conversations when the configured backend grants access.
+- Preview in-meeting Copilot at `/copilot` and in the app navigation when `CHATVOICE_COPILOT_ENABLED=1`. It reuses live ASR and the notes text model; uploaded materials store extracted text per account.
 - CLI and Python clients, scoped API tokens and single-file SQLite backup/restore.
 
 Model configuration is server-side. Independent text settings serve notes and titles; Todo reuses the notes model. HTTP ASR uses `CHATVOICE_ASR_API_URL`, while local FunASR requires additional model/runtime dependencies.
+
+The Copilot preview adapts Backchannel's bounded live context and lightweight parsing ideas into `chatvoice.copilot`. It does not import Backchannel's database, audio, PII or agent stack. See `third_party/Backchannel-COPILOT-NOTICE.md`.
 
 ## Data and security
 

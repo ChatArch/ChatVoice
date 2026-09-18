@@ -10,6 +10,7 @@ Enable only the capabilities you need. This reference follows the released `Chat
 | System speech | TTS protocol, endpoint, key, model and voices | [TTS](tts-models.md) |
 | Voice cloning | VoiceClone URL | [Voice cloning](voice-cloning.md) |
 | Realtime | Legacy audio credentials and valid model entitlement | [Web guide](web-guide.md#realtime) |
+| Copilot preview | Feature flag, notes text model and ASR | [Web guide](web-guide.md#copilot) |
 
 ## Use ChatEnv {#chatenv}
 
@@ -41,7 +42,7 @@ The probe makes real text/TTS requests and can consume quota. Reload the service
 | `CHATVOICE_MEETING_TITLE_API_KEY` | Sensitive title credential |
 | `CHATVOICE_MEETING_TITLE_MODEL` | Title model identifier |
 
-Setting an independent base or key requires the complete base/key/model triple for that purpose. You may explicitly configure equal values for both purposes, but missing values are never borrowed. Todo needs no additional model setting.
+Setting an independent base or key requires the complete base/key/model triple for that purpose. You may explicitly configure equal values for both purposes, but missing values are never borrowed. Todo needs no additional model setting. The in-meeting Copilot fast answer path also reuses the notes model; missing notes configuration returns HTTP 503 and never borrows voice, title or browser-supplied arbitrary model settings.
 
 ```dotenv
 CHATVOICE_MEETING_NOTES_API_BASE=https://model.example.com/v1
@@ -53,6 +54,17 @@ CHATVOICE_MEETING_TITLE_MODEL=title-model
 ```
 
 All example addresses, keys and model names are placeholders.
+
+## Copilot preview {#copilot}
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `CHATVOICE_COPILOT_ENABLED` | `0` | Enables `/copilot`, app navigation and `/api/copilot/*` |
+| `CHATVOICE_COPILOT_AUTO_PREPARE` | `0` | Allows speculative draft preparation; off by default, manual Submit remains available |
+| `CHATVOICE_COPILOT_THINKING_MODE` | `provider-default` | Fast-answer thinking policy: `provider-default` adds no vendor field; `ark-disabled` sends Volcengine Ark `thinking.type=disabled` only for the Copilot request; other values fail closed |
+| `CHATVOICE_ENV_PROFILE` | Empty | Load a named ChatEnv ChatVoice profile without changing the global active profile; missing names do not fall back to active |
+
+Uploads accept TXT, Markdown, PDF and DOCX; URL fetch is not supported. PDFs with no extractable text return an OCR-not-supported error. Material text, pre-meeting instructions and answer state are isolated by logged-in owner; writes use the existing cookie and CSRF boundary.
 
 ## ASR {#asr}
 
