@@ -158,7 +158,6 @@ def test_unknown_thinking_fails_before_network(copilot_app, monkeypatch):
 
 
 def test_notice_has_complete_mit_and_wheel_configuration():
-    import tomllib
     root = Path(__file__).resolve().parents[1]
     notice = (root / "third_party/Backchannel-COPILOT-NOTICE.md").read_text()
     assert "https://github.com/talberthoule/backchannel" in notice
@@ -166,8 +165,8 @@ def test_notice_has_complete_mit_and_wheel_configuration():
     assert "Copyright (c) 2026 Talbert Houle" in notice
     assert "Permission is hereby granted, free of charge" in notice
     assert "OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE." in notice
-    config = tomllib.loads((root / "pyproject.toml").read_text())
-    assert "third_party/Backchannel-COPILOT-NOTICE.md" in config["project"]["license-files"]
+    pyproject = (root / "pyproject.toml").read_text()
+    assert 'license-files = ["LICENSE", "third_party/Backchannel-COPILOT-NOTICE.md"]' in pyproject
 
 
 def test_malformed_docx_upload_4xx(copilot_app):
