@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+    <url>
+        <loc>https://arch.gh.wzhecnu.cn/ChatVoice/dev/</loc>
+        <lastmod>2026-09-18</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://arch.gh.wzhecnu.cn/ChatVoice/dev/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://arch.gh.wzhecnu.cn/ChatVoice/deven/"/>
+    </url>
+    <url>
+        <loc>https://arch.gh.wzhecnu.cn/ChatVoice/dev/api-access/</loc>
+        <lastmod>2026-09-18</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://arch.gh.wzhecnu.cn/ChatVoice/dev/api-access/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://arch.gh.wzhecnu.cn/ChatVoice/deven/api-access/"/>
+    </url>
+    <url>
+        <loc>https://arch.gh.wzhecnu.cn/ChatVoice/dev/capability-map/</loc>
+        <lastmod>2026-09-18</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://arch.gh.wzhecnu.cn/ChatVoice/dev/capability-map/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://arch.gh.wzhecnu.cn/ChatVoice/deven/capability-map/"/>
+    </url>
+    <url>
+        <loc>https://arch.gh.wzhecnu.cn/ChatVoice/dev/cli-tree/</loc>
+        <lastmod>2026-09-18</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://arch.gh.wzhecnu.cn/ChatVoice/dev/cli-tree/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://arch.gh.wzhecnu.cn/ChatVoice/deven/cli-tree/"/>
+    </url>
+    <url>
+        <loc>https://arch.gh.wzhecnu.cn/ChatVoice/dev/configuration/</loc>
+        <lastmod>2026-09-18</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://arch.gh.wzhecnu.cn/ChatVoice/dev/configuration/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://arch.gh.wzhecnu.cn/ChatVoice/deven/configuration/"/>
+    </url>
+    <url>
+        <loc>https://arch.gh.wzhecnu.cn/ChatVoice/dev/deployment/</loc>
+        <lastmod>2026-09-18</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://arch.gh.wzhecnu.cn/ChatVoice/dev/deployment/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://arch.gh.wzhecnu.cn/ChatVoice/deven/deployment/"/>
+    </url>
+    <url>
+        <loc>https://arch.gh.wzhecnu.cn/ChatVoice/dev/interface-tree/</loc>
+        <lastmod>2026-09-18</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://arch.gh.wzhecnu.cn/ChatVoice/dev/interface-tree/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://arch.gh.wzhecnu.cn/ChatVoice/deven/interface-tree/"/>
+    </url>
+    <url>
+        <loc>https://arch.gh.wzhecnu.cn/ChatVoice/dev/markdown-todo/</loc>
+        <lastmod>2026-09-18</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://arch.gh.wzhecnu.cn/ChatVoice/dev/markdown-todo/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://arch.gh.wzhecnu.cn/ChatVoice/deven/markdown-todo/"/>
+    </url>
+    <url>
+        <loc>https://arch.gh.wzhecnu.cn/ChatVoice/dev/quickstart/</loc>
+        <lastmod>2026-09-18</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://arch.gh.wzhecnu.cn/ChatVoice/dev/quickstart/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://arch.gh.wzhecnu.cn/ChatVoice/deven/quickstart/"/>
+    </url>
+    <url>
+        <loc>https://arch.gh.wzhecnu.cn/ChatVoice/dev/recording-storage/</loc>
+        <lastmod>2026-09-18</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://arch.gh.wzhecnu.cn/ChatVoice/dev/recording-storage/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://arch.gh.wzhecnu.cn/ChatVoice/deven/recording-storage/"/>
+    </url>
+    <url>
+        <loc>https://arch.gh.wzhecnu.cn/ChatVoice/dev/runtime-layout/</loc>
+        <lastmod>2026-09-18</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://arch.gh.wzhecnu.cn/ChatVoice/dev/runtime-layout/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://arch.gh.wzhecnu.cn/ChatVoice/deven/runtime-layout/"/>
+    </url>
+    <url>
+        <loc>https://arch.gh.wzhecnu.cn/ChatVoice/dev/testing/</loc>
+        <lastmod>2026-09-18</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://arch.gh.wzhecnu.cn/ChatVoice/dev/testing/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://arch.gh.wzhecnu.cn/ChatVoice/deven/testing/"/>
+    </url>
+    <url>
+        <loc>https://arch.gh.wzhecnu.cn/ChatVoice/dev/text-models/</loc>
+        <lastmod>2026-09-18</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://arch.gh.wzhecnu.cn/ChatVoice/dev/text-models/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://arch.gh.wzhecnu.cn/ChatVoice/deven/text-models/"/>
+    </url>
+    <url>
+        <loc>https://arch.gh.wzhecnu.cn/ChatVoice/dev/troubleshooting/</loc>
+        <lastmod>2026-09-18</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://arch.gh.wzhecnu.cn/ChatVoice/dev/troubleshooting/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://arch.gh.wzhecnu.cn/ChatVoice/deven/troubleshooting/"/>
+    </url>
+    <url>
+        <loc>https://arch.gh.wzhecnu.cn/ChatVoice/dev/tts-models/</loc>
+        <lastmod>2026-09-18</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://arch.gh.wzhecnu.cn/ChatVoice/dev/tts-models/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://arch.gh.wzhecnu.cn/ChatVoice/deven/tts-models/"/>
+    </url>
+    <url>
+        <loc>https://arch.gh.wzhecnu.cn/ChatVoice/dev/voice-cloning/</loc>
+        <lastmod>2026-09-18</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://arch.gh.wzhecnu.cn/ChatVoice/dev/voice-cloning/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://arch.gh.wzhecnu.cn/ChatVoice/deven/voice-cloning/"/>
+    </url>
+    <url>
+        <loc>https://arch.gh.wzhecnu.cn/ChatVoice/dev/web-guide/</loc>
+        <lastmod>2026-09-18</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://arch.gh.wzhecnu.cn/ChatVoice/dev/web-guide/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://arch.gh.wzhecnu.cn/ChatVoice/deven/web-guide/"/>
+    </url>
+    <url>
+        <loc>https://arch.gh.wzhecnu.cn/ChatVoice/dev/en/api-access/</loc>
+        <lastmod>2026-09-18</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://arch.gh.wzhecnu.cn/ChatVoice/dev/en/api-access/"/>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://arch.gh.wzhecnu.cn/ChatVoice/devapi-access/"/>
+    </url>
+    <url>
+        <loc>https://arch.gh.wzhecnu.cn/ChatVoice/dev/en/capability-map/</loc>
+        <lastmod>2026-09-18</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://arch.gh.wzhecnu.cn/ChatVoice/dev/en/capability-map/"/>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://arch.gh.wzhecnu.cn/ChatVoice/devcapability-map/"/>
+    </url>
+    <url>
+        <loc>https://arch.gh.wzhecnu.cn/ChatVoice/dev/en/cli-tree/</loc>
+        <lastmod>2026-09-18</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://arch.gh.wzhecnu.cn/ChatVoice/dev/en/cli-tree/"/>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://arch.gh.wzhecnu.cn/ChatVoice/devcli-tree/"/>
+    </url>
+    <url>
+        <loc>https://arch.gh.wzhecnu.cn/ChatVoice/dev/en/configuration/</loc>
+        <lastmod>2026-09-18</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://arch.gh.wzhecnu.cn/ChatVoice/dev/en/configuration/"/>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://arch.gh.wzhecnu.cn/ChatVoice/devconfiguration/"/>
+    </url>
+    <url>
+        <loc>https://arch.gh.wzhecnu.cn/ChatVoice/dev/en/deployment/</loc>
+        <lastmod>2026-09-18</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://arch.gh.wzhecnu.cn/ChatVoice/dev/en/deployment/"/>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://arch.gh.wzhecnu.cn/ChatVoice/devdeployment/"/>
+    </url>
+    <url>
+        <loc>https://arch.gh.wzhecnu.cn/ChatVoice/dev/en/</loc>
+        <lastmod>2026-09-18</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://arch.gh.wzhecnu.cn/ChatVoice/dev/en/"/>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://arch.gh.wzhecnu.cn/ChatVoice/dev"/>
+    </url>
+    <url>
+        <loc>https://arch.gh.wzhecnu.cn/ChatVoice/dev/en/interface-tree/</loc>
+        <lastmod>2026-09-18</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://arch.gh.wzhecnu.cn/ChatVoice/dev/en/interface-tree/"/>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://arch.gh.wzhecnu.cn/ChatVoice/devinterface-tree/"/>
+    </url>
+    <url>
+        <loc>https://arch.gh.wzhecnu.cn/ChatVoice/dev/en/markdown-todo/</loc>
+        <lastmod>2026-09-18</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://arch.gh.wzhecnu.cn/ChatVoice/dev/en/markdown-todo/"/>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://arch.gh.wzhecnu.cn/ChatVoice/devmarkdown-todo/"/>
+    </url>
+    <url>
+        <loc>https://arch.gh.wzhecnu.cn/ChatVoice/dev/en/quickstart/</loc>
+        <lastmod>2026-09-18</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://arch.gh.wzhecnu.cn/ChatVoice/dev/en/quickstart/"/>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://arch.gh.wzhecnu.cn/ChatVoice/devquickstart/"/>
+    </url>
+    <url>
+        <loc>https://arch.gh.wzhecnu.cn/ChatVoice/dev/en/recording-storage/</loc>
+        <lastmod>2026-09-18</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://arch.gh.wzhecnu.cn/ChatVoice/dev/en/recording-storage/"/>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://arch.gh.wzhecnu.cn/ChatVoice/devrecording-storage/"/>
+    </url>
+    <url>
+        <loc>https://arch.gh.wzhecnu.cn/ChatVoice/dev/en/runtime-layout/</loc>
+        <lastmod>2026-09-18</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://arch.gh.wzhecnu.cn/ChatVoice/dev/en/runtime-layout/"/>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://arch.gh.wzhecnu.cn/ChatVoice/devruntime-layout/"/>
+    </url>
+    <url>
+        <loc>https://arch.gh.wzhecnu.cn/ChatVoice/dev/en/testing/</loc>
+        <lastmod>2026-09-18</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://arch.gh.wzhecnu.cn/ChatVoice/dev/en/testing/"/>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://arch.gh.wzhecnu.cn/ChatVoice/devtesting/"/>
+    </url>
+    <url>
+        <loc>https://arch.gh.wzhecnu.cn/ChatVoice/dev/en/text-models/</loc>
+        <lastmod>2026-09-18</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://arch.gh.wzhecnu.cn/ChatVoice/dev/en/text-models/"/>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://arch.gh.wzhecnu.cn/ChatVoice/devtext-models/"/>
+    </url>
+    <url>
+        <loc>https://arch.gh.wzhecnu.cn/ChatVoice/dev/en/troubleshooting/</loc>
+        <lastmod>2026-09-18</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://arch.gh.wzhecnu.cn/ChatVoice/dev/en/troubleshooting/"/>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://arch.gh.wzhecnu.cn/ChatVoice/devtroubleshooting/"/>
+    </url>
+    <url>
+        <loc>https://arch.gh.wzhecnu.cn/ChatVoice/dev/en/tts-models/</loc>
+        <lastmod>2026-09-18</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://arch.gh.wzhecnu.cn/ChatVoice/dev/en/tts-models/"/>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://arch.gh.wzhecnu.cn/ChatVoice/devtts-models/"/>
+    </url>
+    <url>
+        <loc>https://arch.gh.wzhecnu.cn/ChatVoice/dev/en/voice-cloning/</loc>
+        <lastmod>2026-09-18</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://arch.gh.wzhecnu.cn/ChatVoice/dev/en/voice-cloning/"/>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://arch.gh.wzhecnu.cn/ChatVoice/devvoice-cloning/"/>
+    </url>
+    <url>
+        <loc>https://arch.gh.wzhecnu.cn/ChatVoice/dev/en/web-guide/</loc>
+        <lastmod>2026-09-18</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://arch.gh.wzhecnu.cn/ChatVoice/dev/en/web-guide/"/>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://arch.gh.wzhecnu.cn/ChatVoice/devweb-guide/"/>
+    </url>
+</urlset>
