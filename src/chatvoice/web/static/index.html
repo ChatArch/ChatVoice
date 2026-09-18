@@ -599,6 +599,8 @@
 
     @media (max-width: 900px) {
       .site-shell { padding-left: 0; }
+      .copilot-shell { width: calc(100% - 24px); height: auto; min-height: 0; margin: 14px auto 24px; grid-template-columns: minmax(0, 1fr); }
+      .copilot-panel { min-height: 480px; }
       .meeting-sidebar { width: min(286px, calc(100vw - 44px)); transform: translateX(-100%); box-shadow: 24px 0 70px rgba(20, 24, 38, .15); }
       body.sidebar-open .meeting-sidebar { transform: translateX(0); }
       .sidebar-backdrop { position: fixed; z-index: 29; inset: 0; display: block; border: 0; background: rgba(23, 24, 29, .24); opacity: 0; pointer-events: none; transition: opacity .2s ease; }
