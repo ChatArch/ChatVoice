@@ -86,8 +86,12 @@ def _open_request(request: urllib.request.Request, timeout: float):
 
 
 def _request(settings: TextSettings, messages: list[dict[str, str]], *, stream: bool = False,
-             max_tokens: int | None = None) -> urllib.request.Request:
+             max_tokens: int | None = None, thinking_mode: str = 'provider-default') -> urllib.request.Request:
+    if thinking_mode not in {'provider-default', 'ark-disabled'}:
+        raise TextConfigurationError('Invalid text thinking mode')
     payload: dict[str, Any] = {'model': settings.model, 'messages': messages}
+    if thinking_mode == 'ark-disabled':
+        payload['thinking'] = {'type': 'disabled'}
     if stream:
         payload['stream'] = True
     if max_tokens is not None:
@@ -126,16 +130,17 @@ def complete_text(settings: TextSettings, messages: list[dict[str, str]], *, tim
         raise TextRequestError('Text service request failed or returned an invalid response') from None
 
 
-def stream_text(settings: TextSettings, messages: list[dict[str, str]], *, timeout: float = 120) -> Iterator[str]:
+def stream_text(settings: TextSettings, messages: list[dict[str, str]], *, timeout: float = 120,
+                thinking_mode: str = 'provider-default') -> Iterator[str]:
     """Yield content deltas; errors, empty output and truncated streams raise.
 
     A normal finish marker or [DONE] is required; partial output is never done.
-    No vendor-specific thinking parameters are sent.
+    Vendor-specific thinking is opt-in per request; default callers are unchanged.
     """
     try:
         received_content = False
         finished = False
-        request = _request(settings, messages, stream=True)
+        request = _request(settings, messages, stream=True, thinking_mode=thinking_mode)
         with _open_request(request, timeout=timeout) as response:
             for raw_line in response:
                 line = raw_line.decode('utf-8').strip()

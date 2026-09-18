@@ -98,6 +98,21 @@
     .product-tabs { justify-self: center; display: inline-flex; align-items: center; gap: 4px; padding: 4px; border: 1px solid #e5e5e8; border-radius: 13px; background: #eeeef0; }
     .product-tab { min-width: 92px; height: 34px; padding: 0 13px; border: 0; border-radius: 10px; background: transparent; color: #777980; font-size: 10px; font-weight: 680; transition: background .16s ease, color .16s ease, box-shadow .16s ease; }
     .product-tab.active { background: #fff; color: var(--ink); box-shadow: 0 2px 9px rgba(27, 29, 38, .08); }
+    .copilot-shell { width: min(1180px, calc(100% - 44px)); height: calc(100vh - 92px); min-height: 660px; margin: 14px auto; display: grid; grid-template-columns: 300px minmax(320px, 1fr) 360px; gap: 12px; }
+    .copilot-panel { min-width: 0; display: flex; flex-direction: column; border: 1px solid #e9e9eb; border-radius: 8px; background: #fff; overflow: hidden; }
+    .copilot-panel header { min-height: 50px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 14px; border-bottom: 1px solid #ededf0; }
+    .copilot-panel h2 { margin: 0; font-size: 13px; }
+    .copilot-area { width: 100%; min-height: 140px; flex: 0 0 auto; padding: 12px; border: 0; border-bottom: 1px solid #ededf0; outline: 0; resize: vertical; font: inherit; font-size: 11px; line-height: 1.7; }
+    .copilot-readout { flex: 1; min-height: 0; padding: 12px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; color: #43454c; font-size: 11px; line-height: 1.75; }
+    .copilot-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 12px; border-top: 1px solid #ededf0; }
+    .copilot-toolbar button, .copilot-upload-label { padding: 8px 10px; border: 1px solid #dedfe4; border-radius: 8px; background: #fff; color: #44464c; font-size: 10px; }
+    .copilot-toolbar button.primary { border-color: #5357d9; background: #5357d9; color: #fff; }
+    .copilot-toolbar button:disabled { opacity: .5; cursor: not-allowed; }
+    .copilot-material-list { display: grid; gap: 7px; padding: 10px 12px; border-top: 1px solid #ededf0; }
+    .copilot-material { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 8px; border: 1px solid #eeeeef; border-radius: 8px; }
+    .copilot-material strong, .copilot-material small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .copilot-material small, .copilot-status { color: #898b92; font-size: 9px; }
+    .copilot-disabled { margin: 14px; padding: 12px; border: 1px solid #f2d6d3; border-radius: 8px; background: #fff7f6; color: #b42318; font-size: 11px; }
 
     .utility-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
     .icon-button { width: 36px; height: 36px; padding: 0; display: grid; place-items: center; border: 1px solid #e7e7e9; border-radius: 12px; background: #fff; font-size: 12px; font-weight: 700; }
@@ -731,6 +746,7 @@
         <button class="product-tab active" id="meeting-product-tab" data-product="meeting" type="button" role="tab" aria-selected="true">会议记录</button>
         <button class="product-tab" id="studio-product-tab" data-product="studio" type="button" role="tab" aria-selected="false">声音工作室</button>
         <button class="product-tab" id="conversation-product-tab" data-product="conversation" type="button" role="tab" aria-selected="false">实时对话</button>
+        <button class="product-tab" id="copilot-product-tab" data-product="copilot" type="button" role="tab" aria-selected="false">会中助手</button>
       </nav>
 
       <nav class="utility-actions" aria-label="录音工具">
@@ -1100,6 +1116,38 @@
         <span class="conversation-privacy">语音仅用于当前实时会话，声笺不保存对话音频</span>
       </footer>
     </section>
+
+    <section class="copilot-shell product-view" id="copilot-shell" data-product-view="copilot" hidden>
+      <section class="copilot-panel" aria-label="材料与会前说明">
+        <header><h2>材料与会前说明</h2><span class="copilot-status" id="copilot-material-status">等待检查</span></header>
+        <textarea class="copilot-area" id="copilot-instructions" maxlength="2000" placeholder="回答风格、会前背景、注意事项"></textarea>
+        <textarea class="copilot-area" id="copilot-style" maxlength="800">简短中文，可直接在会中念出。</textarea>
+        <div class="copilot-toolbar">
+          <label class="copilot-upload-label">上传材料<input id="copilot-material-file" type="file" accept=".txt,.md,.markdown,.pdf,.docx" hidden></label>
+          <button id="copilot-upload" type="button">提交材料</button>
+        </div>
+        <div class="copilot-material-list" id="copilot-material-list"></div>
+        <div class="copilot-disabled" id="copilot-disabled" hidden>会中助手未启用。请在预览实例配置 CHATVOICE_COPILOT_ENABLED=1。</div>
+      </section>
+      <section class="copilot-panel" aria-label="实时转写与当前问题">
+        <header><h2>实时转写 / 当前问题</h2><span class="copilot-status" id="copilot-audio-status">未开始</span></header>
+        <div class="copilot-readout" id="copilot-transcript">等待会议转写。</div>
+        <textarea class="copilot-area" id="copilot-question" maxlength="2000" placeholder="当前问题会从稳定转写中提取，也可以手动编辑"></textarea>
+        <div class="copilot-toolbar">
+          <button id="copilot-start-mic" type="button">麦克风</button>
+          <button id="copilot-start-tab" type="button">麦克风 + 浏览器标签页</button>
+          <button id="copilot-pause-audio" type="button">暂停</button>
+          <button id="copilot-stop-audio" type="button" disabled>停止</button>
+        </div>
+      </section>
+      <section class="copilot-panel" aria-label="快速回答">
+        <header><h2>快速回答</h2><span class="copilot-status" id="copilot-prepare-state">未准备</span></header>
+        <div class="copilot-readout" id="copilot-prepared-answer">后台准备默认关闭。</div>
+        <div class="copilot-readout" id="copilot-answer">等待 Submit 快速回答。</div>
+        <div class="copilot-readout copilot-status" id="copilot-evidence">证据是检索上下文，不是外部验证引用。</div>
+        <div class="copilot-toolbar"><button class="primary" id="copilot-submit" type="button" disabled>Submit 快速回答</button></div>
+      </section>
+    </section>
   </main>
 
   <dialog id="settings-dialog">
@@ -1277,6 +1325,53 @@
     let csrfToken = '';
     let guestDbPromise = null;
     let activeProductView = 'meeting';
+    let copilotEnabled = false;
+    let copilotAutoPrepare = false;
+    let copilotMaterialRevision = 0;
+    let copilotMaterialEpoch = 0;
+    let copilotMaterialListAbortController = null;
+    let copilotMaterialMutationAbortController = null;
+    let copilotAnswerRunning = false;
+    let copilotPrepareRunning = false;
+    let copilotAnswerAbortController = null;
+    let copilotPrepareAbortController = null;
+    let copilotPrepareTimer = null;
+    let copilotPrepareCooldownUntil = 0;
+    let copilotInFlightPrepareId = '';
+    let copilotLastCompletionMarker = '';
+    let copilotAudioState = 'idle';
+    let copilotWs = null;
+    let copilotAudioContext = null;
+    let copilotAudioSource = null;
+    let copilotTabSource = null;
+    let copilotMixGain = null;
+    let copilotAudioEpoch = 0;
+    let copilotSessionRevision = 0;
+    let copilotWorkRevision = 0;
+    let copilotPrepared = null;
+    let copilotPreparePromise = null;
+    let copilotPreparingKey = '';
+    let copilotAudioProcessor = null;
+    let copilotMicStream = null;
+    let copilotTabStream = null;
+    let copilotSendingAudio = false;
+    let copilotTranscriptRevision = 0;
+    const copilotTranscriptState = {
+      text: '',
+      revision: 0,
+      applyResult(result = {}) {
+        const text = result.corrected_text || result.text || '';
+        const stream = result.stream || {};
+        if (!text || (stream.revision && stream.revision < this.revision)) return;
+        if (text !== this.text) invalidateCopilotDraft('transcript');
+        if ($('copilot-question').value === this.text) $('copilot-question').value = '';
+        this.text = text;
+        this.revision = Number(stream.revision || this.revision + 1);
+        copilotTranscriptRevision = this.revision;
+        renderCopilotTranscript();
+        return this.text;
+      },
+    };
     let selectedTtsVoice = '';
     let selectedTtsFormat = 'mp3';
     let voiceSource = 'system';
@@ -1364,7 +1459,7 @@
     }
 
     function switchProductView(view) {
-      if (!['meeting', 'studio', 'conversation'].includes(view) || view === activeProductView) return true;
+      if (!['meeting', 'studio', 'conversation', 'copilot'].includes(view) || view === activeProductView) return true;
       if (view !== 'meeting' && ['connecting', 'recording', 'paused', 'finishing'].includes(recorderState)) {
         showToast('请先结束当前录音，再切换功能');
         return false;
@@ -1373,6 +1468,7 @@
         showToast('请先结束当前实时对话');
         return false;
       }
+      if (activeProductView === 'copilot' && view !== 'copilot') stopCopilotAudio();
       activeProductView = view;
       document.querySelectorAll('[data-product-view]').forEach((panel) => { panel.hidden = panel.dataset.productView !== view; });
       document.querySelectorAll('.product-tab').forEach((button) => {
@@ -1380,11 +1476,18 @@
         button.classList.toggle('active', active);
         button.setAttribute('aria-selected', active ? 'true' : 'false');
       });
-      document.title = view === 'meeting' ? '声笺 · 实时会议记录' : view === 'studio' ? '声笺 · 声音工作室' : '声笺 · 实时对话';
+      document.title = view === 'meeting' ? '声笺 · 实时会议记录' : view === 'studio' ? '声笺 · 声音工作室' : view === 'conversation' ? '声笺 · 实时对话' : '声笺 · 会中助手';
       $('meeting-search').value = '';
       closeTagPicker();
       updateSidebarContext();
       closeSidebarOnSmallScreen();
+      return true;
+    }
+
+    async function showCopilotPage() {
+      if (!switchProductView('copilot')) return false;
+      await refreshCopilotStatus();
+      await loadCopilotMaterials();
       return true;
     }
 
@@ -2251,6 +2354,371 @@
       const headers = { 'Content-Type': 'application/json' };
       if (write && csrfToken) headers['X-CSRF-Token'] = csrfToken;
       return headers;
+    }
+
+    function copilotSetAudioState(state, label = '') {
+      copilotAudioState = state;
+      const copy = { idle: '未开始', connecting: '连接中', recording: '录音中', error: '失败', stopped: '已停止' };
+      $('copilot-audio-status').textContent = label || copy[state] || state;
+      $('copilot-start-mic').disabled = ['connecting', 'recording'].includes(state);
+      $('copilot-start-tab').disabled = ['connecting', 'recording'].includes(state);
+      $('copilot-stop-audio').disabled = !['connecting', 'recording'].includes(state);
+    }
+
+    function renderCopilotTranscript() {
+      const text = copilotTranscriptState.text || '';
+      $('copilot-transcript').textContent = text || '等待会议转写。';
+      if (!$('copilot-question').value.trim() && /[？?]\s*$/.test(text.trim())) $('copilot-question').value = text.trim();
+      $('copilot-submit').disabled = !copilotEnabled || copilotAnswerRunning || !(text.trim() || $('copilot-question').value.trim());
+    }
+
+    async function refreshCopilotStatus() {
+      try {
+        const response = await fetch('/api/copilot/status', { cache: 'no-store' });
+        const status = await response.json();
+        copilotEnabled = Boolean(status.enabled);
+        copilotAutoPrepare = Boolean(status.auto_prepare);
+        $('copilot-disabled').hidden = copilotEnabled;
+        $('copilot-material-status').textContent = copilotEnabled ? '已启用' : '未启用';
+        if (!copilotEnabled) $('copilot-prepare-state').textContent = '不可用';
+      } catch (_) {
+        copilotEnabled = false;
+        $('copilot-disabled').hidden = false;
+        $('copilot-material-status').textContent = '状态读取失败';
+      }
+      renderCopilotTranscript();
+    }
+
+    function renderCopilotMaterials(materials = []) {
+      $('copilot-material-list').innerHTML = materials.length ? materials.map((item) => `
+        <article class="copilot-material">
+          <div><strong>${escapeHtml(item.filename)}</strong><small>${escapeHtml(item.preview || '')}</small></div>
+          <button type="button" data-delete-copilot-material="${escapeHtml(item.id)}">移除</button>
+        </article>`).join('') : '<div class="copilot-status">暂无材料。支持 TXT / MD / PDF / DOCX，不抓取 URL。</div>';
+    }
+
+    function invalidateCopilotMaterialRequests() {
+      copilotMaterialEpoch++;
+      copilotMaterialListAbortController?.abort();
+      copilotMaterialMutationAbortController?.abort();
+      copilotMaterialListAbortController = null;
+      copilotMaterialMutationAbortController = null;
+    }
+
+    function copilotMaterialRequestIsCurrent(controller, epoch, userId) {
+      return !controller.signal.aborted && epoch === copilotMaterialEpoch
+        && storageMode === 'account' && authUser?.id === userId;
+    }
+
+    async function loadCopilotMaterials() {
+      if (!copilotEnabled || storageMode !== 'account') { renderCopilotMaterials([]); return; }
+      copilotMaterialListAbortController?.abort();
+      const controller = new AbortController();
+      const epoch = copilotMaterialEpoch;
+      const userId = authUser?.id;
+      copilotMaterialListAbortController = controller;
+      try {
+        const response = await fetch('/api/copilot/materials', { cache: 'no-store', signal: controller.signal });
+        if (!copilotMaterialRequestIsCurrent(controller, epoch, userId)) return;
+        if (!response.ok) { $('copilot-material-status').textContent = '材料读取失败'; return; }
+        const payload = await response.json();
+        if (!copilotMaterialRequestIsCurrent(controller, epoch, userId)) return;
+        copilotMaterialRevision = Number(payload.material_revision || 0);
+        renderCopilotMaterials(payload.materials || []);
+      } catch (error) {
+        if (!controller.signal.aborted && copilotMaterialRequestIsCurrent(controller, epoch, userId)) {
+          $('copilot-material-status').textContent = '材料读取失败';
+        }
+      } finally {
+        if (copilotMaterialListAbortController === controller) copilotMaterialListAbortController = null;
+      }
+    }
+
+    async function uploadCopilotMaterial() {
+      if (!copilotEnabled || storageMode !== 'account') { showToast('请先登录账号'); return; }
+      const file = $('copilot-material-file').files && $('copilot-material-file').files[0];
+      if (!file) { showToast('请选择材料文件'); return; }
+      copilotMaterialMutationAbortController?.abort();
+      const controller = new AbortController();
+      const epoch = copilotMaterialEpoch;
+      const userId = authUser?.id;
+      copilotMaterialMutationAbortController = controller;
+      const form = new FormData();
+      form.append('file', file);
+      try {
+        const response = await fetch('/api/copilot/materials', { method: 'POST', headers: csrfToken ? { 'X-CSRF-Token': csrfToken } : {}, body: form, signal: controller.signal });
+        if (!copilotMaterialRequestIsCurrent(controller, epoch, userId)) return;
+        if (!response.ok) { showToast(await responseError(response, '材料上传失败')); return; }
+        const payload = await response.json();
+        if (!copilotMaterialRequestIsCurrent(controller, epoch, userId)) return;
+        copilotMaterialRevision = Number(payload.material_revision || copilotMaterialRevision + 1);
+        $('copilot-material-file').value = '';
+        await loadCopilotMaterials();
+        if (copilotMaterialRequestIsCurrent(controller, epoch, userId)) invalidateCopilotDraft('materials');
+      } catch (error) {
+        if (!controller.signal.aborted && copilotMaterialRequestIsCurrent(controller, epoch, userId)) showToast(error.message || '材料上传失败');
+      } finally {
+        if (copilotMaterialMutationAbortController === controller) copilotMaterialMutationAbortController = null;
+      }
+    }
+
+    async function deleteCopilotMaterial(id) {
+      if (!copilotEnabled || storageMode !== 'account') return;
+      copilotMaterialMutationAbortController?.abort();
+      const controller = new AbortController();
+      const epoch = copilotMaterialEpoch;
+      const userId = authUser?.id;
+      copilotMaterialMutationAbortController = controller;
+      try {
+        const response = await fetch(`/api/copilot/materials/${encodeURIComponent(id)}`, { method: 'DELETE', headers: meetingHeaders(true), signal: controller.signal });
+        if (!copilotMaterialRequestIsCurrent(controller, epoch, userId)) return;
+        if (!response.ok) { showToast(await responseError(response, '材料移除失败')); return; }
+        const payload = await response.json();
+        if (!copilotMaterialRequestIsCurrent(controller, epoch, userId)) return;
+        copilotMaterialRevision = Number(payload.material_revision || copilotMaterialRevision + 1);
+        await loadCopilotMaterials();
+        if (copilotMaterialRequestIsCurrent(controller, epoch, userId)) invalidateCopilotDraft('materials');
+      } catch (error) {
+        if (!controller.signal.aborted && copilotMaterialRequestIsCurrent(controller, epoch, userId)) showToast(error.message || '材料移除失败');
+      } finally {
+        if (copilotMaterialMutationAbortController === controller) copilotMaterialMutationAbortController = null;
+      }
+    }
+
+    function stopCopilotAudio() {
+      copilotAudioEpoch++;
+      invalidateCopilotDraft('stopped');
+      copilotSendingAudio = false;
+      if (copilotWs) {
+        copilotWs.onopen = null; copilotWs.onmessage = null; copilotWs.onclose = null; copilotWs.onerror = null;
+        try { if (copilotWs.readyState === WebSocket.OPEN || copilotWs.readyState === WebSocket.CONNECTING) copilotWs.close(); } catch (_) {}
+        copilotWs = null;
+      }
+      if (copilotAudioProcessor) { copilotAudioProcessor.disconnect(); copilotAudioProcessor = null; }
+      if (copilotAudioSource) { copilotAudioSource.disconnect(); copilotAudioSource = null; }
+      if (copilotTabSource) { copilotTabSource.disconnect(); copilotTabSource = null; }
+      if (copilotMixGain) { copilotMixGain.disconnect(); copilotMixGain = null; }
+      if (copilotMicStream) { copilotMicStream.getTracks().forEach((track) => track.stop()); copilotMicStream = null; }
+      if (copilotTabStream) { copilotTabStream.getTracks().forEach((track) => track.stop()); copilotTabStream = null; }
+      if (copilotAudioContext) { copilotAudioContext.close(); copilotAudioContext = null; }
+      if (copilotAudioState !== 'idle') copilotSetAudioState('stopped');
+    }
+
+    async function startCopilotAudio(mode = 'mic') {
+      if (!copilotEnabled && activeProductView === 'copilot') await refreshCopilotStatus();
+      if (!copilotEnabled) { copilotSetAudioState('error', '会中助手未启用'); return; }
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { copilotSetAudioState('error', '浏览器不支持麦克风'); return; }
+      stopCopilotAudio();
+      const epoch = copilotAudioEpoch;
+      copilotSetAudioState('connecting');
+      try {
+        const mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+        if (epoch !== copilotAudioEpoch) { mic.getTracks().forEach(track => track.stop()); return; }
+        copilotMicStream = mic;
+        if (mode === 'mic-tab') {
+          if (!navigator.mediaDevices.getDisplayMedia) throw new Error('当前浏览器不支持标签页音频');
+          const tab = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+          if (epoch !== copilotAudioEpoch) { tab.getTracks().forEach(track => track.stop()); return; }
+          copilotTabStream = tab;
+          if (!copilotTabStream.getAudioTracks || copilotTabStream.getAudioTracks().length < 1) throw new Error('未获取到浏览器标签页音频，请重新选择并勾选共享音频');
+        }
+        copilotAudioContext = new AudioContext();
+        copilotAudioSource = copilotAudioContext.createMediaStreamSource(copilotMicStream);
+        copilotAudioProcessor = copilotAudioContext.createScriptProcessor(4096, 1, 1);
+        copilotAudioProcessor.onaudioprocess = (event) => {
+          if (!copilotSendingAudio || !copilotWs || copilotWs.readyState !== WebSocket.OPEN) return;
+          const input = event.inputBuffer.getChannelData(0);
+          const pcm = floatTo16BitPCM(downsample(input, copilotAudioContext.sampleRate, 16000));
+          copilotWs.send(JSON.stringify({ type: 'asr.stream.append', audio: bytesToBase64(new Uint8Array(pcm.buffer)) }));
+        };
+        if (copilotTabStream) {
+          copilotTabSource = copilotAudioContext.createMediaStreamSource(copilotTabStream);
+          copilotMixGain = copilotAudioContext.createGain();
+          copilotMixGain.gain.value = 0.5; // bounded sum, not speaker identification
+          copilotAudioSource.connect(copilotMixGain);
+          copilotTabSource.connect(copilotMixGain);
+          copilotMixGain.connect(copilotAudioProcessor);
+        } else copilotAudioSource.connect(copilotAudioProcessor);
+        copilotAudioProcessor.connect(copilotAudioContext.destination);
+        copilotWs = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/asr/stream`);
+        copilotSetAudioState('connecting');
+        copilotWs.onopen = () => {
+          copilotSendingAudio = true;
+          copilotWs.send(JSON.stringify({ type: 'asr.stream.start', channel: $('asr-channel').value || 'stub-local', sample_rate: 16000, chunk_seconds: 4 }));
+        };
+        copilotWs.onmessage = (event) => {
+          const payload = JSON.parse(event.data);
+          if (payload.demo_event === 'asr.stream.started' || payload.demo_event === 'asr.stream.ready') copilotSetAudioState('recording');
+          if (payload.demo_event === 'asr.stream.result' && payload.result) {
+            copilotTranscriptState.applyResult(payload.result);
+            if (copilotAutoPrepare) scheduleCopilotPrepare();
+          }
+          if (payload.demo_event === 'asr.stream.error') { stopCopilotAudio(); copilotSetAudioState('error', payload.message || '识别失败'); }
+        };
+        copilotWs.onerror = () => { stopCopilotAudio(); copilotSetAudioState('error', '识别连接失败'); };
+        copilotWs.onclose = () => stopCopilotAudio();
+      } catch (error) {
+        if (epoch !== copilotAudioEpoch) return;
+        stopCopilotAudio();
+        copilotSetAudioState('error', error.message || '无法启动音频');
+      }
+    }
+
+    function copilotRequestBody(requestId) {
+      return {
+        question: $('copilot-question').value.trim() || copilotTranscriptState.text.trim(),
+        transcript: copilotTranscriptState.text,
+        instructions: $('copilot-instructions').value,
+        answer_style: $('copilot-style').value,
+        request_id: requestId,
+        transcript_revision: copilotTranscriptRevision,
+        material_revision: copilotMaterialRevision,
+      };
+    }
+
+    async function readCopilotSse(response, handlers) {
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let index;
+        while ((index = buffer.indexOf('\n\n')) >= 0) {
+          const block = buffer.slice(0, index); buffer = buffer.slice(index + 2);
+          const eventName = (block.match(/^event:\s*(.+)$/m) || [])[1] || 'message';
+          const data = (block.match(/^data:\s*(.+)$/m) || [])[1] || '{}';
+          handlers[eventName]?.(JSON.parse(data));
+        }
+      }
+    }
+
+    function copilotVersionKey() {
+      // Values as well as revisions guard edits, ABA changes and session switches.
+      return JSON.stringify([copilotSessionRevision, authUser?.id || storageMode,
+        copilotWorkRevision, copilotRequestBody('')]);
+    }
+
+    async function submitCopilotAnswer() {
+      if (!copilotEnabled) { showToast('会中助手未启用'); return; }
+      if (copilotAnswerRunning) { showToast('正在回答，请稍候'); return; }
+      const key = copilotVersionKey();
+      const body = copilotRequestBody(`manual-${crypto.randomUUID()}`);
+      if (!body.question) { showToast('没有可回答的问题'); return; }
+      const controller = new AbortController();
+      const current = () => !controller.signal.aborted && key === copilotVersionKey();
+      copilotAnswerAbortController = controller;
+      copilotAnswerRunning = true;
+      $('copilot-answer').textContent = '正在准备回答…';
+      $('copilot-submit').disabled = true;
+      clearTimeout(copilotPrepareTimer);
+      copilotPrepareTimer = null;
+      try {
+        if (copilotPreparingKey === key && copilotPreparePromise) await copilotPreparePromise;
+        if (!current()) return;
+        if (copilotPrepared?.key === key) {
+          $('copilot-answer').textContent = copilotPrepared.text;
+          $('copilot-evidence').textContent = copilotPrepared.evidence;
+          copilotLastCompletionMarker = copilotPrepared.marker;
+          return;
+        }
+        const response = await fetch('/api/copilot/answer/stream', { method: 'POST', headers: meetingHeaders(true), body: JSON.stringify(body), signal: controller.signal });
+        if (!current()) return;
+        if (!response.ok) throw new Error(await responseError(response, '快速回答失败'));
+        let done = false;
+        $('copilot-answer').textContent = '';
+        await readCopilotSse(response, {
+          meta(payload) { if (current()) $('copilot-evidence').textContent = (payload.evidence || []).map((item, index) => `[${index + 1}] ${item.filename}: ${item.text}`).join('\n') || '没有检索到材料证据。'; },
+          delta(payload) { if (current()) $('copilot-answer').textContent += payload.text || ''; },
+          error(payload) { if (current()) throw new Error(payload.message || '快速回答失败'); },
+          done(payload) { if (current()) { done = true; copilotLastCompletionMarker = payload.completion_marker || ''; } },
+        });
+        if (current() && !done) throw new Error('回答流未完整结束');
+        if (current()) copilotPrepared = {key, text: $('copilot-answer').textContent, evidence: $('copilot-evidence').textContent, marker: copilotLastCompletionMarker};
+      } catch (error) {
+        if (current()) $('copilot-answer').textContent = `回答失败：${error.message || String(error)}`;
+      } finally {
+        if (copilotAnswerAbortController === controller) {
+          copilotAnswerAbortController = null;
+          copilotAnswerRunning = false;
+          renderCopilotTranscript();
+        }
+      }
+    }
+
+    function invalidateCopilotDraft(reason = '') {
+      copilotWorkRevision++;
+      clearTimeout(copilotPrepareTimer);
+      copilotPrepareTimer = null;
+      copilotInFlightPrepareId = '';
+      copilotPreparingKey = '';
+      copilotPrepared = null;
+      copilotPreparePromise = null;
+      copilotPrepareAbortController?.abort();
+      copilotAnswerAbortController?.abort();
+      copilotPrepareAbortController = null;
+      copilotAnswerAbortController = null;
+      copilotPrepareRunning = false;
+      copilotAnswerRunning = false;
+      copilotLastCompletionMarker = '';
+      $('copilot-prepared-answer').textContent = '';
+      $('copilot-answer').textContent = '';
+      $('copilot-evidence').textContent = '证据是检索上下文，不是外部验证引用。';
+      $('copilot-prepare-state').textContent = reason ? '已失效' : '未准备';
+      renderCopilotTranscript();
+    }
+
+    function scheduleCopilotPrepare() {
+      if (!copilotAutoPrepare || copilotPrepareRunning || copilotAnswerRunning) return;
+      clearTimeout(copilotPrepareTimer);
+      copilotPrepareTimer = setTimeout(() => { copilotPrepareTimer = null; return prepareCopilotDraft(); }, Math.max(500, copilotPrepareCooldownUntil - Date.now()));
+    }
+
+    function prepareCopilotDraft() {
+      const key = copilotVersionKey();
+      if (!copilotAutoPrepare || copilotPrepareRunning || copilotAnswerRunning || Date.now() < copilotPrepareCooldownUntil || copilotPrepared?.key === key) return;
+      const requestId = `draft-${crypto.randomUUID()}`;
+      const body = copilotRequestBody(requestId);
+      if (!body.question) return;
+      const controller = new AbortController();
+      const current = () => !controller.signal.aborted && key === copilotVersionKey();
+      copilotPrepareAbortController = controller;
+      copilotInFlightPrepareId = requestId;
+      copilotPreparingKey = key;
+      copilotPrepareRunning = true;
+      copilotPrepareCooldownUntil = Date.now() + 1200;
+      $('copilot-prepare-state').textContent = '准备中';
+      copilotPreparePromise = (async () => {
+        try {
+          const response = await fetch('/api/copilot/prepare', { method: 'POST', headers: meetingHeaders(true), body: JSON.stringify(body), signal: controller.signal });
+          if (!current()) return;
+          if (!response.ok) throw new Error(await responseError(response, '后台准备失败'));
+          let text = '', marker = '', evidence = '没有检索到材料证据。', done = false;
+          await readCopilotSse(response, {
+            meta(payload) { evidence = (payload.evidence || []).map((item, index) => `[${index + 1}] ${item.filename}: ${item.text}`).join('\n') || evidence; },
+            delta(payload) { text += payload.text || ''; },
+            error(payload) { throw new Error(payload.message || '后台准备失败'); },
+            done(payload) { done = true; marker = payload.completion_marker || ''; },
+          });
+          if (!done) throw new Error('草稿流未完整结束');
+          if (current()) {
+            copilotPrepared = {key, text: text || '模型没有返回草稿。', evidence, marker};
+            $('copilot-prepared-answer').textContent = copilotPrepared.text;
+            $('copilot-prepare-state').textContent = '已准备';
+          }
+        } catch (_) {
+          if (current()) $('copilot-prepare-state').textContent = '准备失败';
+        } finally {
+          if (copilotPrepareAbortController === controller) {
+            copilotPrepareAbortController = null;
+            copilotPrepareRunning = false;
+            copilotPreparingKey = '';
+            copilotPrepareCooldownUntil = Date.now() + 1200;
+          }
+        }
+      })();
+      return copilotPreparePromise;
     }
 
     function clearApiTokenOutput() {
@@ -3135,13 +3603,15 @@
         if (storageMode && activeMeetingId && !showingDemo && await saveActiveMeeting() === false) return;
         if (storageMode && activeConversationId && await saveActiveConversation() === false) return;
         await Promise.all([meetingSaveChain, conversationSaveChain]);
-        location.assign('/login?next=' + encodeURIComponent('/'));
+        stopCopilotAudio();
+        location.assign('/login?next=' + encodeURIComponent(location.pathname === '/copilot' || activeProductView === 'copilot' ? '/copilot' : '/'));
       } catch (error) {
         showToast(error.message || '当前记录尚未保存，请重试。');
       }
     }
 
     async function activateStorageMode(mode, user = null, nextCsrfToken = '') {
+      invalidateCopilotMaterialRequests();
       clearApiTokenOutput();
       clearTimeout(meetingSaveTimer);
       meetingSaveTimer = null;
@@ -3175,9 +3645,11 @@
     }
 
     async function bootstrapAccess() {
+      if (location.pathname === '/copilot') switchProductView('copilot');
       updateAccountUi();
       if (new URLSearchParams(location.search).get('mode') === 'guest') {
         await activateStorageMode('guest');
+        if (location.pathname === '/copilot') await showCopilotPage();
         return;
       }
       try {
@@ -3185,6 +3657,7 @@
         const payload = await response.json();
         if (payload.authenticated) {
           await activateStorageMode('account', payload.user, payload.csrf_token || '');
+          if (location.pathname === '/copilot') await showCopilotPage();
           return;
         }
       } catch (_) {}
@@ -3197,6 +3670,13 @@
         return;
       }
       if (!confirm('退出账号并切换到访客模式？服务器中的会议记录不会被删除。')) return;
+      stopCopilotAudio();
+      copilotSessionRevision++;
+      invalidateCopilotMaterialRequests();
+      $('copilot-submit').disabled = true;
+      $('copilot-instructions').value = '';
+      $('copilot-style').value = '简短中文，可直接在会中念出。';
+      renderCopilotMaterials([]);
       clearApiTokenOutput();
       try {
         await saveActiveMeeting();
@@ -3205,6 +3685,7 @@
         if (!response.ok) throw new Error('退出失败');
       } catch (error) {
         showToast(error.message || '暂时无法退出账号');
+        renderCopilotTranscript();
         return;
       }
       await activateStorageMode('guest');
@@ -3609,6 +4090,14 @@
     }
 
     function resetSession(options) {
+      invalidateCopilotMaterialRequests();
+      stopCopilotAudio();
+      copilotSessionRevision++;
+      copilotTranscriptState.text = '';
+      copilotTranscriptState.revision = 0;
+      copilotTranscriptRevision = 0;
+      $('copilot-question').value = '';
+      renderCopilotTranscript();
       const { announce = true, persist = true } = options || {};
       interruptActiveRecording({ reason: 'reset-session', message: announce ? '内容已清空，可以开始新录音' : '正在准备新录音…' });
       cancelSummaryWork();
@@ -4190,6 +4679,20 @@
       const option = $('asr-channel').options[$('asr-channel').selectedIndex];
       $('channel-label').textContent = option ? option.textContent.replace(/（.*?）/g, '').trim() : '自动选择识别服务';
     });
+    $('copilot-upload').addEventListener('click', uploadCopilotMaterial);
+    $('copilot-material-file').addEventListener('change', uploadCopilotMaterial);
+    $('copilot-material-list').addEventListener('click', (event) => {
+      const button = event.target.closest('[data-delete-copilot-material]');
+      if (button) deleteCopilotMaterial(button.dataset.deleteCopilotMaterial);
+    });
+    $('copilot-start-mic').addEventListener('click', () => startCopilotAudio('mic'));
+    $('copilot-start-tab').addEventListener('click', () => startCopilotAudio('mic-tab'));
+    $('copilot-stop-audio').addEventListener('click', () => stopCopilotAudio());
+    $('copilot-pause-audio').addEventListener('click', () => { stopCopilotAudio(); copilotSetAudioState('paused', '已暂停；点击麦克风按钮重新开始监听'); });
+    $('copilot-submit').addEventListener('click', submitCopilotAnswer);
+    $('copilot-question').addEventListener('input', () => { invalidateCopilotDraft('question'); renderCopilotTranscript(); });
+    $('copilot-instructions').addEventListener('input', () => invalidateCopilotDraft('instructions'));
+    $('copilot-style').addEventListener('input', () => invalidateCopilotDraft('style'));
     $('generate-summary').addEventListener('click', () => generateSummary({ explicit: true }));
     $('summary-to-todo').addEventListener('click', generateTodoFromSummary);
     $('generate-todo').addEventListener('click', generateTodoFromSummary);
@@ -4279,6 +4782,11 @@
       if (!['recording', 'paused'].includes(recorderState) && !isRealtimeActive()) return;
       event.preventDefault();
       event.returnValue = '';
+    });
+    window.addEventListener('pagehide', () => {
+      stopCopilotAudio();
+      invalidateCopilotDraft('teardown');
+      if (copilotAnswerAbortController) copilotAnswerAbortController.abort();
     });
 
     window.__demoInjectAsrScenario = (text = '我想测试这个实时转写页面。') => {

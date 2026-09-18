@@ -35,9 +35,12 @@ chatvoice serve app --dry-run --json
 - **Markdown Todo**：由用户点击“转为 Todo”，在独立页面继续编辑、对话完善、复制或下载 `.md`；不会自动转换或执行任务。
 - **声音工作室**：配置系统音色与输出格式；通过独立声音复刻服务，以授权参考音频生成临时试听结果。
 - **实时对话**：对接当前支持的 Qwen 实时语音模型，需服务端配置和有效使用权限。
+- **会中助手（预览）**：启用 `CHATVOICE_COPILOT_ENABLED=1` 后提供 `/copilot` 和页面内“会中助手”，复用实时转写与会议纪要文本模型，上传材料仅按账号保存提取文本。
 - **程序化访问**：命令行、Python 客户端、受限 API Token，以及单文件数据库备份与恢复。
 
 模型配置保留在服务端。摘要和标题使用独立文本设置；Todo 复用摘要模型，不增加一套密钥。ASR HTTP 服务使用 `CHATVOICE_ASR_API_URL`，本地 FunASR 则需要另行准备模型依赖。
+
+会中助手预览借鉴并改写 Backchannel 的有界 live context 与轻量文件解析思想，代码以 `chatvoice.copilot` 主机集成形式保存；没有导入 Backchannel 的数据库、音频、PII 或 agent 栈。第三方说明见 `third_party/Backchannel-COPILOT-NOTICE.md`。
 
 ## 数据与安全边界
 

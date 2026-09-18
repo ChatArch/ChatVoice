@@ -38,6 +38,8 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from chatvoice import __version__
 from chatvoice import todo_markdown
 from chatvoice import text_api, tts_api
+from chatvoice.copilot import context as copilot_context
+from chatvoice.copilot.materials import MaterialParseError, parse_material_bytes
 from chatvoice.config import ChatVoiceConfig
 from chatvoice.paths import state_paths
 from chatlogin import AccessDenied, StoreFull
@@ -57,9 +59,18 @@ PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 def _load_chatvoice_env_values() -> dict[str, str]:
     """Load the active ChatVoice ChatEnv profile plus process-env overrides."""
 
+    explicit_profile = "CHATVOICE_ENV_PROFILE" in os.environ
+    profile_name = os.getenv("CHATVOICE_ENV_PROFILE", "").strip()
+    if explicit_profile and not profile_name:
+        raise RuntimeError("CHATVOICE_ENV_PROFILE must name a nonempty profile")
     try:
-        profile_values = EnvStore(get_paths().envs_dir).load_active(ChatVoiceConfig)
+        store = EnvStore(get_paths().envs_dir)
+        profile_values = store.load_profile(ChatVoiceConfig, profile_name) if profile_name else store.load_active(ChatVoiceConfig)
+        if explicit_profile and not profile_values:
+            raise ValueError("Profile is missing or empty")
     except Exception:
+        if explicit_profile:
+            raise RuntimeError("CHATVOICE_ENV_PROFILE could not be loaded; refusing fallback") from None
         profile_values = {}
     ChatVoiceConfig.load_from_sources(env_values=profile_values)
     loaded: dict[str, str] = {}
@@ -183,6 +194,12 @@ MEETING_DB_PATH = _RUNTIME_PATHS.database_path
 _MEETING_DB_LOCK = threading.Lock()
 AUTH_COOKIE_NAME = "meeting_session"
 AUTH_SESSION_DAYS = 30
+COPILOT_ENABLED = _env_bool("CHATVOICE_COPILOT_ENABLED")
+COPILOT_AUTO_PREPARE = _env_bool("CHATVOICE_COPILOT_AUTO_PREPARE")
+COPILOT_THINKING_MODE = _env_value("CHATVOICE_COPILOT_THINKING_MODE", default="provider-default").strip().lower()
+MAX_COPILOT_MATERIAL_BYTES = 2 * 1024 * 1024
+MAX_COPILOT_MATERIALS = 12
+MAX_COPILOT_TEXT_CHARS = 120_000
 PASSWORD_ITERATIONS = 310_000
 MAX_MEETING_TAGS = 24
 MAX_MEETING_TAG_LENGTH = 40
@@ -296,6 +313,20 @@ class ApiTokenCreateRequest(BaseModel):
     name: str = Field("automation", min_length=1, max_length=80)
     expires_days: int | None = Field(default=None, ge=1, le=365)
     scopes: list[str] = Field(default_factory=lambda: ["read:meetings", "read:conversations"], max_length=8)
+
+
+class CopilotAnswerRequest(BaseModel):
+    question: str = Field(..., min_length=1, max_length=2000)
+    transcript: str = Field("", max_length=50000)
+    instructions: str = Field("", max_length=2000)
+    answer_style: str = Field("简短中文，可直接在会中念出。", max_length=800)
+    request_id: str = Field(..., min_length=1, max_length=120)
+    transcript_revision: int = Field(0, ge=0)
+    material_revision: int = Field(0, ge=0)
+
+
+class CopilotPrepareRequest(CopilotAnswerRequest):
+    pass
 
 
 def _read_profile() -> dict[str, str]:
@@ -638,6 +669,14 @@ install_login_ui(app, STATIC_DIR)
 def index() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
 
+
+@app.get("/copilot", response_class=HTMLResponse)
+def copilot_page() -> FileResponse:
+    if not COPILOT_ENABLED:
+        raise HTTPException(status_code=404, detail="会中助手未启用")
+    return FileResponse(STATIC_DIR / "index.html")
+
+
 @app.get("/assets/transcript-state.js")
 def transcript_state_asset() -> FileResponse:
     return FileResponse(STATIC_DIR / "transcript-state.js", media_type="text/javascript")
@@ -675,6 +714,197 @@ def heartbeat() -> JSONResponse:
             "database": database,
             "asr": asr,
         }
+    )
+
+
+def _require_copilot_enabled() -> None:
+    if not COPILOT_ENABLED:
+        raise HTTPException(status_code=404, detail="会中助手未启用")
+
+
+def _copilot_material_payload(row: sqlite3.Row) -> dict[str, Any]:
+    return {
+        "id": row["material_id"],
+        "filename": row["filename"],
+        "content_type": row["content_type"],
+        "preview": row["preview"],
+        "byte_size": row["byte_size"],
+        "created_at": row["created_at"],
+    }
+
+
+def _copilot_material_revision(connection: sqlite3.Connection, owner_id: str) -> int:
+    row = connection.execute("SELECT count(*), coalesce(max(created_at), '') FROM copilot_materials WHERE owner_id = ?", (owner_id,)).fetchone()
+    return abs(hash((row[0], row[1]))) % 1_000_000_000
+
+
+@app.get("/api/copilot/status")
+def copilot_status() -> JSONResponse:
+    return JSONResponse({
+        "enabled": COPILOT_ENABLED,
+        "auto_prepare": COPILOT_AUTO_PREPARE,
+        "thinking_mode": COPILOT_THINKING_MODE or "provider-default",
+        "material_limits": {
+            "max_count": MAX_COPILOT_MATERIALS,
+            "max_bytes": MAX_COPILOT_MATERIAL_BYTES,
+            "max_text_chars": MAX_COPILOT_TEXT_CHARS,
+            "supported": sorted(["txt", "md", "markdown", "pdf", "docx"]),
+        },
+    })
+
+
+@app.get("/api/copilot/materials")
+def copilot_list_materials(request: Request) -> JSONResponse:
+    _require_copilot_enabled()
+    auth = _auth_row(request)
+    with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
+        rows = connection.execute(
+            "SELECT * FROM copilot_materials WHERE owner_id = ? ORDER BY created_at DESC",
+            (auth["user_id"],),
+        ).fetchall()
+        revision = _copilot_material_revision(connection, auth["user_id"])
+    return JSONResponse({"materials": [_copilot_material_payload(row) for row in rows], "material_revision": revision})
+
+
+@app.post("/api/copilot/materials")
+async def copilot_upload_material(request: Request, file: UploadFile = File(...)) -> JSONResponse:
+    _require_copilot_enabled()
+    auth = _auth_row(request)
+    _require_csrf(request, auth)
+    filename = Path(file.filename or "material.txt").name[:160]
+    data = await file.read(MAX_COPILOT_MATERIAL_BYTES + 1)
+    if not data:
+        raise HTTPException(status_code=400, detail="材料为空")
+    if len(data) > MAX_COPILOT_MATERIAL_BYTES:
+        raise HTTPException(status_code=413, detail="材料过大")
+    try:
+        text = parse_material_bytes(filename, data, text_cap=MAX_COPILOT_TEXT_CHARS)
+    except MaterialParseError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": str(exc)}) from None
+    preview = text[:500]
+    material_id = "mat_" + secrets.token_urlsafe(12)
+    with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
+        count = connection.execute("SELECT count(*) FROM copilot_materials WHERE owner_id = ?", (auth["user_id"],)).fetchone()[0]
+        if count >= MAX_COPILOT_MATERIALS:
+            raise HTTPException(status_code=400, detail=f"材料最多保留 {MAX_COPILOT_MATERIALS} 份")
+        connection.execute(
+            """
+            INSERT INTO copilot_materials (owner_id, material_id, filename, content_type, text, preview, byte_size, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (auth["user_id"], material_id, filename, file.content_type or "application/octet-stream", text, preview, len(data), _iso_utc()),
+        )
+        connection.commit()
+        row = connection.execute("SELECT * FROM copilot_materials WHERE owner_id = ? AND material_id = ?", (auth["user_id"], material_id)).fetchone()
+        revision = _copilot_material_revision(connection, auth["user_id"])
+    return JSONResponse({"material": _copilot_material_payload(row), "material_revision": revision})
+
+
+@app.delete("/api/copilot/materials/{material_id}")
+def copilot_delete_material(material_id: str, request: Request) -> JSONResponse:
+    _require_copilot_enabled()
+    auth = _auth_row(request)
+    _require_csrf(request, auth)
+    with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
+        result = connection.execute(
+            "DELETE FROM copilot_materials WHERE owner_id = ? AND material_id = ?",
+            (auth["user_id"], material_id),
+        )
+        if result.rowcount < 1:
+            raise HTTPException(status_code=404, detail="material not found")
+        connection.commit()
+        revision = _copilot_material_revision(connection, auth["user_id"])
+    return JSONResponse({"deleted": True, "material_revision": revision})
+
+
+def _copilot_documents(owner_id: str) -> tuple[list[copilot_context.MaterialDocument], int]:
+    with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
+        rows = connection.execute(
+            "SELECT material_id, filename, text FROM copilot_materials WHERE owner_id = ? ORDER BY created_at DESC",
+            (owner_id,),
+        ).fetchall()
+        revision = _copilot_material_revision(connection, owner_id)
+    docs = [copilot_context.MaterialDocument(row["material_id"], row["filename"], row["text"]) for row in rows]
+    return docs, revision
+
+
+def _copilot_messages(req: CopilotAnswerRequest, owner_id: str) -> tuple[list[dict[str, str]], list[dict[str, Any]], int]:
+    docs, material_revision = _copilot_documents(owner_id)
+    snippets = copilot_context.retrieve_material_snippets(req.question + "\n" + req.transcript, docs)
+    transcript_lines = [("会议", line.strip()) for line in req.transcript.splitlines() if line.strip()]
+    directives = [req.answer_style]
+    if req.instructions.strip():
+        directives.append(req.instructions.strip())
+    prompt = copilot_context.build_live_prompt(
+        {
+            "meeting_context": req.instructions,
+            "directives": directives,
+            "documents": [(item.filename, item.text) for item in snippets],
+            "lines": transcript_lines,
+        },
+        req.question,
+    )
+    evidence = [{"id": item.source_id, "filename": item.filename, "text": item.text, "score": item.score} for item in snippets]
+    user = prompt + "\n\n# Evidence rendering note\n" + copilot_context.format_evidence(snippets)
+    return [{"role": "system", "content": copilot_context.LIVE_SYSTEM_PROMPT}, {"role": "user", "content": user}], evidence, material_revision
+
+
+def _copilot_answer_stream(req: CopilotAnswerRequest, owner_id: str):
+    try:
+        if COPILOT_THINKING_MODE not in {"provider-default", "ark-disabled"}:
+            raise HTTPException(status_code=503, detail="Invalid CHATVOICE_COPILOT_THINKING_MODE")
+        settings = _independent_text_settings("notes", None)
+        if settings is None:
+            raise HTTPException(status_code=503, detail="会中助手需要配置会议纪要文本模型")
+        messages, evidence, material_revision = _copilot_messages(req, owner_id)
+        yield _sse_message("meta", {
+            "request_id": req.request_id,
+            "transcript_revision": req.transcript_revision,
+            "material_revision": material_revision,
+            "evidence": evidence,
+            "thinking_mode": COPILOT_THINKING_MODE or "provider-default",
+        })
+        received = False
+        for delta in text_api.stream_text(settings, messages, thinking_mode=COPILOT_THINKING_MODE):
+            received = received or bool(delta.strip())
+            yield _sse_message("delta", {"text": delta})
+        if not received:
+            yield _sse_message("error", {"message": "模型没有返回可用回答"})
+            return
+        yield _sse_message("done", {"request_id": req.request_id, "completion_marker": "copilot.answer.done", "model": settings.model})
+    except HTTPException as exc:
+        yield _sse_message("error", {"message": str(exc.detail), "status": exc.status_code})
+    except text_api.TextRequestError as exc:
+        yield _sse_message("error", {"message": str(exc)})
+    except Exception as exc:
+        yield _sse_message("error", {"message": str(exc)[:700] or type(exc).__name__})
+
+
+@app.post("/api/copilot/answer/stream")
+def copilot_answer_stream(req: CopilotAnswerRequest, request: Request) -> StreamingResponse:
+    _require_copilot_enabled()
+    auth = _auth_row(request)
+    _require_csrf(request, auth)
+    _independent_text_settings("notes", None)
+    return StreamingResponse(
+        _copilot_answer_stream(req, auth["user_id"]),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"},
+    )
+
+
+@app.post("/api/copilot/prepare")
+def copilot_prepare(req: CopilotPrepareRequest, request: Request) -> StreamingResponse:
+    _require_copilot_enabled()
+    auth = _auth_row(request)
+    _require_csrf(request, auth)
+    if not COPILOT_AUTO_PREPARE:
+        raise HTTPException(status_code=409, detail="后台准备未启用")
+    _independent_text_settings("notes", None)
+    return StreamingResponse(
+        _copilot_answer_stream(req, auth["user_id"]),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"},
     )
 
 
@@ -865,6 +1095,22 @@ def _meeting_db() -> sqlite3.Connection:
             messages_json TEXT NOT NULL DEFAULT '[]',
             preview TEXT NOT NULL DEFAULT '',
             PRIMARY KEY (owner_id, conversation_id)
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS copilot_materials (
+            owner_id TEXT NOT NULL,
+            material_id TEXT NOT NULL,
+            filename TEXT NOT NULL,
+            content_type TEXT NOT NULL,
+            text TEXT NOT NULL,
+            preview TEXT NOT NULL,
+            byte_size INTEGER NOT NULL,
+            created_at TEXT NOT NULL,
+            PRIMARY KEY (owner_id, material_id),
+            FOREIGN KEY (owner_id) REFERENCES accounts(id) ON DELETE CASCADE
         )
         """
     )
