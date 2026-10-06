@@ -49,6 +49,23 @@ Drafts are saved and the IndexedDB transaction must complete before leaving for 
 
 Meeting writes contain title, timestamps, duration, tags, transcript segments, summary/refinement conversation and `todo_markdown` / `todo_chat_messages`. Detail responses include content; lists stay lightweight. Older clients omitting Todo fields preserve existing values; explicit empty text/lists clear them.
 
+## Meeting-audio retention and import {#meeting-audio}
+
+These endpoints require account cookies and ownership, with CSRF for writes. Read-only data tokens do not automatically grant audio-file access.
+
+| Method and path | Input and result |
+| --- | --- |
+| `POST /api/meetings/{id}/audio` | Multipart `file`, `upload_token`, `generation`; one completed recording pass, up to 128 MiB |
+| `GET /api/meetings/{id}/audio/{audio_id}` | Private playback with controlled audio MIME and no caching |
+| `GET /api/meetings/{id}/audio/{audio_id}/download` | Attachment download of the same private file |
+| `DELETE /api/meetings/{id}/audio` | Delete all associated audio and increment recording generation |
+| `POST /api/meetings/{id}/import` | Multipart `file`, `import_token`, optional `retain_audio=false`, `channel`, `correct`; up to 12 MiB |
+| `DELETE /api/meeting-imports/{import_token}` | Cancel an owned import, also removing a just-committed meeting in a completion race |
+
+Meeting writes accept `audio_retention`, defaulting off and preserving existing choices when omitted. Detail responses include `audio_assets` and read-only `audio_generation`. Upload with the generation captured at recording start; old uploads after clearing return 409. Initial generation is zero, but clients should read the actual value.
+
+Import does not overwrite an existing meeting. Success returns a normal `meeting`; repeating its completed token returns the existing result. Cancelled or failed tokens cannot silently trigger recognition again. Empty files return 400, size limits 413, invalid container/MIME 415, conflicts/cancellation 409, invalid model output 502, storage failure 503, and ASR timeout 504. Failures create no half-finished meeting. Actual decoding depends on the configured ASR. A reverse proxy must allow the application file limit plus the 64 KiB multipart allowance.
+
 ## Text processing {#text}
 
 | Method and path | Input | Output |

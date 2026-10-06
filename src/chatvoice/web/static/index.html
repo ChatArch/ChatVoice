@@ -367,7 +367,7 @@
     .content-tab.active::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 3px; border-radius: 3px; background: var(--ink); }
     .content-tab .live-tag { margin-left: 5px; padding: 2px 5px; border-radius: 5px; background: var(--violet-soft); color: var(--violet); font-size: 8px; vertical-align: 2px; }
 
-    .content-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 21px 48px 205px; scrollbar-width: thin; scrollbar-color: #ddd transparent; }
+    .content-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 21px 48px var(--recording-console-space, 330px); scrollbar-width: thin; scrollbar-color: #ddd transparent; }
     .tab-panel { display: none; width: min(100%, 760px); margin: 0 auto; }
     .tab-panel.active { display: block; }
     .stream-status { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 10px; color: #9a9ca2; font-size: 9px; }
@@ -471,7 +471,18 @@
     body.summary-chat-active .recording-console { padding-top: 11px; padding-bottom: 11px; }
     body.summary-chat-active .recording-policy, body.summary-chat-active .waveform-wrap { display: none; }
     body.summary-chat-active .console-controls { margin-top: 0; }
-    body.summary-chat-active .content-scroll { padding-bottom: 118px; }
+    body.summary-chat-active .content-scroll { padding-bottom: var(--recording-console-space, 330px); }
+    .meeting-audio-controls { padding: 0 4px 10px; background: transparent; font-size: 11px; }
+    .audio-control-row { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; }
+    .audio-control-row label { font-weight: 650; }
+    .audio-control-row select { min-width: 0; max-width: 100%; padding: 7px 9px; border: 1px solid #dedee5; border-radius: 9px; background: white; color: var(--ink); font: inherit; }
+    .audio-control-row button { padding: 7px 10px; border: 1px solid #dedee5; border-radius: 9px; background: white; color: var(--ink); font: inherit; }
+    .audio-control-row button:disabled { opacity: .55; }
+    .audio-retention-hint { margin: 6px 0 0; color: #737580; line-height: 1.5; }
+    .meeting-audio-assets { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; max-height: 90px; overflow: auto; margin-top: 7px; }
+    .meeting-audio-assets:empty { display: none; }
+    .meeting-audio-assets button, .meeting-audio-assets a { border: 1px solid #dedee5; border-radius: 8px; padding: 5px 8px; color: var(--ink); background: white; text-decoration: none; font: inherit; }
+    .meeting-audio-controls audio { width: min(100%, 360px); height: 32px; margin-top: 7px; }
     .recording-policy[hidden] { display: none; }
     .recording-policy { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 2px 9px; padding: 8px 10px; border: 1px solid #e8e1d1; border-radius: 13px; background: #fffaf0; color: #7a6848; font-size: 10px; line-height: 1.45; }
     .recording-policy strong { flex: none; color: #6b5a39; font-size: 9px; }
@@ -617,14 +628,14 @@
       .tag-picker { left: 0; right: auto; width: min(100%, calc(100vw - 44px)); }
       .content-tabs { padding: 0 22px; gap: 30px; }
       .content-tab { font-size: 13px; }
-      .content-scroll { padding: 16px 22px 190px; }
+      .content-scroll { padding: 16px 22px var(--recording-console-space, 330px); }
       .transcript-block { grid-template-columns: 27px 1fr; gap: 11px; padding: 13px 0; }
       .speaker-dot { width: 25px; height: 25px; }
       .transcript-block p { font-size: 14px; line-height: 1.78; }
       .transcript-block.demo:first-of-type { display: none; }
       .recording-console { left: 10px; right: 10px; bottom: max(9px, env(safe-area-inset-bottom)); padding: 15px 16px 14px; border-radius: 22px; }
       body.summary-chat-active .recording-console { padding: 10px 13px; }
-      body.summary-chat-active .content-scroll { padding-bottom: 110px; }
+      body.summary-chat-active .content-scroll { padding-bottom: var(--recording-console-space, 330px); }
       .waveform-wrap, #recording-waveform { height: 42px; }
       .console-controls { margin-top: 10px; }
       .elapsed-time strong { font-size: 17px; }
@@ -713,7 +724,7 @@
         <span class="account-copy"><strong id="account-name">选择使用方式</strong><small id="account-storage">尚未进入</small></span>
         <button class="account-action" id="account-action" type="button">选择</button>
       </div>
-      <p class="sidebar-footnote" id="storage-note">服务器不保存录音，只保存文本和摘要。录音只在当前浏览器留存。</p>
+      <p class="sidebar-footnote" id="storage-note">原始录音默认不保存；登录账号可明确选择私有保留。</p>
     </aside>
     <button class="sidebar-backdrop" id="sidebar-backdrop" type="button" aria-label="关闭会议记录"></button>
 
@@ -952,6 +963,23 @@
       </div>
 
       <footer class="recording-console idle" id="recording-console">
+      <section class="meeting-audio-controls" id="meeting-audio-controls" aria-label="会议录音模式">
+        <div class="audio-control-row">
+          <label for="audio-retention-mode">录音模式</label>
+          <select id="audio-retention-mode">
+            <option value="discard" selected>只做语音识别，不保存录音</option>
+            <option value="retain">保存原始录音</option>
+          </select>
+          <button id="import-meeting-audio" type="button" title="支持 WAV、MP3、WebM、Ogg、M4A/MP4、FLAC">导入录音</button>
+          <input id="meeting-import-file" type="file" accept="audio/*,.wav,.mp3,.webm,.ogg,.m4a,.mp4,.flac" hidden />
+          <button id="cancel-meeting-import" type="button" hidden>取消导入</button>
+        </div>
+        <p class="audio-retention-hint" id="meeting-import-status" role="status" aria-live="polite">导入本地音频，最大 12 MiB，识别后建立会议。</p>
+        <p class="audio-retention-hint" id="audio-retention-hint">默认不保存原始录音。开启后可播放、下载；不能恢复此前未保存的音频。</p>
+        <div class="meeting-audio-assets" id="meeting-audio-assets" aria-live="polite"></div>
+        <audio id="meeting-audio-player" controls preload="none" hidden aria-label="播放已保存的会议录音"></audio>
+      </section>
+
         <div class="recording-policy" id="recording-policy" hidden>
           <span id="record-limit-status">访客试用 · 每段最长 10 分钟</span>
           <strong id="record-limit-remaining">10:00</strong>
@@ -1193,10 +1221,10 @@
             <span class="mode-icon">⌂</span><strong>访客使用 · 单段 10 分钟</strong><span>文字和摘要仅保存在当前浏览器；服务器不保存录音。</span>
           </button>
           <button class="mode-card" id="show-login" type="button">
-            <span class="mode-icon">◎</span><strong>登录账号</strong><span>文字和摘要跨设备保存；服务器不保存录音，只保存文本和摘要。</span>
+            <span class="mode-icon">◎</span><strong>登录账号</strong><span>文字和摘要跨设备保存；原始录音默认不保存，可明确选择私有保留。</span>
           </button>
         </div>
-        <p class="privacy-note">隐私提示：音频只用于实时识别；服务器不保存录音，只保存文本和摘要。</p>
+        <p class="privacy-note">隐私提示：原始录音默认不保存；账号选择保存模式后才与会议私有关联。访客仅保存文字和摘要，识别时音频仍经过服务器。</p>
       </div>
       <p class="managed-account-note">仅限受邀账号使用。如需账号请联系管理员；登录页面由 ChatLogin 提供。</p>
     </section>
@@ -1240,6 +1268,23 @@
     let audioProcessor = null;
     let audioAnalyser = null;
     let microphoneStream = null;
+    let audioRetentionMode = 'discard';
+    let meetingAudioAssets = [];
+    let meetingAudioGeneration = 0;
+    let meetingAudioClearRunning = false;
+    let retainedAudioSaving = false;
+    let retainedRecorder = null;
+    let retainedRecorderChunks = [];
+    let retainedRecordingEpoch = 0;
+    let retainedFinalizePromise = null;
+    let retainedUploadController = null;
+    let retainedCaptureContext = null;
+    let retainedAudioError = '';
+    let meetingImportRunning = false;
+    let meetingCreationRunning = false;
+    let meetingImportEpoch = 0;
+    let meetingImportContext = null;
+    const MAX_RETAINED_AUDIO_BYTES = 128 * 1024 * 1024;
     let sendingAudio = false;
     let animationFrameId = null;
     let transcriptSegments = [...demoSegments];
@@ -1332,6 +1377,268 @@
       return `${minutes}:${remainder}`;
     }
 
+    async function cancelMeetingAudioImport() {
+      const context = meetingImportContext;
+      if (!context) return true;
+      const epoch = ++meetingImportEpoch;
+      context.controller.abort(); clearTimeout(context.timeout);
+      meetingImportContext = null; meetingImportRunning = false;
+      $('meeting-import-status').textContent = '正在取消导入…';
+      updateAudioRetentionUi();
+      let confirmed = true;
+      if (context.mode === 'account') {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 15000);
+        try {
+          const response = await fetch(`/api/meeting-imports/${encodeURIComponent(context.token)}`, { method: 'DELETE', headers: { 'X-CSRF-Token': context.csrf }, signal: controller.signal });
+          const payload = await response.json();
+          if (!response.ok || payload.cancelled !== true) throw new Error('取消尚未确认');
+        } catch (_) { confirmed = false; }
+        finally { clearTimeout(timer); }
+      }
+      if (epoch === meetingImportEpoch && !meetingImportRunning) {
+        $('meeting-import-status').textContent = confirmed ? '导入已取消，没有建立新会议。' : '取消尚未确认，请重新登录并检查会议历史，勿重复导入。';
+        if (!confirmed) showToast('取消尚未确认，请检查会议历史');
+      }
+      return confirmed;
+    }
+
+    async function importMeetingAudio(file) {
+      const status = $('meeting-import-status');
+      if (!storageMode) { showEntryDialog(); return; }
+      if (meetingCreationRunning || meetingImportRunning || retainedAudioSaving || meetingAudioClearRunning || ['connecting', 'recording', 'paused', 'finishing'].includes(recorderState)) { showToast('请先结束录音或取消当前导入'); return; }
+      if (!file.size) { status.textContent = '音频文件为空，未建立会议。'; return; }
+      if (file.size > 12 * 1024 * 1024) { status.textContent = '音频超过 12 MiB，未建立会议；请先截取较短音频。'; return; }
+      if (!/\.(wav|mp3|webm|ogg|m4a|mp4|flac)$/i.test(file.name || '') && !/^audio\//.test(file.type || '')) { status.textContent = '请选择支持的音频文件，未建立会议。'; return; }
+      const epoch = ++meetingImportEpoch;
+      const context = { epoch, mode: storageMode, csrf: csrfToken, token: createRecordId(), id: createRecordId(), controller: new AbortController(), timeout: null };
+      const retain = context.mode === 'account' && audioRetentionMode === 'retain';
+      meetingImportContext = context; meetingImportRunning = true;
+      status.textContent = retain ? '正在上传和识别，完成后保存原始录音；可随时取消。' : '正在上传和识别，只保存文字、不保存原始录音；可随时取消。';
+      updateAudioRetentionUi();
+      context.timeout = setTimeout(() => cancelMeetingAudioImport(), 200000);
+      try {
+        if (await saveActiveMeeting() === false) throw new Error('当前会议尚未保存，请重试');
+        if (epoch !== meetingImportEpoch) return;
+        const form = new FormData();
+        form.append('file', file, file.name || 'audio.wav');
+        form.append('channel', $('asr-channel').value || 'funasr-gpu');
+        let record;
+        if (context.mode === 'account') {
+          form.append('import_token', context.token); form.append('retain_audio', String(retain));
+          const response = await fetch(`/api/meetings/${encodeURIComponent(context.id)}/import`, { method: 'POST', headers: { 'X-CSRF-Token': context.csrf }, body: form, signal: context.controller.signal });
+          const payload = await response.json();
+          if (!response.ok) throw new Error(typeof payload.detail === 'string' ? payload.detail : '音频导入失败，未建立会议');
+          record = payload.meeting;
+          if (!record || record.id !== context.id || !record.transcript_segments?.length) throw new Error('导入结果不完整，请检查会议历史');
+        } else {
+          const response = await fetch('/api/asr', { method: 'POST', body: form, signal: context.controller.signal });
+          const payload = await response.json();
+          if (!response.ok) throw new Error(typeof payload.detail === 'string' ? payload.detail : '音频识别失败，未建立会议');
+          const text = payload.corrected_text || payload.raw_text;
+          if (typeof text !== 'string' || !text.trim()) throw new Error('未识别出文字，未建立会议');
+          if (epoch !== meetingImportEpoch) return;
+          const now = new Date().toISOString();
+          const characters = Array.from(text.trim());
+          const segments = [];
+          for (let offset = 0; offset < characters.length; offset += 5000) segments.push({speaker:'说话人 1',time:'00:00',text:characters.slice(offset, offset + 5000).join('')});
+          record = { id: context.id, title: (file.name || '导入录音').replace(/\.[^.]+$/, ''), created_at: now, updated_at: now, duration_seconds: 0, transcript_segments: segments, summary_content:'', summary_title:'', summary_customized:false, summary_chat_messages:[], todo_markdown:'', todo_chat_messages:[], tags:[], audio_retention:false, audio_assets:[] };
+          record = await putStoredMeeting(context.id, record, 'guest');
+          if (epoch !== meetingImportEpoch) { await guestDbRequest('readwrite', (store) => store.delete(context.id)); return; }
+        }
+        if (epoch !== meetingImportEpoch || storageMode !== context.mode) return;
+        meetingImportRunning = false; meetingImportContext = null;
+        meetingIndex = [meetingMetaFromRecord(record), ...meetingIndex.filter((item) => item.id !== record.id)];
+        updateAudioRetentionUi();
+        if (await openMeeting(record.id) === false) { status.textContent = '导入已完成，但会议暂时无法打开，请从历史重新打开。'; return; }
+        if (epoch !== meetingImportEpoch) return;
+        status.textContent = retain ? '导入完成，转写和原始录音已保存到此会议。' : '导入完成，原始录音未保存，可继续生成或修改纪要。';
+        maybeGenerateMeetingTitle({ force: true });
+        generateSummary();
+      } catch (error) {
+        if (epoch !== meetingImportEpoch) return;
+        const message = error.name === 'AbortError' ? '导入等待超时或取消' : String(error.message || '音频导入失败');
+        const cancelled = await cancelMeetingAudioImport();
+        if (!meetingImportRunning && meetingImportEpoch === epoch + 1) {
+          status.textContent = cancelled ? message : `${message}；取消尚未确认，请检查会议历史。`;
+          showToast(status.textContent);
+        }
+      } finally {
+        clearTimeout(context.timeout);
+        if (meetingImportContext === context) { meetingImportContext = null; meetingImportRunning = false; updateAudioRetentionUi(); }
+      }
+    }
+
+    function updateAudioRetentionUi() {
+      const active = ['connecting', 'recording', 'paused', 'finishing'].includes(recorderState);
+      $('quick-new-meeting').disabled = meetingCreationRunning;
+      $('audio-retention-mode').disabled = active || meetingCreationRunning || meetingImportRunning || retainedAudioSaving || meetingAudioClearRunning || storageMode !== 'account';
+      $('import-meeting-audio').disabled = active || meetingCreationRunning || meetingImportRunning || retainedAudioSaving || meetingAudioClearRunning;
+      $('cancel-meeting-import').hidden = !meetingImportRunning;
+      $('record-toggle').disabled = meetingCreationRunning || meetingImportRunning || retainedAudioSaving || meetingAudioClearRunning || ['connecting', 'finishing'].includes(recorderState);
+      $('account-action').disabled = meetingCreationRunning || meetingImportRunning || retainedAudioSaving || meetingAudioClearRunning || active;
+      $('audio-retention-mode').value = audioRetentionMode;
+      $('audio-retention-hint').textContent = retainedAudioError || (storageMode !== 'account'
+        ? '请先登录才能保存原始录音；访客只保存文字到此浏览器。不能恢复此前未保存的音频。'
+        : audioRetentionMode === 'retain'
+          ? '本次录音结束后保存到此会议，仅你可播放或下载；删除会议会删除录音。不能恢复此前未保存的音频。'
+          : '只做语音识别，不保存原始录音；不能恢复此前未保存的音频。');
+      $('local-save-status').textContent = meetingAudioClearRunning ? '正在清理原始录音…' : retainedAudioSaving ? '正在保存原始录音，请等待…' : retainedAudioError ? '录音保存或清理失败，请查看说明'
+        : audioRetentionMode === 'retain' ? '已开启原始录音保存' : '服务器只保存文字和摘要';
+    }
+
+    function setAudioRetentionMode(mode, options) {
+      const { persist = true, announce = true } = options || {};
+      if (meetingCreationRunning || meetingImportRunning || retainedAudioSaving || meetingAudioClearRunning || ['connecting', 'recording', 'paused', 'finishing'].includes(recorderState)) {
+        showToast('请先结束录音再切换保存模式'); updateAudioRetentionUi(); return;
+      }
+      if (mode === 'retain' && storageMode !== 'account') {
+        audioRetentionMode = 'discard'; showToast('请先登录再保存原始录音'); updateAudioRetentionUi(); return;
+      }
+      audioRetentionMode = mode === 'retain' ? 'retain' : 'discard';
+      retainedAudioError = '';
+      updateAudioRetentionUi();
+      if (persist) scheduleMeetingSave(0);
+      if (announce) showToast('模式从下次开始录音生效；不能恢复此前未保存的音频');
+    }
+
+    function renderMeetingAudioAssets(assets = []) {
+      meetingAudioAssets = Array.isArray(assets) ? assets : [];
+      $('meeting-audio-assets').innerHTML = meetingAudioAssets.map((asset, index) => {
+        const base = `/api/meetings/${encodeURIComponent(activeMeetingId || '')}/audio/${encodeURIComponent(asset.id || '')}`;
+        return `<span><button type="button" data-audio-play="${escapeHtml(base)}">播放录音 ${index + 1}</button> <a href="${escapeHtml(base + '/download')}">下载</a></span>`;
+      }).join('');
+      const player = $('meeting-audio-player');
+      player.pause(); player.removeAttribute('src'); player.hidden = true;
+    }
+
+    async function clearStoredMeetingAudio() {
+      if (storageMode !== 'account' || !activeMeetingId || meetingAudioClearRunning || (!meetingAudioAssets.length && !retainedAudioSaving && !retainedUploadController)) return;
+      const recordId = activeMeetingId;
+      const owner = authUser?.id;
+      const previousAssets = meetingAudioAssets;
+      meetingAudioClearRunning = true;
+      updateAudioRetentionUi();
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 15000);
+      try {
+        const response = await fetch(`/api/meetings/${encodeURIComponent(recordId)}/audio`, { method: 'DELETE', headers: meetingHeaders(true), signal: controller.signal });
+        const payload = await response.json();
+        if (!response.ok && response.status !== 404) throw new Error('录音清理未完成');
+        if (activeMeetingId === recordId && authUser?.id === owner) {
+          meetingAudioGeneration = response.status === 404 ? 0 : Number(payload.audio_generation || 0);
+          renderMeetingAudioAssets([]);
+        }
+      } catch (_) {
+        if (activeMeetingId === recordId && authUser?.id === owner) { retainedAudioError = '原始录音清理未完成，请重新打开会议核对或重试删除。'; renderMeetingAudioAssets(previousAssets); showToast(retainedAudioError); }
+      } finally { clearTimeout(timer); meetingAudioClearRunning = false; updateAudioRetentionUi(); }
+    }
+
+    function discardRetainedAudioCapture() {
+      retainedRecordingEpoch += 1;
+      retainedAudioSaving = false;
+      if (retainedUploadController) retainedUploadController.abort();
+      retainedUploadController = null;
+      const recorder = retainedRecorder;
+      retainedRecorder = null;
+      retainedRecorderChunks = [];
+      retainedCaptureContext = null;
+      retainedFinalizePromise = null;
+      if (recorder) {
+        recorder.ondataavailable = null; recorder.onstop = null; recorder.onerror = null;
+        if (recorder.state !== 'inactive') { try { recorder.stop(); } catch (_) {} }
+      }
+    }
+
+    function startRetainedAudioCapture(stream) {
+      discardRetainedAudioCapture();
+      retainedRecorderChunks = [];
+      retainedAudioError = '';
+      if (audioRetentionMode !== 'retain') return;
+      if (storageMode !== 'account' || !authUser) throw new Error('请先登录再保存原始录音');
+      if (typeof MediaRecorder === 'undefined') throw new Error('当前浏览器不支持保存录音，请选择只做语音识别');
+      const mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'].find((type) => MediaRecorder.isTypeSupported(type));
+      if (!mime) throw new Error('当前浏览器没有支持的录音格式，请选择只做语音识别');
+      const epoch = retainedRecordingEpoch;
+      const recorder = new MediaRecorder(stream, { mimeType: mime });
+      retainedRecorder = recorder;
+      retainedCaptureContext = { epoch, meetingId: activeMeetingId, ownerId: authUser.id, csrf: csrfToken, token: createRecordId(), generation: meetingAudioGeneration };
+      let size = 0;
+      recorder.ondataavailable = (event) => {
+        if (epoch !== retainedRecordingEpoch || !event.data || !event.data.size) return;
+        size += event.data.size;
+        if (size > MAX_RETAINED_AUDIO_BYTES) {
+          discardRetainedAudioCapture(); retainedAudioError = '原始录音超过 128 MiB，本次录音不再保存文件，语音识别继续。';
+          updateAudioRetentionUi(); showToast(retainedAudioError); return;
+        }
+        retainedRecorderChunks.push(event.data);
+      };
+      recorder.onerror = () => {
+        if (epoch !== retainedRecordingEpoch) return;
+        discardRetainedAudioCapture(); retainedAudioError = '浏览器录音保存失败，本次语音识别仍可继续。'; updateAudioRetentionUi(); showToast(retainedAudioError);
+      };
+      recorder.start(1000);
+    }
+
+    function pauseRetainedAudioCapture() {
+      if (retainedRecorder && retainedRecorder.state === 'recording') {
+        retainedRecorder.requestData(); retainedRecorder.pause();
+      }
+    }
+
+    function resumeRetainedAudioCapture() {
+      if (retainedRecorder && retainedRecorder.state === 'paused') retainedRecorder.resume();
+    }
+
+    async function uploadRetainedMeetingAudio(blob, context) {
+      if (context.epoch !== retainedRecordingEpoch || context.meetingId !== activeMeetingId || storageMode !== 'account' || context.ownerId !== authUser?.id) return;
+      if (!blob.size) throw new Error('录音为空，没有保存音频文件');
+      if (await saveActiveMeeting() === false) throw new Error('会议尚未保存，原始录音未上传');
+      if (context.epoch !== retainedRecordingEpoch || context.meetingId !== activeMeetingId || context.ownerId !== authUser?.id) return;
+      const controller = new AbortController(); retainedUploadController = controller;
+      const timeout = setTimeout(() => controller.abort(), 180000);
+      const form = new FormData(); form.append('file', blob, blob.type.includes('mp4') ? 'recording.m4a' : 'recording.webm'); form.append('upload_token', context.token);
+      form.append('generation', String(context.generation));
+      try {
+        const response = await fetch(`/api/meetings/${encodeURIComponent(context.meetingId)}/audio`, { method: 'POST', headers: { 'X-CSRF-Token': context.csrf }, body: form, signal: controller.signal });
+        const payload = await response.json();
+        if (!response.ok || !payload.audio) throw new Error(payload.detail || '原始录音保存失败');
+        if (context.epoch !== retainedRecordingEpoch || context.meetingId !== activeMeetingId || context.ownerId !== authUser?.id) return;
+        renderMeetingAudioAssets([...meetingAudioAssets.filter((asset) => asset.id !== payload.audio.id), payload.audio]);
+        showToast('原始录音已保存到当前会议');
+      } finally {
+        clearTimeout(timeout);
+        if (retainedUploadController === controller) retainedUploadController = null;
+      }
+    }
+
+    function finalizeRetainedAudioCapture() {
+      if (retainedFinalizePromise) return retainedFinalizePromise;
+      const recorder = retainedRecorder;
+      const context = retainedCaptureContext;
+      if (!recorder || !context) return Promise.resolve();
+      retainedAudioSaving = true;
+      updateAudioRetentionUi();
+      retainedFinalizePromise = new Promise((resolve) => {
+        const captureData = recorder.ondataavailable;
+        recorder.ondataavailable = (event) => captureData?.(event);
+        recorder.onstop = async () => {
+          if (context.epoch !== retainedRecordingEpoch) { resolve(); return; }
+          const chunks = retainedRecorderChunks;
+          retainedRecorder = null; retainedRecorderChunks = []; retainedCaptureContext = null;
+          try { await uploadRetainedMeetingAudio(new Blob(chunks, { type: recorder.mimeType || chunks[0]?.type || 'audio/webm' }), context); }
+          catch (error) {
+            if (context.epoch === retainedRecordingEpoch) { retainedAudioError = error.name === 'AbortError' ? '录音保存超时或取消，重新打开会议可检查保存状态。' : String(error.message || '原始录音保存失败'); updateAudioRetentionUi(); showToast(retainedAudioError); }
+          }
+          if (context.epoch === retainedRecordingEpoch) { retainedAudioSaving = false; updateAudioRetentionUi(); }
+          resolve();
+        };
+        try { recorder.requestData(); recorder.stop(); }
+        catch (_) { discardRetainedAudioCapture(); retainedAudioError = '无法结束浏览器录音保存，请重新开始。'; updateAudioRetentionUi(); resolve(); }
+      });
+      return retainedFinalizePromise;
+    }
+
     function updateRecordingLimitUi() {
       const policy = $('recording-policy');
       const guestMode = storageMode === 'guest';
@@ -1365,6 +1672,7 @@
 
     function switchProductView(view) {
       if (!['meeting', 'studio', 'conversation'].includes(view) || view === activeProductView) return true;
+      if (meetingImportRunning && view !== 'meeting') { showToast('请先完成或取消音频导入'); return false; }
       if (view !== 'meeting' && ['connecting', 'recording', 'paused', 'finishing'].includes(recorderState)) {
         showToast('请先结束当前录音，再切换功能');
         return false;
@@ -2786,7 +3094,7 @@
           ? '对话文字、模型和音色已绑定账号同步；原始语音不保存。'
           : '对话文字仅保存在当前浏览器；原始语音只在实时请求中临时经过服务器。'
         : loggedIn
-          ? '服务器同步文字、摘要和会议元数据；录音不上传，也不自动保存在浏览器。'
+          ? '服务器同步文字、摘要和会议元数据；原始录音默认不保存，仅账号明确选择后私有保留。'
           : '访客文字/摘要仅在当前浏览器；服务器不保存原始录音。';
       renderSidebarIndex();
     }
@@ -2983,11 +3291,13 @@
         summary_chat_messages: summaryChatMessages.filter((message) => !message.streaming && message.text.trim()).map(({ role, text }) => ({ role, text })),
         todo_markdown: todoContent(),
         todo_chat_messages: todoChatMessages.map(({role, text}) => ({role, text})),
+        audio_retention: audioRetentionMode === 'retain',
       };
       meetingSaveChain = meetingSaveChain.catch(() => {}).then(async () => {
         try {
           const saved = await putStoredMeeting(recordId, payload, targetMode, targetCsrfToken);
           if (recordId === activeMeetingId && targetMode === storageMode) {
+            if (!meetingAudioClearRunning && Number.isInteger(saved.audio_generation)) meetingAudioGeneration = saved.audio_generation;
             const meta = meetingMetaFromRecord(saved);
             meetingIndex = [meta, ...meetingIndex.filter((meeting) => meeting.id !== meta.id)];
             renderMeetingIndex();
@@ -3012,9 +3322,10 @@
     }
 
     async function openMeeting(meetingId) {
+      if (meetingImportRunning) { showToast('请先完成或取消音频导入'); return false; }
       if (['recording', 'paused', 'connecting', 'finishing'].includes(recorderState)) {
         showToast('请先结束当前录音');
-        return;
+        return false;
       }
       cancelSummaryWork();
       try {
@@ -3023,6 +3334,10 @@
         activeMeetingId = meeting.id;
         activeMeetingCreatedAt = meeting.created_at;
         showingDemo = false;
+        audioRetentionMode = storageMode === 'account' && meeting.audio_retention ? 'retain' : 'discard';
+        meetingAudioGeneration = Number(meeting.audio_generation || 0);
+        retainedAudioError = '';
+        renderMeetingAudioAssets(meeting.audio_assets || []);
         transcriptSegments = (meeting.transcript_segments || []).map((segment) => ({ ...segment, demo: false, revisable: false }));
         rewriteSegments = [];
         liveTranscriptText = '';
@@ -3055,13 +3370,21 @@
         renderMeetingIndex();
         setActiveTab('transcript');
         closeSidebarOnSmallScreen();
+        return true;
       } catch (error) {
         showToast(error.message || '无法打开这条会议记录');
+        return false;
       }
     }
 
     async function createNewMeeting(options) {
       const { announce = true } = options || {};
+      if (meetingCreationRunning) return false;
+      if (!storageMode) { showEntryDialog(); return false; }
+      meetingCreationRunning = true;
+      updateAudioRetentionUi();
+      try {
+      if (meetingImportRunning) await cancelMeetingAudioImport();
       if (['connecting', 'recording', 'paused', 'finishing'].includes(recorderState)) {
         interruptActiveRecording({ reason: 'new-meeting', message: '录音已中断，正在建立新会议…' });
       }
@@ -3070,6 +3393,9 @@
       activeMeetingId = createRecordId();
       activeMeetingCreatedAt = new Date().toISOString();
       $('meeting-title').value = '新录音';
+      audioRetentionMode = 'discard';
+      renderMeetingAudioAssets([]);
+      meetingAudioGeneration = 0;
       resetMeetingTitleGeneration();
       $('created-at').textContent = new Intl.DateTimeFormat('zh-CN', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(activeMeetingCreatedAt));
       resetSession({ announce: false, persist: false });
@@ -3077,6 +3403,11 @@
       await saveActiveMeeting();
       updateRecorderUi('idle', announce ? '新会议已建立，可以开始录音' : '点击下方按钮开始录音');
       closeSidebarOnSmallScreen();
+      return true;
+      } finally {
+        meetingCreationRunning = false;
+        updateAudioRetentionUi();
+      }
     }
 
     async function deleteMeetingRecord(meetingId) {
@@ -3085,6 +3416,7 @@
       try {
         if (activeMeetingId === meetingId) {
           clearTimeout(meetingSaveTimer);
+          if (meetingImportRunning) await cancelMeetingAudioImport();
           meetingSaveTimer = null;
           if (['connecting', 'recording', 'paused', 'finishing'].includes(recorderState)) {
             interruptActiveRecording({ reason: 'delete-meeting', message: '录音已中断，正在删除这条会议…' });
@@ -3113,6 +3445,7 @@
       if (!['recording', 'paused', 'connecting', 'finishing'].includes(recorderState)) asrPassLimitSeconds = 10 * 60;
       updateSidebarContext();
       updateRecordingLimitUi();
+      updateAudioRetentionUi();
     }
 
     function showEntryDialog(view = 'mode') {
@@ -3121,6 +3454,7 @@
     }
 
     async function openSharedLogin() {
+      if (meetingImportRunning) { showToast('请先完成或取消音频导入，再进入登录页面'); return; }
       if (isRealtimeActive()) {
         showToast('请先结束实时对话，再进入登录页面。');
         return;
@@ -3407,6 +3741,7 @@
       }
       updateRecordingLimitUi();
       renderTranscript();
+      updateAudioRetentionUi();
     }
 
     function startTimer() {
@@ -3561,6 +3896,7 @@
       } else if (payload.demo_event === 'asr.stream.backpressure') {
         $('latency-label').textContent = '识别服务正在追赶';
       } else if (payload.demo_event === 'asr.stream.error') {
+        discardRetainedAudioCapture();
         stopTimer();
         stopCaptureGraph();
         if (payload.asr_health) renderAsrHealthStatus({ ok: false, asr: payload.asr_health });
@@ -3583,8 +3919,10 @@
 
     function interruptActiveRecording(options) {
       const { reason = 'interrupt', message = '' } = options || {};
+      cancelMeetingAudioImport();
       const wasActive = ['connecting', 'recording', 'paused', 'finishing'].includes(recorderState);
       activeAsrSessionToken += 1;
+      discardRetainedAudioCapture();
       contentEpoch += 1;
       cancelSummaryWork();
       clearTimeout(finishFallbackTimer);
@@ -3609,7 +3947,8 @@
     }
 
     function resetSession(options) {
-      const { announce = true, persist = true } = options || {};
+      const { announce = true, persist = true, audioCleanupStarted = false } = options || {};
+      if (persist && !audioCleanupStarted) clearStoredMeetingAudio();
       interruptActiveRecording({ reason: 'reset-session', message: announce ? '内容已清空，可以开始新录音' : '正在准备新录音…' });
       cancelSummaryWork();
       clearTimeout(finishFallbackTimer);
@@ -3627,6 +3966,7 @@
       liveTranscriptText = '';
       sessionConfirmedCount = 0;
       showingDemo = false;
+      renderMeetingAudioAssets([]);
       if (meetingTitleMode !== 'manual') {
         $('meeting-title').value = '新录音';
         resetMeetingTitleGeneration();
@@ -3660,8 +4000,9 @@
         const ok = confirm('确定清空这一次录音/会议内容吗？已显示的文字和摘要会从当前页面移除。');
         if (!ok) return;
       }
+      clearStoredMeetingAudio();
       interruptActiveRecording({ reason: 'reset', message: '录音已中断，正在清空内容…' });
-      resetSession();
+      resetSession({ audioCleanupStarted: true });
     }
 
     function closeSettingsMenu() {
@@ -3705,6 +4046,9 @@
     }
 
     async function startRecordingSession() {
+      if (meetingCreationRunning) { showToast('新会议正在建立，请稍候'); return; }
+      if (retainedAudioSaving || meetingAudioClearRunning) { showToast('请先等待原始录音保存或清理完成'); return; }
+      if (meetingImportRunning) { showToast('请先完成或取消音频导入'); return; }
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         updateRecorderUi('error', '当前浏览器不支持麦克风录音');
         return;
@@ -3738,13 +4082,15 @@
             return;
           }
           sendingAudio = true;
+          startRetainedAudioCapture(microphoneStream);
           updateRecorderUi('recording');
           startTimer();
         } catch (error) {
           if (streamToken !== activeAsrSessionToken) return;
           stopCaptureGraph();
           if (asrStreamWs && asrStreamWs.readyState === WebSocket.OPEN) asrStreamWs.close();
-          updateRecorderUi('error', error && error.name === 'NotAllowedError' ? '未获得麦克风权限，请在浏览器设置中允许' : '无法打开麦克风，请检查输入设备');
+          discardRetainedAudioCapture();
+          updateRecorderUi('error', error && error.name === 'NotAllowedError' ? '未获得麦克风权限，请在浏览器设置中允许' : (error.message || '无法打开麦克风，请检查输入设备'));
         }
       };
       asrStreamWs.onmessage = (event) => {
@@ -3760,6 +4106,7 @@
 
     function pauseRecording() {
       if (recorderState !== 'recording') return;
+      pauseRetainedAudioCapture();
       sendingAudio = false;
       updateRecorderUi('paused', '录音已暂停，正在整理刚才的转写…');
       const committed = requestAsrWindowCommit({ reason: 'pause', allowPaused: true });
@@ -3769,6 +4116,7 @@
 
     function resumeRecording() {
       if (recorderState !== 'paused') return;
+      resumeRetainedAudioCapture();
       sendingAudio = true;
       updateRecorderUi('recording', pauseCommitPending ? '继续录音中，上一段仍在整理…' : undefined);
       if (pauseCommitPending) $('latency-label').textContent = '上一段仍在后台整理';
@@ -3776,6 +4124,7 @@
 
     function finishRecording(message = '') {
       if (!['recording', 'paused'].includes(recorderState)) return;
+      finalizeRetainedAudioCapture();
       updateRecorderUi('finishing', typeof message === 'string' && message ? message : undefined);
       stopTimer();
       sendingAudio = false;
@@ -3790,6 +4139,7 @@
     }
 
     function finishSessionUi(message = '') {
+      finalizeRetainedAudioCapture();
       clearTimeout(finishFallbackTimer);
       finishFallbackTimer = null;
       stopTimer();
@@ -4145,6 +4495,23 @@
       else startRecordingSession();
     });
     $('finish-recording').addEventListener('click', () => finishRecording());
+    $('audio-retention-mode').addEventListener('change', (event) => setAudioRetentionMode(event.target.value));
+    $('import-meeting-audio').addEventListener('click', () => {
+      if (!storageMode) { showEntryDialog(); return; }
+      if (meetingCreationRunning || meetingImportRunning || retainedAudioSaving || meetingAudioClearRunning || ['connecting', 'recording', 'paused', 'finishing'].includes(recorderState)) { showToast('请先结束录音或取消当前导入'); return; }
+      $('meeting-import-file').click();
+    });
+    $('meeting-import-file').addEventListener('change', async (event) => {
+      const file = event.target.files?.[0];
+      try { if (file) await importMeetingAudio(file); } finally { event.target.value = ''; }
+    });
+    $('cancel-meeting-import').addEventListener('click', () => cancelMeetingAudioImport());
+    $('meeting-audio-assets').addEventListener('click', async (event) => {
+      const button = event.target.closest('[data-audio-play]');
+      if (!button) return;
+      const player = $('meeting-audio-player'); player.src = button.dataset.audioPlay; player.hidden = false;
+      try { await player.play(); } catch (_) { showToast('无法播放录音，请尝试下载或重新登录'); }
+    });
     $('reset-recording').addEventListener('click', requestResetSession);
     $('refresh-title').addEventListener('click', refreshMeetingTitle);
     $('quick-new-meeting').addEventListener('click', () => createNewMeeting());
@@ -4333,6 +4700,15 @@
     renderTranscript();
     refreshStatus();
     setInterval(() => refreshHeartbeat(), 15000);
+    function syncRecordingConsoleLayout() {
+      const consoleElement = $('recording-console');
+      const shell = consoleElement.closest('.recorder-shell');
+      if (shell) shell.style.setProperty('--recording-console-space', `${Math.ceil(consoleElement.getBoundingClientRect().height) + 36}px`);
+    }
+    if (typeof ResizeObserver !== 'undefined') {
+      new ResizeObserver(syncRecordingConsoleLayout).observe($('recording-console'));
+      syncRecordingConsoleLayout();
+    }
     loadRealtimeModels();
     bootstrapAccess();
   </script>

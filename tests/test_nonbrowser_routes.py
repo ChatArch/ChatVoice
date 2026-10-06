@@ -18,14 +18,6 @@ from test_api_tokens import _sample_meeting_payload, _sample_conversation_payloa
 @pytest.fixture
 def flows_app(monkeypatch, tmp_path):
     monkeypatch.setattr(socket.socket, "connect", lambda *args, **kwargs: pytest.fail("Real network forbidden"))
-    async def deterministic_executor(function, *args, **kwargs):
-        return function(*args, **kwargs)
-    async def deterministic_iterator(iterator):
-        for item in iterator:
-            yield item
-    monkeypatch.setattr(fastapi.routing, "run_in_threadpool", deterministic_executor)
-    monkeypatch.setattr(asyncio, "to_thread", deterministic_executor)
-    monkeypatch.setattr(starlette.responses, "iterate_in_threadpool", deterministic_iterator)
     for name in ("HOME", "CHATARCH_HOME", "CHATVOICE_HOME"):
         monkeypatch.setenv(name, str(tmp_path / name.lower()))
     monkeypatch.setenv("CHATVOICE_ASR_PREWARM", "0")

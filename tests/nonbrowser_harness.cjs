@@ -14,6 +14,7 @@ function harness(mutation) {
   const downloads = [];
   const tracks = [];
   const graphs = [];
+  const recorders = [];
   const sockets = [];
   const revoked = [];
   let serial = 0;
@@ -61,6 +62,8 @@ function harness(mutation) {
     async dispatch(type, extra = {}) { for (const callback of this.listeners[type] || []) await callback({ target: this, preventDefault() {}, stopPropagation() {}, ...extra }); }
     click() { if (this.tagName === 'A') downloads.push({ href: this.href, download: this.download }); return this.dispatch('click'); }
     focus() {} scrollIntoView() {} select() {}
+    async play() { assert.ok(['AUDIO', 'VIDEO'].includes(this.tagName)); this.paused = false; }
+    pause() { assert.ok(['AUDIO', 'VIDEO'].includes(this.tagName)); this.paused = true; }
     get options() { return this.children.filter(child => child.tagName === 'OPTION'); }
     get selectedIndex() { return Math.max(0, this.options.findIndex(option => option.value === this.value)); }
     reset() { this.children.forEach(child => { if (child.tagName === 'INPUT') child.value = ''; }); }
@@ -133,9 +136,25 @@ function harness(mutation) {
     async resume() {} async close() { this.closed = true; }
   }
   class Recorder {
-    constructor(stream) { this.stream = stream; this.state = 'inactive'; this.mimeType = 'audio/webm'; }
-    start() { this.state = 'recording'; }
-    stop() { this.state = 'inactive'; this.ondataavailable?.({ data: new Blob(['reference'], { type: this.mimeType }) }); this.onstop?.(); }
+    static isTypeSupported(type) { return type.startsWith('audio/'); }
+    constructor(stream, options = {}) {
+      this.stream = stream; this.state = 'inactive'; this.mimeType = options.mimeType || 'audio/webm';
+      this.requestDataCalls = 0; this.pauseCalls = 0; this.resumeCalls = 0; this.stopCalls = 0;
+      recorders.push(this);
+    }
+    start(timeslice) { this.state = 'recording'; this.timeslice = timeslice; }
+    requestData() {
+      this.requestDataCalls += 1;
+      this.ondataavailable?.({ data: new Blob([`requested-${this.requestDataCalls}`], { type: this.mimeType }) });
+    }
+    pause() { this.pauseCalls += 1; this.state = 'paused'; }
+    resume() { this.resumeCalls += 1; this.state = 'recording'; }
+    stop() {
+      if (this.state === 'inactive') return;
+      this.stopCalls += 1; this.state = 'inactive';
+      this.ondataavailable?.({ data: new Blob(['tail-data'], { type: this.mimeType }) });
+      this.onstop?.();
+    }
   }
   const context = vm.createContext({ console, Blob, FormData, TextDecoder, TextEncoder, AbortController, Uint8Array, Float32Array, Int16Array, ArrayBuffer, Date, Intl, crypto: require('node:crypto').webcrypto,
     document, URLSearchParams, location: { protocol: 'https:', host: 'app.example.test', search: '' }, confirm: () => true,
@@ -150,7 +169,7 @@ function harness(mutation) {
     addEventListener() {}, matchMedia: () => ({ matches: false }), innerWidth: 1200,
   });
   context.window = context; context.globalThis = context;
-  const api = { context, document, timers, stores, requests, downloads, tracks, graphs, sockets, revoked, transactions, transactionControl,
+  const api = { context, document, timers, stores, requests, downloads, tracks, graphs, recorders, sockets, revoked, transactions, transactionControl,
     get clipboard() { return clipboard; },
     respond: async url => { throw new Error(`Unexpected offline request: ${url}`); },
     run: code => vm.runInContext(code, context),
