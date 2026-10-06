@@ -2655,10 +2655,17 @@ def _funasr_gpu_asr(audio_bytes: bytes, filename: str) -> dict[str, Any]:
     return _funasr_asr(audio_bytes, filename, "funasr-gpu", FUNASR_GPU_DEVICE)
 
 
+class ASRTemporaryStorageError(RuntimeError):
+    """A large-upload temporary copy failed before any provider call."""
+
+
 def _transcribe_large_audio(channel: str, audio_bytes: bytes, filename: str, correct: bool = True,
                             cancelled=None) -> dict[str, Any]:
     from chatvoice.asr_chunks import transcribe_file
-    source = _write_upload_to_temp(audio_bytes, filename)
+    try:
+        source = _write_upload_to_temp(audio_bytes, filename)
+    except OSError:
+        raise ASRTemporaryStorageError("large audio temporary copy failed") from None
     try:
         chunk_meta: dict[str, Any] = {}
         def provider(data: bytes, index: int):
@@ -3160,7 +3167,7 @@ async def import_meeting_audio(
         except asyncio.TimeoutError:
             _record_asr_error(channel, RuntimeError("meeting audio import timed out"))
             raise HTTPException(status_code=504, detail="语音识别超时，未建立会议，请换用较短的音频") from None
-        except OSError:
+        except ASRTemporaryStorageError:
             _record_asr_error(channel, RuntimeError("meeting audio temporary storage failed"))
             raise HTTPException(status_code=507, detail="导入临时存储失败，未建立会议，请检查可用空间") from None
         except Exception as exc:

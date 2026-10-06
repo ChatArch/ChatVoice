@@ -157,3 +157,19 @@ def test_import_client_budget_has_explicit_upload_headroom():
     docs=(Path(__file__).resolve().parents[1]/'docs/recording-storage.en.md').read_text()
     assert 'upload time is separate' not in docs
     assert '30-minute total' in docs
+
+
+@pytest.mark.parametrize('size',[40000,13*1024*1024])
+def test_provider_network_oserror_stays_provider_failure(audio_app,monkeypatch,size):
+    import asyncio,httpx,urllib.error
+    def provider(*args,**kwargs):raise urllib.error.URLError('fixture network failure')
+    monkeypatch.setattr(audio_app,'_api_server_asr',provider)
+    async def flow():
+        from test_meeting_audio_storage import _login
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=audio_app.app),base_url='https://app.example.test') as client:
+            csrf=await _login(client,audio_app,'provider-oserror@example.test')
+            result=await client.post('/api/meetings/provider-fail/import',headers=csrf,data={'import_token':'provider-fail-token','channel':'api-server'},files={'file':('sample.wav',padded_wav(size),'audio/wav')})
+            assert result.status_code==502,result.text
+            assert (await client.get('/api/meetings')).json()['meetings']==[]
+            assert not list(Path(audio_app.AUDIO_UPLOAD_TEMP_DIR).glob('*'))
+    asyncio.run(flow())
