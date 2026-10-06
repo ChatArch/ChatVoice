@@ -11,9 +11,6 @@ import pytest
 
 @pytest.fixture
 def todo_app(monkeypatch, tmp_path):
-    async def in_thread(function, *args, **kwargs):
-        return function(*args, **kwargs)
-    monkeypatch.setattr(fastapi.routing, "run_in_threadpool", in_thread)
     monkeypatch.setenv("CHATARCH_HOME", str(tmp_path / "chatarch"))
     monkeypatch.setenv("CHATVOICE_HOME", str(tmp_path / "voice"))
     monkeypatch.setenv("CHATVOICE_ASR_CHANNEL", "stub-local")

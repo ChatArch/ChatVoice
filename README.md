@@ -20,7 +20,7 @@ ChatVoice 是 ChatArch 的录音转写与会议工作区 Python 包，包含 Spe
 要求 Python 3.10 或更高版本，建议安装到独立虚拟环境。
 
 ```bash
-python -m pip install "ChatVoice[web]==0.2.0"
+python -m pip install "ChatVoice[web]==0.3.0"
 chatvoice --version
 chatvoice --tree
 chatvoice serve app --dry-run --json
@@ -30,7 +30,8 @@ chatvoice serve app --dry-run --json
 
 ## 当前能力
 
-- **会议记录**：实时转写、暂停与继续、会议标题、标签、历史记录和复制文字。
+- **会议记录**：实时转写、暂停与继续、会议标题、标签、历史记录和复制文字。默认只做语音识别；登录后可选择保存原始录音，随会议播放或下载。
+- **录音导入**：导入不超过 12 MiB 的已有音频，经当前 ASR 通道转写后建立普通会议，继续生成标题、摘要和完善纪要。原始文件默认不保留，可明确选择保存。
 - **摘要与纪要**：生成摘要，手动编辑纪要，或通过对话修改并撤销。
 - **Markdown Todo**：由用户点击“转为 Todo”，在独立页面继续编辑、对话完善、复制或下载 `.md`；不会自动转换或执行任务。
 - **声音工作室**：配置系统音色与输出格式；通过独立声音复刻服务，以授权参考音频生成临时试听结果。
@@ -41,7 +42,9 @@ chatvoice serve app --dry-run --json
 
 ## 数据与安全边界
 
-账号记录保存到 `~/.chatarch/chatvoice` 下的 SQLite；访客记录仅存于当前浏览器。录音会为识别而短暂经过浏览器和服务端，但不作为会议音频档案保存。密钥不进入浏览器。
+账号记录保存到 `~/.chatarch/chatvoice` 下的 SQLite；访客记录仅存于当前浏览器。原始录音默认不保存；登录用户明确开启后，文件私有保存到会议名下，播放、下载和删除均校验所有权。访客不能保存服务器录音。密钥不进入浏览器。
+
+清空或删除会议会清理关联录音；切换保存模式不删除已有文件，也不能恢复此前未保存的音频。数据库备份不包含录音文件，保留原始录音时须同时备份私有音频目录。
 
 自助注册关闭，由部署者创建受邀账号。ChatVoice 直接依赖 ChatLogin 0.1.2 的内建 `ChatVoiceAuth`，复用既有账号、会话和 CSRF；`/login` 使用可定制的共享 `LoginUI`。会议所有权和 Token 权限仍由 ChatVoice 控制，访客草稿等待 IndexedDB 事务提交后才跳转登录。详见[数据保留边界](https://arch.gh.wzhecnu.cn/ChatVoice/recording-storage/)。
 

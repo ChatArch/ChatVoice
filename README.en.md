@@ -20,7 +20,7 @@ ChatVoice is the ChatArch Python package behind the Speakr recording and meeting
 Python 3.10+ is required. Use a dedicated virtual environment.
 
 ```bash
-python -m pip install "ChatVoice[web]==0.2.0"
+python -m pip install "ChatVoice[web]==0.3.0"
 chatvoice --version
 chatvoice --tree
 chatvoice serve app --dry-run --json
@@ -30,7 +30,8 @@ Installation neither starts a service nor downloads GPU models. The quick start 
 
 ## Capabilities
 
-- Meeting recording, live transcription, pause/resume, titles, tags and history.
+- Meeting recording, live transcription, pause/resume, titles, tags and history. Audio is discarded by default; account users may explicitly retain recordings for owner-protected playback and download.
+- Import an existing audio file up to 12 MiB through the configured ASR channel into a normal meeting, then generate titles, summaries and refined notes. Original-file retention is optional and defaults off.
 - Summary generation, direct editing, conversation-based refinement and undo.
 - Explicit summary-to-Todo conversion, a separate Markdown editor and refinement conversation, copy and `.md` export. No automatic conversion or task execution.
 - Configurable system TTS and an independent one-shot voice-cloning service.
@@ -41,7 +42,9 @@ Model configuration is server-side. Independent text settings serve notes and ti
 
 ## Data and security
 
-Account records use SQLite below `~/.chatarch/chatvoice`. Guest records remain in the browser. Audio passes through transcription processing but is not retained as a meeting recording archive. Provider keys never reach the browser.
+Account records use SQLite below `~/.chatarch/chatvoice`. Guest records remain in the browser. Original audio is discarded by default; explicit account opt-in stores private files associated with the meeting. Playback, download and deletion check ownership. Guests cannot retain server recordings. Provider keys never reach the browser.
+
+Clearing or deleting a meeting removes its retained audio. Switching retention mode neither deletes existing files nor recovers previously discarded audio. A database backup does not include recording bytes; back up the private audio directory together with the database when retention is used.
 
 Self-registration is disabled; operators provision invited accounts. ChatVoice uses the built-in `ChatVoiceAuth` backend from ChatLogin 0.1.2 and a customizable shared `LoginUI` at `/login`. Existing accounts, sessions and CSRF remain compatible; ChatVoice retains owner and token policy. Guest drafts must commit their IndexedDB transaction before login navigation.
 

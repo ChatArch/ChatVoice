@@ -45,6 +45,7 @@ from chatvoice.web.auth_adapter import AuthAdapter
 from pydantic import AliasChoices, BaseModel, Field
 from chatlogin.security import safe_next
 from chatvoice.web.login_ui import install_login_ui
+from chatvoice.web.upload_limits import AudioUploadLimits
 
 try:
     import websockets
@@ -187,6 +188,24 @@ PASSWORD_ITERATIONS = 310_000
 MAX_MEETING_TAGS = 24
 MAX_MEETING_TAG_LENGTH = 40
 MEETING_TAG_FORBIDDEN_CHARS = set('<>"`\\')
+MEETING_AUDIO_DIR = _RUNTIME_PATHS.data_dir / "meeting-audio"
+AUDIO_UPLOAD_TEMP_DIR = _RUNTIME_PATHS.temp_dir / "audio-uploads"
+MAX_RETAINED_AUDIO_BYTES = 128 * 1024 * 1024
+MAX_IMPORTED_AUDIO_BYTES = 12 * 1024 * 1024
+MEETING_IMPORT_TIMEOUT_SECONDS = 180
+AUDIO_UPLOAD_CHUNK_BYTES = 1024 * 1024
+AUDIO_UPLOAD_ENVELOPE_BYTES = 64 * 1024
+SUPPORTED_AUDIO_TYPES: dict[str, tuple[str, str]] = {
+    "wav": (".wav", "audio/wav"),
+    "mp3": (".mp3", "audio/mpeg"),
+    "webm": (".webm", "audio/webm"),
+    "ogg": (".ogg", "audio/ogg"),
+    "mp4": (".m4a", "audio/mp4"),
+    "flac": (".flac", "audio/flac"),
+}
+app.add_middleware(AudioUploadLimits, limit_for_path=lambda path: (
+    MAX_RETAINED_AUDIO_BYTES if path.endswith('/audio') else MAX_IMPORTED_AUDIO_BYTES
+) + AUDIO_UPLOAD_ENVELOPE_BYTES)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://127.0.0.1", "http://localhost", "http://127.0.0.1:18087", "http://localhost:18087"],
@@ -270,6 +289,7 @@ class MeetingRecordInput(BaseModel):
     summary_chat_messages: list[MeetingNotesChatMessage] = Field(default_factory=list, max_length=100)
     todo_markdown: str = Field("", max_length=20000)
     todo_chat_messages: list[MeetingNotesChatMessage] = Field(default_factory=list, max_length=100)
+    audio_retention: bool = False
 
 
 class StoredConversationMessage(BaseModel):
@@ -852,6 +872,47 @@ def _meeting_db() -> sqlite3.Connection:
         connection.execute("ALTER TABLE meeting_records ADD COLUMN todo_markdown TEXT NOT NULL DEFAULT ''")
     if "todo_chat_json" not in meeting_columns:
         connection.execute("ALTER TABLE meeting_records ADD COLUMN todo_chat_json TEXT NOT NULL DEFAULT '[]'")
+    if "audio_retention" not in meeting_columns:
+        connection.execute("ALTER TABLE meeting_records ADD COLUMN audio_retention INTEGER NOT NULL DEFAULT 0")
+    if "import_token" not in meeting_columns:
+        connection.execute("ALTER TABLE meeting_records ADD COLUMN import_token TEXT NOT NULL DEFAULT ''")
+    if "audio_generation" not in meeting_columns:
+        connection.execute("ALTER TABLE meeting_records ADD COLUMN audio_generation INTEGER NOT NULL DEFAULT 0")
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS meeting_audio_assets (
+            id TEXT PRIMARY KEY,
+            owner_id TEXT NOT NULL,
+            meeting_id TEXT NOT NULL,
+            storage_key TEXT NOT NULL UNIQUE,
+            media_type TEXT NOT NULL,
+            size_bytes INTEGER NOT NULL,
+            source TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            upload_token TEXT NOT NULL,
+            sha256 TEXT NOT NULL,
+            UNIQUE (owner_id, meeting_id, upload_token),
+            FOREIGN KEY (owner_id, meeting_id)
+                REFERENCES meeting_records(owner_id, meeting_id) ON DELETE CASCADE
+        )
+        """
+    )
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS meeting_audio_owner_meeting "
+        "ON meeting_audio_assets(owner_id, meeting_id, created_at)"
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS meeting_import_requests (
+            owner_id TEXT NOT NULL,
+            import_token TEXT NOT NULL,
+            meeting_id TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL CHECK (status IN ('pending', 'completed', 'cancelled', 'failed')),
+            created_at TEXT NOT NULL,
+            PRIMARY KEY (owner_id, import_token)
+        )
+        """
+    )
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS conversation_records (
@@ -1103,7 +1164,136 @@ def revoke_api_token(token_id: str, request: Request) -> JSONResponse:
     return JSONResponse({"revoked": cursor.rowcount > 0, "id": record_id})
 
 
-def _meeting_row_payload(row: sqlite3.Row, include_content: bool) -> dict[str, Any]:
+def _ensure_private_directory(path: Path) -> Path:
+    if path.is_symlink():
+        raise RuntimeError("audio storage directory must not be a symlink")
+    path.mkdir(parents=True, exist_ok=True, mode=0o700)
+    path.chmod(0o700)
+    return path.resolve()
+
+
+def _detect_audio_type(header: bytes) -> tuple[str, str, str] | None:
+    if len(header) >= 12 and header[:4] == b"RIFF" and header[8:12] == b"WAVE":
+        kind = "wav"
+    elif header.startswith(b"\x1aE\xdf\xa3"):
+        kind = "webm"
+    elif header.startswith(b"OggS"):
+        kind = "ogg"
+    elif header.startswith(b"fLaC"):
+        kind = "flac"
+    elif len(header) >= 12 and header[4:8] == b"ftyp":
+        kind = "mp4"
+    elif header.startswith(b"ID3") or (len(header) >= 2 and header[0] == 0xFF and header[1] & 0xE0 == 0xE0):
+        kind = "mp3"
+    else:
+        return None
+    extension, media_type = SUPPORTED_AUDIO_TYPES[kind]
+    return kind, extension, media_type
+
+
+def _declared_audio_type_allowed(declared: str, detected: str) -> bool:
+    normalized = str(declared or "").split(";", 1)[0].strip().lower()
+    if not normalized or normalized == "application/octet-stream":
+        return True
+    aliases = {
+        "wav": {"audio/wav", "audio/wave", "audio/x-wav"},
+        "mp3": {"audio/mpeg", "audio/mp3"},
+        "webm": {"audio/webm", "video/webm"},
+        "ogg": {"audio/ogg", "application/ogg"},
+        "mp4": {"audio/mp4", "audio/x-m4a", "video/mp4"},
+        "flac": {"audio/flac", "audio/x-flac"},
+    }
+    return normalized in aliases[detected]
+
+
+async def _stage_audio_upload(file: UploadFile, *, max_bytes: int) -> dict[str, Any]:
+    temp_root = _ensure_private_directory(AUDIO_UPLOAD_TEMP_DIR)
+    fd, name = tempfile.mkstemp(prefix=".meeting-audio-", dir=str(temp_root))
+    path = Path(name)
+    size = 0
+    digest = hashlib.sha256()
+    header = bytearray()
+    try:
+        os.fchmod(fd, 0o600)
+        with os.fdopen(fd, "wb") as output:
+            while True:
+                chunk = await file.read(AUDIO_UPLOAD_CHUNK_BYTES)
+                if not chunk:
+                    break
+                size += len(chunk)
+                if size > max_bytes:
+                    raise HTTPException(status_code=413, detail=f"audio file exceeds {max_bytes // (1024 * 1024)} MiB limit")
+                if len(header) < 64:
+                    header.extend(chunk[: 64 - len(header)])
+                digest.update(chunk)
+                output.write(chunk)
+        if size == 0:
+            raise HTTPException(status_code=400, detail="audio file is empty")
+        detected = _detect_audio_type(bytes(header))
+        if detected is None:
+            raise HTTPException(status_code=415, detail="unsupported or invalid audio container")
+        kind, extension, media_type = detected
+        if not _declared_audio_type_allowed(file.content_type or "", kind):
+            raise HTTPException(status_code=415, detail="declared content type does not match audio container")
+        return {
+            "path": path,
+            "size_bytes": size,
+            "sha256": digest.hexdigest(),
+            "extension": extension,
+            "media_type": media_type,
+        }
+    except BaseException:
+        path.unlink(missing_ok=True)
+        raise
+
+
+def _audio_storage_path(storage_key: str) -> Path:
+    if not re.fullmatch(r"[A-Za-z0-9_-]{8,100}\.(?:wav|mp3|webm|ogg|m4a|flac)", str(storage_key or "")):
+        raise RuntimeError("invalid meeting audio storage key")
+    root = _ensure_private_directory(MEETING_AUDIO_DIR)
+    target = (root / storage_key).resolve()
+    if target.parent != root:
+        raise RuntimeError("meeting audio path escaped storage root")
+    return target
+
+
+def _remove_audio_files(storage_keys: list[str] | tuple[str, ...]) -> None:
+    for storage_key in storage_keys:
+        try:
+            _audio_storage_path(storage_key).unlink(missing_ok=True)
+        except Exception as exc:
+            logger.warning("Meeting audio cleanup failed type=%s", type(exc).__name__)
+            raise HTTPException(status_code=503, detail="录音文件清理失败，请检查存储权限后重试") from None
+
+
+def _meeting_audio_rows(connection: sqlite3.Connection, owner_id: str, meeting_id: str) -> list[sqlite3.Row]:
+    return connection.execute(
+        "SELECT * FROM meeting_audio_assets WHERE owner_id = ? AND meeting_id = ? ORDER BY created_at, id",
+        (owner_id, meeting_id),
+    ).fetchall()
+
+
+def _audio_asset_payload(row: Mapping[str, Any]) -> dict[str, Any]:
+    meeting_id = row["meeting_id"]
+    audio_id = row["id"]
+    base = f"/api/meetings/{meeting_id}/audio/{audio_id}"
+    return {
+        "id": audio_id,
+        "media_type": row["media_type"],
+        "size_bytes": row["size_bytes"],
+        "source": row["source"],
+        "created_at": row["created_at"],
+        "stream_url": base,
+        "download_url": base + "/download",
+    }
+
+
+def _meeting_row_payload(
+    row: sqlite3.Row,
+    include_content: bool,
+    *,
+    audio_assets: list[sqlite3.Row] | tuple[sqlite3.Row, ...] | None = None,
+) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "id": row["meeting_id"],
         "title": row["title"],
@@ -1112,6 +1302,8 @@ def _meeting_row_payload(row: sqlite3.Row, include_content: bool) -> dict[str, A
         "duration_seconds": row["duration_seconds"],
         "tags": _meeting_tags_from_row(row),
         "preview": row["preview"],
+        "audio_retention": bool(row["audio_retention"]) if "audio_retention" in row.keys() else False,
+        "audio_generation": int(row["audio_generation"]) if "audio_generation" in row.keys() else 0,
     }
     if include_content:
         try:
@@ -1131,6 +1323,7 @@ def _meeting_row_payload(row: sqlite3.Row, include_content: bool) -> dict[str, A
             payload["todo_chat_messages"] = messages if isinstance(messages, list) else []
         except (TypeError, ValueError):
             payload["todo_chat_messages"] = []
+        payload["audio_assets"] = [_audio_asset_payload(asset) for asset in (audio_assets or [])]
     return payload
 
 
@@ -1172,9 +1365,10 @@ def get_meeting(meeting_id: str, request: Request) -> JSONResponse:
             "SELECT * FROM meeting_records WHERE owner_id = ? AND meeting_id = ?",
             (owner_id, record_id),
         ).fetchone()
+        audio_assets = _meeting_audio_rows(connection, owner_id, record_id) if row is not None else []
     if row is None:
         raise HTTPException(status_code=404, detail="meeting not found")
-    return JSONResponse(_meeting_row_payload(row, True))
+    return JSONResponse(_meeting_row_payload(row, True, audio_assets=audio_assets))
 
 
 @app.put("/api/meetings/{meeting_id}")
@@ -1234,12 +1428,18 @@ def upsert_meeting(meeting_id: str, record: MeetingRecordInput, request: Request
                 "UPDATE meeting_records SET todo_chat_json = ? WHERE owner_id = ? AND meeting_id = ?",
                 (json.dumps([message.model_dump() for message in record.todo_chat_messages], ensure_ascii=False), owner_id, record_id),
             )
+        if "audio_retention" in record.model_fields_set:
+            connection.execute(
+                "UPDATE meeting_records SET audio_retention = ? WHERE owner_id = ? AND meeting_id = ?",
+                (int(record.audio_retention), owner_id, record_id),
+            )
         connection.commit()
         row = connection.execute(
             "SELECT * FROM meeting_records WHERE owner_id = ? AND meeting_id = ?",
             (owner_id, record_id),
         ).fetchone()
-    return JSONResponse(_meeting_row_payload(row, True))
+        audio_assets = _meeting_audio_rows(connection, owner_id, record_id)
+    return JSONResponse(_meeting_row_payload(row, True, audio_assets=audio_assets))
 
 
 @app.delete("/api/meetings/{meeting_id}")
@@ -1249,12 +1449,199 @@ def delete_meeting(meeting_id: str, request: Request) -> JSONResponse:
     owner_id = auth["user_id"]
     record_id = _validated_record_key(meeting_id, "meeting id")
     with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
+        storage_keys = [
+            row["storage_key"]
+            for row in _meeting_audio_rows(connection, owner_id, record_id)
+        ]
+        _remove_audio_files(storage_keys)
         cursor = connection.execute(
             "DELETE FROM meeting_records WHERE owner_id = ? AND meeting_id = ?",
             (owner_id, record_id),
         )
         connection.commit()
     return JSONResponse({"deleted": cursor.rowcount > 0, "id": record_id})
+
+
+def _owned_audio_asset(owner_id: str, meeting_id: str, audio_id: str) -> sqlite3.Row:
+    with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
+        row = connection.execute(
+            """
+            SELECT audio.* FROM meeting_audio_assets AS audio
+            JOIN meeting_records AS meeting
+              ON meeting.owner_id = audio.owner_id AND meeting.meeting_id = audio.meeting_id
+            WHERE audio.owner_id = ? AND audio.meeting_id = ? AND audio.id = ?
+            """,
+            (owner_id, meeting_id, audio_id),
+        ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="meeting audio not found")
+    return row
+
+
+@app.post("/api/meetings/{meeting_id}/audio")
+async def finalize_meeting_audio(
+    meeting_id: str,
+    request: Request,
+    file: UploadFile = File(...),
+    upload_token: str = Form(...),
+    generation: int = Form(0, ge=0),
+) -> JSONResponse:
+    auth = _auth_row(request)
+    _require_csrf(request, auth)
+    owner_id = auth["user_id"]
+    record_id = _validated_record_key(meeting_id, "meeting id")
+    finalize_token = _validated_record_key(upload_token, "audio upload token")
+
+    with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
+        meeting = connection.execute(
+            "SELECT audio_retention, audio_generation FROM meeting_records WHERE owner_id = ? AND meeting_id = ?",
+            (owner_id, record_id),
+        ).fetchone()
+        duplicate = connection.execute(
+            "SELECT * FROM meeting_audio_assets WHERE owner_id = ? AND meeting_id = ? AND upload_token = ?",
+            (owner_id, record_id, finalize_token),
+        ).fetchone()
+    if meeting is None:
+        raise HTTPException(status_code=404, detail="meeting not found")
+    if duplicate is not None:
+        return JSONResponse({"audio": _audio_asset_payload(duplicate), "duplicate": True})
+    if not bool(meeting["audio_retention"]):
+        raise HTTPException(status_code=409, detail="audio retention is not enabled for this meeting")
+    if meeting["audio_generation"] != generation:
+        raise HTTPException(status_code=409, detail="会议录音已清空，这次录音不能重新保存")
+
+    staged = await _stage_audio_upload(file, max_bytes=MAX_RETAINED_AUDIO_BYTES)
+    final_path: Path | None = None
+    committed = False
+    try:
+        with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
+            meeting = connection.execute(
+                "SELECT audio_retention, audio_generation FROM meeting_records WHERE owner_id = ? AND meeting_id = ?",
+                (owner_id, record_id),
+            ).fetchone()
+            if meeting is None:
+                raise HTTPException(status_code=404, detail="meeting not found")
+            duplicate = connection.execute(
+                "SELECT * FROM meeting_audio_assets WHERE owner_id = ? AND meeting_id = ? AND upload_token = ?",
+                (owner_id, record_id, finalize_token),
+            ).fetchone()
+            if duplicate is not None:
+                return JSONResponse({"audio": _audio_asset_payload(duplicate), "duplicate": True})
+            if not bool(meeting["audio_retention"]):
+                raise HTTPException(status_code=409, detail="audio retention is not enabled for this meeting")
+            if meeting["audio_generation"] != generation:
+                raise HTTPException(status_code=409, detail="会议录音已清空，这次录音不能重新保存")
+
+            audio_id = "audio_" + secrets.token_urlsafe(12)
+            storage_key = audio_id + staged["extension"]
+            final_path = _audio_storage_path(storage_key)
+            os.replace(staged["path"], final_path)
+            final_path.chmod(0o600)
+            try:
+                connection.execute(
+                    """
+                    INSERT INTO meeting_audio_assets (
+                        id, owner_id, meeting_id, storage_key, media_type, size_bytes,
+                        source, created_at, upload_token, sha256
+                    ) VALUES (?, ?, ?, ?, ?, ?, 'recording', ?, ?, ?)
+                    """,
+                    (
+                        audio_id,
+                        owner_id,
+                        record_id,
+                        storage_key,
+                        staged["media_type"],
+                        staged["size_bytes"],
+                        _iso_utc(),
+                        finalize_token,
+                        staged["sha256"],
+                    ),
+                )
+                connection.commit()
+                committed = True
+            except BaseException:
+                connection.rollback()
+                final_path.unlink(missing_ok=True)
+                raise
+            asset = connection.execute(
+                "SELECT * FROM meeting_audio_assets WHERE id = ?",
+                (audio_id,),
+            ).fetchone()
+        return JSONResponse({"audio": _audio_asset_payload(asset), "duplicate": False}, status_code=201)
+    except (OSError, sqlite3.Error) as exc:
+        logger.warning("Meeting recording storage failed type=%s", type(exc).__name__)
+        raise HTTPException(status_code=503, detail="原始录音存储暂不可用，请重新打开会议核对保存状态或检查存储权限") from None
+    finally:
+        Path(staged["path"]).unlink(missing_ok=True)
+        if final_path is not None and not committed:
+            final_path.unlink(missing_ok=True)
+
+
+def _meeting_audio_response(meeting_id: str, audio_id: str, request: Request, *, download: bool) -> StreamingResponse:
+    owner_id = _auth_row(request)["user_id"]
+    record_id = _validated_record_key(meeting_id, "meeting id")
+    asset_id = _validated_record_key(audio_id, "audio id")
+    row = _owned_audio_asset(owner_id, record_id, asset_id)
+    path = _audio_storage_path(row["storage_key"])
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="meeting audio file is unavailable")
+    extension = Path(row["storage_key"]).suffix
+    filename = f"meeting-{record_id}-{asset_id}{extension}"
+
+    async def chunks():
+        with path.open("rb") as audio_file:
+            while True:
+                chunk = audio_file.read(AUDIO_UPLOAD_CHUNK_BYTES)
+                if not chunk:
+                    break
+                yield chunk
+                await asyncio.sleep(0)
+
+    return StreamingResponse(
+        chunks(),
+        media_type=row["media_type"],
+        headers={
+            "Cache-Control": "private, no-store",
+            "X-Content-Type-Options": "nosniff",
+            "Content-Length": str(path.stat().st_size),
+            "Content-Disposition": f"{'attachment' if download else 'inline'}; filename=\"{filename}\"",
+        },
+    )
+
+
+@app.get("/api/meetings/{meeting_id}/audio/{audio_id}")
+def stream_meeting_audio(meeting_id: str, audio_id: str, request: Request) -> StreamingResponse:
+    return _meeting_audio_response(meeting_id, audio_id, request, download=False)
+
+
+@app.get("/api/meetings/{meeting_id}/audio/{audio_id}/download")
+def download_meeting_audio(meeting_id: str, audio_id: str, request: Request) -> StreamingResponse:
+    return _meeting_audio_response(meeting_id, audio_id, request, download=True)
+
+
+@app.delete("/api/meetings/{meeting_id}/audio")
+def delete_meeting_audio(meeting_id: str, request: Request) -> JSONResponse:
+    auth = _auth_row(request)
+    _require_csrf(request, auth)
+    owner_id = auth["user_id"]
+    record_id = _validated_record_key(meeting_id, "meeting id")
+    with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
+        meeting = connection.execute(
+            "SELECT audio_generation FROM meeting_records WHERE owner_id = ? AND meeting_id = ?",
+            (owner_id, record_id),
+        ).fetchone()
+        if meeting is None:
+            raise HTTPException(status_code=404, detail="meeting not found")
+        rows = _meeting_audio_rows(connection, owner_id, record_id)
+        _remove_audio_files([row["storage_key"] for row in rows])
+        next_generation = int(meeting["audio_generation"]) + 1
+        connection.execute("UPDATE meeting_records SET audio_generation = ? WHERE owner_id = ? AND meeting_id = ?", (next_generation, owner_id, record_id))
+        connection.execute(
+            "DELETE FROM meeting_audio_assets WHERE owner_id = ? AND meeting_id = ?",
+            (owner_id, record_id),
+        )
+        connection.commit()
+    return JSONResponse({"deleted": len(rows), "id": record_id, "audio_generation": next_generation})
 
 
 @app.get("/api/conversations")
@@ -1359,9 +1746,10 @@ def data_meeting(meeting_id: str, request: Request) -> JSONResponse:
             "SELECT * FROM meeting_records WHERE owner_id = ? AND meeting_id = ?",
             (token_row["owner_id"], record_id),
         ).fetchone()
+        audio_assets = _meeting_audio_rows(connection, token_row["owner_id"], record_id) if row is not None else []
     if row is None:
         raise HTTPException(status_code=404, detail="meeting not found")
-    return JSONResponse(_meeting_row_payload(row, True))
+    return JSONResponse(_meeting_row_payload(row, True, audio_assets=audio_assets))
 
 
 @app.get("/api/data/conversations")
@@ -2670,6 +3058,152 @@ def asr_channels(request: Request) -> JSONResponse:
             "can_continue_existing_meeting": True,
         },
     })
+
+
+@app.post("/api/meetings/{meeting_id}/import")
+async def import_meeting_audio(
+    meeting_id: str,
+    request: Request,
+    file: UploadFile = File(...),
+    import_token: str = Form(...),
+    retain_audio: bool = Form(False),
+    channel: str = Form(DEFAULT_ASR_CHANNEL),
+    correct: bool = Form(True),
+) -> JSONResponse:
+    auth = _auth_row(request)
+    _require_csrf(request, auth)
+    owner_id = auth["user_id"]
+    record_id = _validated_record_key(meeting_id, "meeting id")
+    token = _validated_record_key(import_token, "import token")
+    if channel not in ASR_CHANNELS:
+        raise HTTPException(status_code=400, detail="请选择有效的语音识别通道")
+    with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
+        previous = connection.execute(
+            "SELECT * FROM meeting_import_requests WHERE owner_id = ? AND import_token = ?",
+            (owner_id, token),
+        ).fetchone()
+        if previous is not None:
+            if previous["status"] != "completed" or previous["meeting_id"] != record_id:
+                raise HTTPException(status_code=409, detail="导入已取消、失败或仍在处理中，请勿重复提交")
+            row = connection.execute("SELECT * FROM meeting_records WHERE owner_id = ? AND meeting_id = ?", (owner_id, record_id)).fetchone()
+            if row is None:
+                raise HTTPException(status_code=409, detail="这次导入的会议已删除")
+            assets = _meeting_audio_rows(connection, owner_id, record_id)
+            return JSONResponse({"meeting": _meeting_row_payload(row, True, audio_assets=assets), "duplicate": True})
+        if connection.execute("SELECT 1 FROM meeting_records WHERE owner_id = ? AND meeting_id = ?", (owner_id, record_id)).fetchone():
+            raise HTTPException(status_code=409, detail="会议已存在，导入不会覆盖已有会议")
+        connection.execute(
+            "INSERT INTO meeting_import_requests (owner_id, import_token, meeting_id, status, created_at) VALUES (?, ?, ?, 'pending', ?)",
+            (owner_id, token, record_id, _iso_utc()),
+        )
+        connection.commit()
+
+    staged: dict[str, Any] | None = None
+    final_path: Path | None = None
+    committed = False
+    started = time.monotonic()
+    try:
+        staged = await _stage_audio_upload(file, max_bytes=MAX_IMPORTED_AUDIO_BYTES)
+        audio_bytes = Path(staged["path"]).read_bytes()
+        _record_asr_started(channel)
+        try:
+            result = await asyncio.wait_for(
+                asyncio.to_thread(transcribe_audio_bytes, channel, audio_bytes, "import" + staged["extension"], correct),
+                MEETING_IMPORT_TIMEOUT_SECONDS,
+            )
+        except asyncio.TimeoutError:
+            _record_asr_error(channel, RuntimeError("meeting audio import timed out"))
+            raise HTTPException(status_code=504, detail="语音识别超时，未建立会议，请换用较短的音频") from None
+        except Exception as exc:
+            _record_asr_error(channel, RuntimeError("meeting audio import provider failed"))
+            logger.warning("Meeting import provider failed type=%s", type(exc).__name__)
+            raise HTTPException(status_code=502, detail="导入语音识别失败，未建立会议，请检查识别通道") from None
+        text = (result.get("corrected_text") or result.get("raw_text")) if isinstance(result, dict) else None
+        if not isinstance(text, str) or not text.strip():
+            _record_asr_error(channel, RuntimeError("meeting audio import returned no text"))
+            raise HTTPException(status_code=502, detail="音频未识别出文字，未建立会议")
+        text = text.strip()
+        _record_asr_success(channel, round((time.monotonic() - started) * 1000), len(text))
+        now = _iso_utc()
+        filename = re.split(r"[\\/]", file.filename or "导入录音")[-1]
+        title = Path(filename).stem.strip()[:100] or "导入录音"
+        segments = [{"speaker": "说话人 1", "time": "00:00", "text": text[offset:offset + 5000]} for offset in range(0, len(text), 5000)]
+        duration = 0
+        if staged["extension"] == ".wav":
+            with suppress(wave.Error, EOFError, ZeroDivisionError):
+                with wave.open(io.BytesIO(audio_bytes), "rb") as decoded:
+                    duration = math.ceil(decoded.getnframes() / decoded.getframerate())
+        with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
+            current = connection.execute("SELECT status FROM meeting_import_requests WHERE owner_id = ? AND import_token = ?", (owner_id, token)).fetchone()
+            if current is None or current["status"] != "pending":
+                raise HTTPException(status_code=409, detail="导入已取消，未建立会议")
+            if connection.execute("SELECT 1 FROM meeting_records WHERE owner_id = ? AND meeting_id = ?", (owner_id, record_id)).fetchone():
+                raise HTTPException(status_code=409, detail="会议已存在，导入不会覆盖已有会议")
+            try:
+                connection.execute(
+                    """INSERT INTO meeting_records (owner_id, meeting_id, title, created_at, updated_at,
+                    duration_seconds, transcript_json, preview, audio_retention, import_token)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (owner_id, record_id, title, now, now, duration, json.dumps(segments, ensure_ascii=False), text[:120], int(retain_audio), token),
+                )
+                if retain_audio:
+                    audio_id = "audio_" + secrets.token_urlsafe(12)
+                    storage_key = audio_id + staged["extension"]
+                    final_path = _audio_storage_path(storage_key)
+                    os.replace(staged["path"], final_path)
+                    final_path.chmod(0o600)
+                    connection.execute(
+                        """INSERT INTO meeting_audio_assets (id, owner_id, meeting_id, storage_key,
+                        media_type, size_bytes, source, created_at, upload_token, sha256)
+                        VALUES (?, ?, ?, ?, ?, ?, 'import', ?, ?, ?)""",
+                        (audio_id, owner_id, record_id, storage_key, staged["media_type"], staged["size_bytes"], now, token, staged["sha256"]),
+                    )
+                connection.execute("UPDATE meeting_import_requests SET status = 'completed' WHERE owner_id = ? AND import_token = ?", (owner_id, token))
+                connection.commit()
+                committed = True
+            except BaseException:
+                connection.rollback()
+                raise
+            row = connection.execute("SELECT * FROM meeting_records WHERE owner_id = ? AND meeting_id = ?", (owner_id, record_id)).fetchone()
+            assets = _meeting_audio_rows(connection, owner_id, record_id)
+        return JSONResponse({"meeting": _meeting_row_payload(row, True, audio_assets=assets), "duplicate": False}, status_code=201)
+    except BaseException as exc:
+        if not committed:
+            with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
+                connection.execute("UPDATE meeting_import_requests SET status = 'failed' WHERE owner_id = ? AND import_token = ? AND status = 'pending'", (owner_id, token))
+                connection.commit()
+        if isinstance(exc, (OSError, sqlite3.Error)):
+            logger.warning("Meeting import storage failed type=%s", type(exc).__name__)
+            raise HTTPException(status_code=503, detail="录音存储暂不可用，未建立会议，请检查存储权限") from None
+        raise
+    finally:
+        if staged is not None:
+            Path(staged["path"]).unlink(missing_ok=True)
+        if final_path is not None and not committed:
+            final_path.unlink(missing_ok=True)
+        await file.close()
+
+
+@app.delete("/api/meeting-imports/{import_token}")
+def cancel_meeting_import(import_token: str, request: Request) -> JSONResponse:
+    auth = _auth_row(request)
+    _require_csrf(request, auth)
+    owner_id = auth["user_id"]
+    token = _validated_record_key(import_token, "import token")
+    storage_keys: list[str] = []
+    with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
+        row = connection.execute("SELECT * FROM meeting_import_requests WHERE owner_id = ? AND import_token = ?", (owner_id, token)).fetchone()
+        if row is not None and row["status"] == "completed":
+            storage_keys = [asset["storage_key"] for asset in _meeting_audio_rows(connection, owner_id, row["meeting_id"])]
+            _remove_audio_files(storage_keys)
+            connection.execute("DELETE FROM meeting_records WHERE owner_id = ? AND meeting_id = ? AND import_token = ?", (owner_id, row["meeting_id"], token))
+        connection.execute(
+            """INSERT INTO meeting_import_requests (owner_id, import_token, status, created_at)
+            VALUES (?, ?, 'cancelled', ?) ON CONFLICT(owner_id, import_token) DO UPDATE SET status = 'cancelled'""",
+            (owner_id, token, _iso_utc()),
+        )
+        connection.commit()
+    return JSONResponse({"cancelled": True})
 
 
 @app.post("/api/asr")

@@ -264,6 +264,158 @@ const cases = {
     late({ data: JSON.stringify({ demo_event: 'asr.stream.result', result: { corrected_text: '过期结果' } }) });
     assert.equal(app.run('transcriptText()'), text);
   },
+  async retention(mode = 'default') {
+    const app = meeting();
+    app.run("storageMode = 'account'; authUser = {id: 'offline'}; csrfToken = 'csrf'; setAudioRetentionMode('discard', {persist: false, announce: false});");
+    const saved = [];
+    const upload = deferred();
+    let uploadPayload;
+    app.respond = async (url, options = {}) => {
+      if (url === '/api/heartbeat') return json({ok: true});
+      if (options.method === 'PUT' && url.startsWith('/api/meetings/')) {
+        const body = JSON.parse(options.body);
+        return json({id: url.split('/').at(-1), ...body, audio_assets: saved});
+      }
+      if (options.method === 'POST' && /\/api\/meetings\/[^/]+\/audio$/.test(url)) {
+        assert.equal(options.headers['X-CSRF-Token'], 'csrf');
+        assert.equal(options.body.get('generation'), '0');
+        const file = options.body.get('file');
+        const text = await file.text();
+        assert.match(text, /requested-1/);
+        assert.match(text, /requested-2/);
+        assert.match(text, /tail-data/);
+        const asset = {id: 'audio_saved_01', source: 'recording', media_type: file.type, size_bytes: file.size,
+          stream_url: `${url}/audio_saved_01`, download_url: `${url}/audio_saved_01/download`, created_at: '2026-10-06T00:00:00Z'};
+        saved.push(asset);
+        uploadPayload = {audio: asset, duplicate: false};
+        return upload.promise;
+      }
+      if (url === '/api/meeting-title') return json({title: '保留录音'});
+      if (url === '/api/meeting-notes/polish') return json({content: '保留录音摘要', title: '摘要'});
+      throw new Error(`Unexpected request ${url}`);
+    };
+
+    if (mode === 'guest') {
+      app.run("storageMode = 'guest'; authUser = null; updateAudioRetentionUi();");
+      assert.equal(app.element('audio-retention-mode').disabled, true);
+      app.element('audio-retention-mode').value = 'retain';
+      await app.element('audio-retention-mode').dispatch('change');
+      assert.equal(app.run('audioRetentionMode'), 'discard');
+      assert.match(app.element('audio-retention-hint').textContent, /登录/);
+      return;
+    }
+
+    if (mode === 'saved') {
+      app.element('audio-retention-mode').value = 'retain';
+      await app.element('audio-retention-mode').dispatch('change');
+      assert.equal(app.run('audioRetentionMode'), 'retain');
+    }
+    await app.element('record-toggle').click();
+    const socket = app.sockets[0];
+    await socket.open();
+    if (mode === 'default') {
+      assert.equal(app.recorders.length, 0, 'default no-save path must not create a MediaRecorder buffer');
+      app.run("interruptActiveRecording({reason: 'test-default'})");
+      assert.equal(app.requests.filter(request => /\/audio$/.test(request.url)).length, 0);
+      return;
+    }
+
+    const recorder = app.recorders.at(-1);
+    assert.equal(recorder.state, 'recording');
+    await app.element('record-toggle').click();
+    assert.equal(recorder.state, 'paused');
+    assert.equal(recorder.pauseCalls, 1);
+    assert.equal(recorder.requestDataCalls, 1);
+    assert.equal(app.element('audio-retention-mode').disabled, true);
+    await app.element('record-toggle').click();
+    assert.equal(recorder.state, 'recording');
+    assert.equal(recorder.resumeCalls, 1);
+    await app.element('finish-recording').click();
+    assert.equal(recorder.stopCalls, 1);
+    assert.equal(recorder.requestDataCalls, 2);
+    socket.message({demo_event: 'asr.stream.done', final: true});
+    await app.settle(() => app.requests.filter(request => request.method === 'POST' && /\/audio$/.test(request.url)).length === 1);
+    assert.equal(app.element('record-toggle').disabled, true, 'cannot begin another pass while the recording is still saving');
+    await app.element('record-toggle').click();
+    assert.equal(app.sockets.length, 1);
+    upload.resolve(json(uploadPayload, 201));
+    await app.settle(() => app.element('meeting-audio-assets').innerHTML.includes('audio_saved_01'));
+    app.run('finishRecording()');
+    assert.equal(recorder.stopCalls, 1);
+    assert.equal(app.requests.filter(request => request.method === 'POST' && /\/audio$/.test(request.url)).length, 1);
+    assert.match(app.element('meeting-audio-assets').innerHTML, /下载/);
+  },
+  async retentionInterrupt(action = 'reset') {
+    const app = meeting();
+    app.run("storageMode = 'account'; authUser = {id: 'offline'}; csrfToken = 'csrf'; setAudioRetentionMode('retain', {persist: false, announce: false});");
+    app.respond = async (url, options = {}) => {
+      if (url === '/api/heartbeat') return json({ok: true});
+      if (options.method === 'PUT' && url.startsWith('/api/meetings/')) {
+        const body = JSON.parse(options.body); return json({id: url.split('/').at(-1), ...body, audio_assets: []});
+      }
+      if (options.method === 'DELETE') return json({deleted: true});
+      if (options.method === 'POST' && /\/audio$/.test(url)) throw new Error('discarded recording must not upload');
+      throw new Error(`Unexpected request ${url}`);
+    };
+    await app.element('record-toggle').click();
+    const socket = app.sockets[0];
+    await socket.open();
+    const recorder = app.recorders.at(-1);
+    const lateData = recorder.ondataavailable;
+    const lateStop = recorder.onstop;
+    if (action === 'new') await app.element('quick-new-meeting').click();
+    else if (action === 'delete') await app.run(`deleteMeetingRecord(${JSON.stringify(app.run('activeMeetingId'))})`);
+    else if (action === 'error') socket.message({demo_event: 'asr.stream.error', message: 'offline failure'});
+    else await app.element('reset-recording').click();
+    assert.equal(recorder.stopCalls, 1);
+    assert.equal(app.run('retainedRecorder'), null);
+    assert.equal(app.run('retainedRecorderChunks.length'), 0);
+    lateData?.({data: new Blob(['late-tail'], {type: 'audio/webm'})});
+    lateStop?.();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(app.requests.filter(request => request.method === 'POST' && /\/audio$/.test(request.url)).length, 0);
+  },
+  async meetingCreation() {
+    const app = meeting();
+    const saving = deferred();
+    app.run("storageMode='account';authUser={id:'offline'};csrfToken='csrf';activeMeetingId='previous';activeMeetingCreatedAt='2026-10-06T00:00:00Z';");
+    app.respond = async (url, options={}) => {
+      if (options.method==='PUT' && url==='/api/meetings/previous') return saving.promise;
+      if (options.method==='PUT') return json({id:url.split('/').at(-1),...JSON.parse(options.body),audio_assets:[]});
+      if (url==='/api/heartbeat') return json({ok:true});
+      throw new Error('unexpected creation request '+url);
+    };
+    const creating = app.element('quick-new-meeting').click();
+    await app.settle(()=>app.requests.some(r=>r.url==='/api/meetings/previous'));
+    assert.equal(app.element('record-toggle').disabled,true);
+    await app.element('record-toggle').click();
+    assert.equal(app.sockets.length,0,'a recording must not start while new meeting is pending');
+    saving.resolve(json({id:'previous',title:'previous',updated_at:'2026-10-06T00:00:00Z'}));
+    await creating;
+    assert.equal(app.run('meetingCreationRunning'),false);
+    assert.notEqual(app.run('activeMeetingId'),'previous');
+    assert.equal(app.element('record-toggle').disabled,false);
+  },
+  async retentionClear() {
+    const app = meeting();
+    app.run("storageMode='account'; authUser={id:'offline'}; csrfToken='csrf'; activeMeetingId='stored-audio'; showingDemo=false; setAudioRetentionMode('retain',{persist:false,announce:false}); renderMeetingAudioAssets([{id:'audio_old_01'}]); updateRecorderUi('ended');");
+    app.respond = async (url, options = {}) => {
+      if (options.method === 'DELETE' && url === '/api/meetings/stored-audio/audio') {
+        assert.equal(options.headers['X-CSRF-Token'],'csrf'); return json({deleted:1,audio_generation:8});
+      }
+      if (options.method === 'PUT') return json({id:'stored-audio',...JSON.parse(options.body),audio_generation:8,audio_assets:[]});
+      if (url === '/api/heartbeat') return json({ok:true});
+      throw new Error('Unexpected clear request '+url);
+    };
+    await app.element('reset-recording').click();
+    await app.settle(() => app.requests.some(r => r.method === 'DELETE' && r.url.endsWith('/audio')) && !app.run('meetingAudioClearRunning'));
+    assert.equal(app.run('meetingAudioAssets.length'),0);
+    assert.equal(app.run('meetingAudioGeneration'),8);
+    await app.element('record-toggle').click();
+    await app.sockets[0].open();
+    assert.equal(app.run('retainedCaptureContext.generation'),8);
+    app.run("interruptActiveRecording({reason:'test-cleanup'})");
+  },
   async revision(mode = 'success', preset = '0', mutation) {
     const app = meeting(mutation);
     const complete = 'event: delta\ndata: ' + JSON.stringify({ text: '[[[CANVAS]]]新纪要[[[REPLY]]]已修改' }) + '\n\n';

@@ -5,6 +5,7 @@ Speakr has three top-level modes: **meeting recording, voice studio and realtime
 | Goal | Entry | Stored content |
 | --- | --- | --- |
 | Capture ideas or a meeting | Recording / transcript | Text, title and tags |
+| Import existing audio or retain a recording | Recording mode and import controls | Text by default; explicit account audio retention |
 | Summarize and refine wording | Summary / note refinement | Summary and refinement conversation |
 | Build an action plan | Convert to Todo below the summary | Markdown Todo and its conversation |
 | Synthesize speech | Voice studio | Temporary preview/download, not generation history |
@@ -20,11 +21,21 @@ Account and guest data do not automatically migrate between modes. Sending audio
 ## Record and transcribe {#recording}
 
 1. Create a meeting and check the ASR channel in settings.
-2. Start recording and grant microphone access. Remote access should use HTTPS.
+2. Check recording mode: transcription-only is the default, while accounts can explicitly retain original audio. Start recording and grant microphone access; use HTTPS remotely.
 3. Pause and let the current recognition window commit; resuming continues the same meeting.
-4. Finish and wait for the last recognition result before reviewing the summary.
+4. Finish and wait for the last recognition result. When retention is enabled, also wait for the saved-audio confirmation before reviewing playback/download and notes.
 
 Edit or refresh the title, add tags, and open saved history. Copying a transcript does not export raw audio. Clearing, creating or deleting an active meeting interrupts recording resources; confirm that you intend to discard the active state.
+
+Mode is locked during recording. Only the owner can play or download retained audio. Switching retention off does not delete earlier files; clearing or deleting the meeting does. A later recording pass creates another audio asset, whereas pause/resume stays in the same pass. Archives are limited to 128 MiB and failures/limits have visible explanations.
+
+## Import existing audio {#audio-import}
+
+1. Choose whether to retain the original, then use the audio-import control to select a local file.
+2. WAV, MP3, WebM, Ogg, M4A/MP4 and FLAC are accepted up to 12 MiB per file; the configured ASR channel must support decoding the selected format.
+3. The page shows upload/recognition status and a cancel control. Success opens a normal meeting for titles, summaries, note refinement and Todo.
+
+Original-file retention defaults off. Account opt-in enables owner-protected playback/download; guests only store browser-local text meetings. Empty, invalid, oversized, failed or cancelled imports create no new meeting. Check history instead of resubmitting if cancellation was not confirmed; model computation may still need to finish normally. See [retention and backup](recording-storage.md).
 
 ## Summarize and refine {#summary}
 

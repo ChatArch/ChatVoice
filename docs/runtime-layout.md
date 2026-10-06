@@ -9,6 +9,8 @@
 | 账号记录 | 一个 SQLite 文件 |
 | 访客记录 | 当前浏览器 IndexedDB |
 | ASR 中间文件 | 运行根目录的 `temp/asr` |
+| 明确保留的会议音频 | `data/meeting-audio/` 私有文件；SQLite 保存关联元数据 |
+| 音频上传暂存 | `temp/audio-uploads/`，正常处理结束后清理 |
 | 模型缓存 | 运行根目录的 `model-cache` 或显式指定的模型缓存 |
 
 ## 默认布局
@@ -16,11 +18,13 @@
 ```text
 ~/.chatarch/chatvoice/
 ├── data/
-│   └── meetings.sqlite3
+│   ├── meetings.sqlite3
+│   └── meeting-audio/
 ├── logs/
 ├── run/
 ├── temp/
-│   └── asr/
+│   ├── asr/
+│   └── audio-uploads/
 └── model-cache/
 ```
 
@@ -41,9 +45,11 @@ ChatEnv 中登记了路径字段，但并不会替任意 CLI 进程自动导出�
 | `auth_sessions` | 会话摘要、CSRF 与过期时间 |
 | `api_tokens` | Token 摘要、scope、有效期、撤销状态 |
 | `meeting_records` | 转写、标签、摘要、纪要对话、Markdown Todo 与 Todo 对话 |
+| `meeting_audio_assets` | owner、会议、私有 storage key、格式、字节数与来源；不保存音频正文 |
+| `meeting_import_requests` | 导入幂等标识与待处理、完成、失败、取消状态 |
 | `conversation_records` | 实时对话文字与模型/音色元数据 |
 
-转写片段、标签与对话消息用 JSON 文本列保存；摘要与 `todo_markdown` 是正文文本。原始录音不是数据库字段。Todo 为空的旧记录仍可读取，旧客户端省略 Todo 字段不会清空它们。
+转写片段、标签与对话消息用 JSON 文本列保存；摘要与 `todo_markdown` 是正文文本。原始录音字节不在数据库中，明确选择保留时写入私有文件并由资产表关联。旧记录默认不保留录音，旧客户端省略保存模式和 Todo 字段时不会清空已有值。
 
 当前存储是单节点 SQLite WAL。Postgres/MySQL 没有可用切换配置；不要把增加进程数当作数据库迁移。
 
@@ -54,6 +60,8 @@ chatvoice data dump --output "$HOME/.chatarch/chatvoice/backup.sqlite3" --json
 ```
 
 备份使用 SQLite 一致性快照。不要在写入时仅复制主 `.sqlite3` 文件而忽略 WAL 状态。
+
+该命令不备份原始音频。使用保留模式时先正常停止服务，把数据库快照与 `data/meeting-audio/` 一起备份；恢复时保持相同 storage key。只恢复 SQLite 会留下无法播放的资产元数据，不能恢复丢失的录音文件。
 
 恢复会替换当前数据库。先正常停止服务，再确认目标和备份：
 
