@@ -59,7 +59,7 @@ app = create_app(login_ui=LoginUI(
 | `GET /api/meetings/{id}/audio/{audio_id}` | 私有音频播放；受控音频 MIME 与禁止缓存 |
 | `GET /api/meetings/{id}/audio/{audio_id}/download` | 同一私有文件的附件下载 |
 | `DELETE /api/meetings/{id}/audio` | 清理会议所有音频并递增录音代次 |
-| `POST /api/meetings/{id}/import` | multipart：`file`、`import_token`，可选 `retain_audio=false`、`channel`、`correct`；最大 12 MiB |
+| `POST /api/meetings/{id}/import` | multipart：`file`、`import_token`，可选 `retain_audio=false`、`channel`、`correct`；最大 128 MiB |
 | `DELETE /api/meeting-imports/{import_token}` | 取消自己的导入；完成与取消交错时也清理刚建立的会议 |
 
 会议保存支持 `audio_retention`，默认关闭；省略字段不修改既有选择。详情返回 `audio_assets` 和只读的 `audio_generation`。录音上传使用采集时的代次；清空后的旧上传返回 409，不重新建立音频。初始代次是 0，客户端应读取实际值。

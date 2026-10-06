@@ -20,7 +20,7 @@ ChatVoice 是 ChatArch 的录音转写与会议工作区 Python 包，包含 Spe
 要求 Python 3.10 或更高版本，建议安装到独立虚拟环境。
 
 ```bash
-python -m pip install "ChatVoice[web]==0.3.0"
+python -m pip install "ChatVoice[web]==0.3.1"
 chatvoice --version
 chatvoice --tree
 chatvoice serve app --dry-run --json
@@ -31,7 +31,7 @@ chatvoice serve app --dry-run --json
 ## 当前能力
 
 - **会议记录**：实时转写、暂停与继续、会议标题、标签、历史记录和复制文字。默认只做语音识别；登录后可选择保存原始录音，随会议播放或下载。
-- **录音导入**：导入不超过 12 MiB 的已有音频，经当前 ASR 通道转写后建立普通会议，继续生成标题、摘要和完善纪要。原始文件默认不保留，可明确选择保存。
+- **录音导入**：导入不超过 128 MiB 的已有音频；超过 12 MiB 时顺序解码为 30 秒语音块复用当前 ASR 通道，再建立普通会议，继续生成标题、摘要和完善纪要。原始文件默认不保留，可明确选择保存。
 - **摘要与纪要**：生成摘要，手动编辑纪要，或通过对话修改并撤销。
 - **Markdown Todo**：由用户点击“转为 Todo”，在独立页面继续编辑、对话完善、复制或下载 `.md`；不会自动转换或执行任务。
 - **声音工作室**：配置系统音色与输出格式；通过独立声音复刻服务，以授权参考音频生成临时试听结果。

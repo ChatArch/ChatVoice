@@ -20,7 +20,7 @@ ChatVoice is the ChatArch Python package behind the Speakr recording and meeting
 Python 3.10+ is required. Use a dedicated virtual environment.
 
 ```bash
-python -m pip install "ChatVoice[web]==0.3.0"
+python -m pip install "ChatVoice[web]==0.3.1"
 chatvoice --version
 chatvoice --tree
 chatvoice serve app --dry-run --json
@@ -31,7 +31,7 @@ Installation neither starts a service nor downloads GPU models. The quick start 
 ## Capabilities
 
 - Meeting recording, live transcription, pause/resume, titles, tags and history. Audio is discarded by default; account users may explicitly retain recordings for owner-protected playback and download.
-- Import an existing audio file up to 12 MiB through the configured ASR channel into a normal meeting, then generate titles, summaries and refined notes. Original-file retention is optional and defaults off.
+- Import audio up to 128 MiB into a normal meeting through the configured ASR. Files over 12 MiB are decoded into sequential 30-second windows, then titles, summaries and notes use the normal workflow. Original-file retention is optional and defaults off.
 - Summary generation, direct editing, conversation-based refinement and undo.
 - Explicit summary-to-Todo conversion, a separate Markdown editor and refinement conversation, copy and `.md` export. No automatic conversion or task execution.
 - Configurable system TTS and an independent one-shot voice-cloning service.

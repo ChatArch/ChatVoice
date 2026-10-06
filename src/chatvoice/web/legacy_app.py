@@ -191,8 +191,9 @@ MEETING_TAG_FORBIDDEN_CHARS = set('<>"`\\')
 MEETING_AUDIO_DIR = _RUNTIME_PATHS.data_dir / "meeting-audio"
 AUDIO_UPLOAD_TEMP_DIR = _RUNTIME_PATHS.temp_dir / "audio-uploads"
 MAX_RETAINED_AUDIO_BYTES = 128 * 1024 * 1024
-MAX_IMPORTED_AUDIO_BYTES = 12 * 1024 * 1024
-MEETING_IMPORT_TIMEOUT_SECONDS = 180
+MAX_IMPORTED_AUDIO_BYTES = 128 * 1024 * 1024
+ASR_SINGLE_REQUEST_BYTES = 12 * 1024 * 1024
+MEETING_IMPORT_TIMEOUT_SECONDS = 900
 AUDIO_UPLOAD_CHUNK_BYTES = 1024 * 1024
 AUDIO_UPLOAD_ENVELOPE_BYTES = 64 * 1024
 SUPPORTED_AUDIO_TYPES: dict[str, tuple[str, str]] = {
@@ -2363,8 +2364,19 @@ def _write_upload_to_temp(audio_bytes: bytes, filename: str) -> Path:
     temp_dir.mkdir(parents=True, exist_ok=True)
     fd, name = tempfile.mkstemp(prefix="qwen-demo-asr-", suffix=suffix, dir=str(temp_dir))
     path = Path(name)
-    with os.fdopen(fd, "wb") as fh:
-        fh.write(audio_bytes)
+    handle = None
+    try:
+        handle = os.fdopen(fd, "wb")
+        with handle:
+            handle.write(audio_bytes)
+    except BaseException:
+        if handle is None:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+        path.unlink(missing_ok=True)
+        raise
     return path
 
 
@@ -2643,11 +2655,40 @@ def _funasr_gpu_asr(audio_bytes: bytes, filename: str) -> dict[str, Any]:
     return _funasr_asr(audio_bytes, filename, "funasr-gpu", FUNASR_GPU_DEVICE)
 
 
+class ASRTemporaryStorageError(RuntimeError):
+    """A large-upload temporary copy failed before any provider call."""
+
+
+def _transcribe_large_audio(channel: str, audio_bytes: bytes, filename: str, correct: bool = True,
+                            cancelled=None) -> dict[str, Any]:
+    from chatvoice.asr_chunks import transcribe_file
+    try:
+        source = _write_upload_to_temp(audio_bytes, filename)
+    except OSError:
+        raise ASRTemporaryStorageError("large audio temporary copy failed") from None
+    try:
+        chunk_meta: dict[str, Any] = {}
+        def provider(data: bytes, index: int):
+            result = transcribe_audio_bytes(channel, data, f"chunk-{index}.wav", correct)
+            chunk_meta.update(result.get("meta") or {})
+            return result
+        result = transcribe_file(source, provider, cancelled=cancelled, max_seconds=MEETING_IMPORT_TIMEOUT_SECONDS)
+        return normalize_asr_result(channel, result["raw_text"], result["corrected_text"], {
+            **chunk_meta, "chunked": True, "chunks": result["chunks"], "seconds": result["seconds"],
+        })
+    finally:
+        _cleanup_asr_temp_file(source)
+
+
 def transcribe_audio_bytes(channel: str, audio_bytes: bytes, filename: str, correct: bool = True) -> dict[str, Any]:
     if not audio_bytes:
         raise ValueError("empty audio upload")
-    if len(audio_bytes) > 12 * 1024 * 1024:
-        raise ValueError("audio upload too large for demo; keep it under 12MB")
+    if len(audio_bytes) > MAX_IMPORTED_AUDIO_BYTES:
+        raise ValueError("audio upload exceeds 128 MiB limit")
+    if channel not in ASR_CHANNELS:
+        raise ValueError(f"unknown ASR channel: {channel}")
+    if len(audio_bytes) > ASR_SINGLE_REQUEST_BYTES:
+        return _transcribe_large_audio(channel, audio_bytes, filename, correct)
     if channel == "stub-local":
         return _stub_asr(audio_bytes, filename)
     if channel == "api-server":
@@ -3107,13 +3148,28 @@ async def import_meeting_audio(
         audio_bytes = Path(staged["path"]).read_bytes()
         _record_asr_started(channel)
         try:
+            from chatvoice.asr_chunks import AudioProcessingCancelled
+            def cancelled():
+                with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
+                    row = connection.execute("SELECT status FROM meeting_import_requests WHERE owner_id = ? AND import_token = ?", (owner_id, token)).fetchone()
+                    return row is None or row["status"] != "pending"
+            def recognize():
+                if len(audio_bytes) > ASR_SINGLE_REQUEST_BYTES:
+                    return _transcribe_large_audio(channel, audio_bytes, "import" + staged["extension"], correct, cancelled=cancelled)
+                return transcribe_audio_bytes(channel, audio_bytes, "import" + staged["extension"], correct)
             result = await asyncio.wait_for(
-                asyncio.to_thread(transcribe_audio_bytes, channel, audio_bytes, "import" + staged["extension"], correct),
+                asyncio.to_thread(recognize),
                 MEETING_IMPORT_TIMEOUT_SECONDS,
             )
+        except AudioProcessingCancelled:
+            _record_asr_error(channel, RuntimeError("meeting audio import cancelled"))
+            raise HTTPException(status_code=409, detail="导入已取消，未建立会议") from None
         except asyncio.TimeoutError:
             _record_asr_error(channel, RuntimeError("meeting audio import timed out"))
             raise HTTPException(status_code=504, detail="语音识别超时，未建立会议，请换用较短的音频") from None
+        except ASRTemporaryStorageError:
+            _record_asr_error(channel, RuntimeError("meeting audio temporary storage failed"))
+            raise HTTPException(status_code=507, detail="导入临时存储失败，未建立会议，请检查可用空间") from None
         except Exception as exc:
             _record_asr_error(channel, RuntimeError("meeting audio import provider failed"))
             logger.warning("Meeting import provider failed type=%s", type(exc).__name__)
@@ -3221,7 +3277,7 @@ async def asr_upload(
     started = time.monotonic()
     _record_asr_started(channel)
     try:
-        audio_bytes = await file.read()
+        audio_bytes = await file.read(MAX_IMPORTED_AUDIO_BYTES + 1)
         result = await asyncio.to_thread(transcribe_audio_bytes, channel, audio_bytes, file.filename or "audio.wav", correct)
     except ValueError as exc:
         _record_asr_error(channel, exc)

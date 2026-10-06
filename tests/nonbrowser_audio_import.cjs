@@ -40,7 +40,7 @@ async function main() {
   if (mode === 'empty') {
     const empty = new Blob([], {type:'audio/wav'}); empty.name = 'empty.wav'; app.element('meeting-import-file').files = [empty];
   } else {
-    if (mode === 'oversize') Object.defineProperty(file,'size',{value:13*1024*1024});
+    if (mode === 'oversize') Object.defineProperty(file,'size',{value:129*1024*1024});
     app.element('meeting-import-file').files = [file];
   }
   const original = app.run('activeMeetingId');
@@ -71,7 +71,7 @@ async function main() {
   }
   if (['empty','oversize','failure'].includes(mode)) {
     assert.equal(app.run('activeMeetingId'),original);
-    assert.match(app.element('meeting-import-status').textContent,/空|12 MiB|识别失败/);
+    assert.match(app.element('meeting-import-status').textContent,/空|128 MiB|识别失败/);
     if (mode !== 'failure') assert.equal(app.requests.length,0);
     return;
   }
