@@ -3194,9 +3194,15 @@ def cancel_meeting_import(import_token: str, request: Request) -> JSONResponse:
     with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
         row = connection.execute("SELECT * FROM meeting_import_requests WHERE owner_id = ? AND import_token = ?", (owner_id, token)).fetchone()
         if row is not None and row["status"] == "completed":
-            storage_keys = [asset["storage_key"] for asset in _meeting_audio_rows(connection, owner_id, row["meeting_id"])]
-            _remove_audio_files(storage_keys)
-            connection.execute("DELETE FROM meeting_records WHERE owner_id = ? AND meeting_id = ? AND import_token = ?", (owner_id, row["meeting_id"], token))
+            current = connection.execute(
+                "SELECT import_token FROM meeting_records WHERE owner_id = ? AND meeting_id = ?",
+                (owner_id, row["meeting_id"]),
+            ).fetchone()
+            # An old cancel request must not touch a replacement meeting's files.
+            if current is not None and current["import_token"] == token:
+                storage_keys = [asset["storage_key"] for asset in _meeting_audio_rows(connection, owner_id, row["meeting_id"])]
+                _remove_audio_files(storage_keys)
+                connection.execute("DELETE FROM meeting_records WHERE owner_id = ? AND meeting_id = ? AND import_token = ?", (owner_id, row["meeting_id"], token))
         connection.execute(
             """INSERT INTO meeting_import_requests (owner_id, import_token, status, created_at)
             VALUES (?, ?, 'cancelled', ?) ON CONFLICT(owner_id, import_token) DO UPDATE SET status = 'cancelled'""",

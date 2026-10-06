@@ -104,6 +104,26 @@ def test_import_auth_validation_and_cancel_before_upload(audio_app, monkeypatch)
     asyncio.run(asyncio.wait_for(flow(), 10))
 
 
+def test_cancel_old_import_cannot_delete_new_audio_after_meeting_id_reuse(audio_app, monkeypatch):
+    monkeypatch.setattr(audio_app, 'transcribe_audio_bytes', lambda *a, **k: {'corrected_text':'同一会议标识的导入测试'})
+    async def flow():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=audio_app.app), base_url='https://app.example.test') as client:
+            csrf = await _login(client, audio_app, 'reused-meeting@example.test')
+            path = '/api/meetings/reused-meeting'
+            files = {'file':('x.wav',_wav_bytes(),'audio/wav')}
+            assert (await client.post(path + '/import', headers=csrf, data={'import_token':'old-import-token','retain_audio':'true'}, files=files)).status_code == 201
+            assert (await client.delete(path,headers=csrf)).status_code == 200
+            new = await client.post(path + '/import',headers=csrf,data={'import_token':'new-import-token','retain_audio':'true'},files=files)
+            assert new.status_code == 201
+            url = new.json()['meeting']['audio_assets'][0]['download_url']
+            assert (await client.delete('/api/meeting-imports/old-import-token',headers=csrf)).status_code == 200
+            assert (await client.get(path)).status_code == 200
+            download = await client.get(url)
+            assert download.status_code == 200
+            assert download.content == _wav_bytes()
+    asyncio.run(asyncio.wait_for(flow(),10))
+
+
 def test_import_cancel_during_asr_cannot_commit_a_ghost_meeting(audio_app, monkeypatch):
     started = threading.Event()
     release = threading.Event()
