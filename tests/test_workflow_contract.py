@@ -59,6 +59,13 @@ def test_publish_workflow_is_tag_only_oidc_and_main_guarded():
     assert 'git merge-base --is-ancestor "${GITHUB_SHA}" refs/remotes/origin/main' in workflow
 
 
+def test_ci_installs_real_ffmpeg_before_audio_regression():
+    workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    prerequisite = "apt-get install -y --no-install-recommends ffmpeg"
+    assert prerequisite in workflow
+    assert workflow.index(prerequisite) < workflow.index("python -m pytest -q")
+
+
 def test_bilingual_tree_docs_match_registered_full_and_brief_trees():
     rows = render_click_tree(main, root_name="chatvoice").splitlines()
     roots = [i for i, line in enumerate(rows) if line.startswith(("├── ", "└── "))]
