@@ -2364,8 +2364,19 @@ def _write_upload_to_temp(audio_bytes: bytes, filename: str) -> Path:
     temp_dir.mkdir(parents=True, exist_ok=True)
     fd, name = tempfile.mkstemp(prefix="qwen-demo-asr-", suffix=suffix, dir=str(temp_dir))
     path = Path(name)
-    with os.fdopen(fd, "wb") as fh:
-        fh.write(audio_bytes)
+    handle = None
+    try:
+        handle = os.fdopen(fd, "wb")
+        with handle:
+            handle.write(audio_bytes)
+    except BaseException:
+        if handle is None:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+        path.unlink(missing_ok=True)
+        raise
     return path
 
 
@@ -3149,6 +3160,9 @@ async def import_meeting_audio(
         except asyncio.TimeoutError:
             _record_asr_error(channel, RuntimeError("meeting audio import timed out"))
             raise HTTPException(status_code=504, detail="语音识别超时，未建立会议，请换用较短的音频") from None
+        except OSError:
+            _record_asr_error(channel, RuntimeError("meeting audio temporary storage failed"))
+            raise HTTPException(status_code=507, detail="导入临时存储失败，未建立会议，请检查可用空间") from None
         except Exception as exc:
             _record_asr_error(channel, RuntimeError("meeting audio import provider failed"))
             logger.warning("Meeting import provider failed type=%s", type(exc).__name__)

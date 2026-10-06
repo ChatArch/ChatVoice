@@ -28,7 +28,7 @@ Use the audio-import control in the meeting recorder. WAV, MP3, WebM, Ogg, M4A/M
 
 In account mode, the recording-mode choice also controls original-file retention. With retention off, staged files are removed after normal processing. Guests only create browser-local text meetings. Recognition failures, empty results, cancellation and storage failures do not create half-finished meetings. Cancellation prevents result commit, but cannot promise immediate interruption of upstream or already-running model computation. Check history instead of submitting again if cancellation was not confirmed.
 
-Files over 12 MiB require FFmpeg on the main-service host. Decoding produces sequential 30-second, 16-kHz mono WAV windows through the selected ASR channel and reuses the existing persistent GPU model. Import processing has a 15-minute budget with cancellation checks between windows; upload time is separate. Allow 128 MiB plus multipart overhead at the reverse proxy and an ASR request wait of at least 1020 seconds. Smaller files retain the original ASR path.
+Files over 12 MiB require FFmpeg on the main-service host. Decoding produces sequential 30-second, 16-kHz mono WAV windows through the selected ASR channel and reuses the existing persistent GPU model. Server recognition has a 15-minute budget with cancellation checks between windows. The browser has a 30-minute total upload-and-recognition budget; a long upload consumes that total. Allow 128 MiB plus multipart overhead at the reverse proxy and an ASR request wait of at least 1020 seconds. Smaller files retain the original ASR path.
 
 ## Private files and deletion
 

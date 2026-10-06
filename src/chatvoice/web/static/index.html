@@ -1416,7 +1416,7 @@
       meetingImportContext = context; meetingImportRunning = true;
       status.textContent = retain ? '正在上传和识别，完成后保存原始录音；可随时取消。' : '正在上传和识别，只保存文字、不保存原始录音；可随时取消。';
       updateAudioRetentionUi();
-      context.timeout = setTimeout(() => cancelMeetingAudioImport(), 920000);
+      context.timeout = setTimeout(() => cancelMeetingAudioImport(), 1800000);
       try {
         if (await saveActiveMeeting() === false) throw new Error('当前会议尚未保存，请重试');
         if (epoch !== meetingImportEpoch) return;

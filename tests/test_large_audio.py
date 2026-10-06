@@ -116,3 +116,44 @@ def test_corrupt_container_rejected(tmp_path):
     source=tmp_path/'invalid.wav';source.write_bytes(b'not an audio')
     with pytest.raises(ValueError,match='decoding failed'):
         asr_chunks.transcribe_file(source,lambda *args:pytest.fail('invalid input cannot reach provider'))
+
+
+def test_asr_temp_write_failure_removes_partial_file(audio_app,monkeypatch,tmp_path):
+    import os,tempfile,errno
+    real_open=os.fdopen;real_temp=tempfile.mkstemp;created=[]
+    def temp(**kwargs):
+        fd,name=real_temp(**kwargs);created.append(Path(name));return fd,name
+    class FailedTemporary:
+        def __init__(self,fd,mode):self.file=real_open(fd,mode)
+        def __enter__(self):
+            return self
+        def write(self,data):
+            self.file.write(data[:10]);self.file.flush();raise OSError(errno.ENOSPC,'fixture disk full')
+        def __exit__(self,*args):self.file.close()
+    monkeypatch.setattr(tempfile,'mkstemp',temp)
+    monkeypatch.setattr(os,'fdopen',FailedTemporary)
+    with pytest.raises(OSError):audio_app._write_upload_to_temp(b'x'*20,'large.wav')
+    assert created and not created[0].exists(), 'failed ASR temp copy must not leak partial file'
+
+
+def test_large_import_reports_temp_storage_failure(audio_app,monkeypatch):
+    import asyncio,httpx,errno
+    def fail(*args,**kwargs):raise OSError(errno.ENOSPC,'fixture disk full')
+    monkeypatch.setattr(audio_app,'_write_upload_to_temp',fail)
+    async def flow():
+        from test_meeting_audio_storage import _login
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=audio_app.app),base_url='https://app.example.test') as client:
+            csrf=await _login(client,audio_app,'large-storage@example.test')
+            result=await client.post('/api/meetings/storage-fail/import',headers=csrf,data={'import_token':'storage-fail-token','channel':'funasr-gpu'},files={'file':('large.wav',padded_wav(),'audio/wav')})
+            assert result.status_code==507,result.text
+            assert (await client.get('/api/meetings')).json()['meetings']==[]
+            assert not list(Path(audio_app.AUDIO_UPLOAD_TEMP_DIR).glob('*'))
+    asyncio.run(flow())
+
+
+def test_import_client_budget_has_explicit_upload_headroom():
+    source=(Path(__file__).resolve().parents[1]/'src/chatvoice/web/static/index.html').read_text()
+    assert 'setTimeout(() => cancelMeetingAudioImport(), 1800000)' in source
+    docs=(Path(__file__).resolve().parents[1]/'docs/recording-storage.en.md').read_text()
+    assert 'upload time is separate' not in docs
+    assert '30-minute total' in docs
