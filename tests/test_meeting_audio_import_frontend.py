@@ -20,4 +20,4 @@ def test_audio_import_ui_has_file_input_progress_cancel_and_default_privacy():
         assert f'id="{name}"' in source
     assert "meeting-import-file').addEventListener('change'" in source
     assert "cancel-meeting-import').addEventListener('click'" in source
-    assert '12 MiB' in source
+    assert '128 MiB' in source

@@ -974,7 +974,7 @@
           <input id="meeting-import-file" type="file" accept="audio/*,.wav,.mp3,.webm,.ogg,.m4a,.mp4,.flac" hidden />
           <button id="cancel-meeting-import" type="button" hidden>取消导入</button>
         </div>
-        <p class="audio-retention-hint" id="meeting-import-status" role="status" aria-live="polite">导入本地音频，最大 12 MiB，识别后建立会议。</p>
+        <p class="audio-retention-hint" id="meeting-import-status" role="status" aria-live="polite">导入本地音频，最大 128 MiB；大文件分段识别后建立会议。</p>
         <p class="audio-retention-hint" id="audio-retention-hint">默认不保存原始录音。开启后可播放、下载；不能恢复此前未保存的音频。</p>
         <div class="meeting-audio-assets" id="meeting-audio-assets" aria-live="polite"></div>
         <audio id="meeting-audio-player" controls preload="none" hidden aria-label="播放已保存的会议录音"></audio>
@@ -1408,7 +1408,7 @@
       if (!storageMode) { showEntryDialog(); return; }
       if (meetingCreationRunning || meetingImportRunning || retainedAudioSaving || meetingAudioClearRunning || ['connecting', 'recording', 'paused', 'finishing'].includes(recorderState)) { showToast('请先结束录音或取消当前导入'); return; }
       if (!file.size) { status.textContent = '音频文件为空，未建立会议。'; return; }
-      if (file.size > 12 * 1024 * 1024) { status.textContent = '音频超过 12 MiB，未建立会议；请先截取较短音频。'; return; }
+      if (file.size > 128 * 1024 * 1024) { status.textContent = '音频超过 128 MiB，未建立会议；请先压缩或截取音频。'; return; }
       if (!/\.(wav|mp3|webm|ogg|m4a|mp4|flac)$/i.test(file.name || '') && !/^audio\//.test(file.type || '')) { status.textContent = '请选择支持的音频文件，未建立会议。'; return; }
       const epoch = ++meetingImportEpoch;
       const context = { epoch, mode: storageMode, csrf: csrfToken, token: createRecordId(), id: createRecordId(), controller: new AbortController(), timeout: null };
@@ -1416,7 +1416,7 @@
       meetingImportContext = context; meetingImportRunning = true;
       status.textContent = retain ? '正在上传和识别，完成后保存原始录音；可随时取消。' : '正在上传和识别，只保存文字、不保存原始录音；可随时取消。';
       updateAudioRetentionUi();
-      context.timeout = setTimeout(() => cancelMeetingAudioImport(), 200000);
+      context.timeout = setTimeout(() => cancelMeetingAudioImport(), 920000);
       try {
         if (await saveActiveMeeting() === false) throw new Error('当前会议尚未保存，请重试');
         if (epoch !== meetingImportEpoch) return;

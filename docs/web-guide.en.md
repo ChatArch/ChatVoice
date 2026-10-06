@@ -32,7 +32,7 @@ Mode is locked during recording. Only the owner can play or download retained au
 ## Import existing audio {#audio-import}
 
 1. Choose whether to retain the original, then use the audio-import control to select a local file.
-2. WAV, MP3, WebM, Ogg, M4A/MP4 and FLAC are accepted up to 12 MiB per file; the configured ASR channel must support decoding the selected format.
+2. WAV, MP3, WebM, Ogg, M4A/MP4 and FLAC are accepted up to 128 MiB per file; the configured ASR channel must support decoding the selected format.
 3. The page shows upload/recognition status and a cancel control. Success opens a normal meeting for titles, summaries, note refinement and Todo.
 
 Original-file retention defaults off. Account opt-in enables owner-protected playback/download; guests only store browser-local text meetings. Empty, invalid, oversized, failed or cancelled imports create no new meeting. Check history instead of resubmitting if cancellation was not confirmed; model computation may still need to finish normally. See [retention and backup](recording-storage.md).

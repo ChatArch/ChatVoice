@@ -59,7 +59,7 @@ These endpoints require account cookies and ownership, with CSRF for writes. Rea
 | `GET /api/meetings/{id}/audio/{audio_id}` | Private playback with controlled audio MIME and no caching |
 | `GET /api/meetings/{id}/audio/{audio_id}/download` | Attachment download of the same private file |
 | `DELETE /api/meetings/{id}/audio` | Delete all associated audio and increment recording generation |
-| `POST /api/meetings/{id}/import` | Multipart `file`, `import_token`, optional `retain_audio=false`, `channel`, `correct`; up to 12 MiB |
+| `POST /api/meetings/{id}/import` | Multipart `file`, `import_token`, optional `retain_audio=false`, `channel`, `correct`; up to 128 MiB |
 | `DELETE /api/meeting-imports/{import_token}` | Cancel an owned import, also removing a just-committed meeting in a completion race |
 
 Meeting writes accept `audio_retention`, defaulting off and preserving existing choices when omitted. Detail responses include `audio_assets` and read-only `audio_generation`. Upload with the generation captured at recording start; old uploads after clearing return 409. Initial generation is zero, but clients should read the actual value.
