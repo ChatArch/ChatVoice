@@ -3319,6 +3319,7 @@
     }
 
     async function openMeeting(meetingId) {
+      if (meetingCaptureStarting || meetingCaptureFinalizing || recorderState === 'finishing') { showToast('请等待录音开始或收尾完成'); return false; }
       if (meetingImportRunning) { showToast('请先完成或取消音频导入'); return false; }
       if (['recording', 'paused', 'connecting', 'finishing'].includes(recorderState)) {
         showToast('请先结束当前录音');

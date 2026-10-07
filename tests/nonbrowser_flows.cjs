@@ -328,6 +328,28 @@ const cases = {
     assert.ok(app.requests.some(item => item.url === `/api/meetings/${id}/capture/finish`));
     assert.match(app.element('meeting-audio-assets').innerHTML,/tail-asset/);
   },
+  async startOpenMeetingRace() {
+    const app = harness();
+    app.run("storageMode = 'account'; authUser = {id: 'offline'}; csrfToken = 'csrf'; updateAudioRetentionUi()");
+    const pendingLock = deferred();
+    app.respond = async (url, options = {}) => {
+      if (options.method === 'PUT') return json({id:url.split('/').at(-1),...JSON.parse(options.body)});
+      if (options.method === 'POST' && url.endsWith('/capture/start')) return pendingLock.promise;
+      if (options.method === 'GET' && url.endsWith('/history')) return json({id:'history',title:'旧会议',meeting_mode:'recognition',mode_locked:true,capture_state:'finished',transcript_segments:[],audio_assets:[]});
+      throw new Error(`Unexpected request ${url}`);
+    };
+    const starting = app.element('record-toggle').click();
+    await app.settle(() => app.requests.some(item => item.method === 'POST' && item.url.endsWith('/capture/start')));
+    const owner=app.run('activeMeetingId');
+    assert.equal(await app.run("openMeeting('history')"),false,'historical navigation must not steal pending capture');
+    assert.equal(app.run('activeMeetingId'),owner);
+    assert.equal(app.requests.some(item => item.url.endsWith('/history')),false);
+    pendingLock.resolve(json({meeting:{mode_locked:true,capture_state:'started'}}));
+    await starting;
+    assert.equal(app.run('activeMeetingId'),owner);
+    assert.equal(app.run('meetingModeLocked'),true);
+    assert.ok(app.sockets.length===1);
+  },
   async retention(mode = 'default') {
     const app = meeting();
     app.run("storageMode = 'account'; authUser = {id: 'offline'}; csrfToken = 'csrf'; setAudioRetentionMode('discard', {persist: false, announce: false});");
