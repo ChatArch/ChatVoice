@@ -276,9 +276,15 @@ const cases = {
         const body = JSON.parse(options.body);
         return json({id: url.split('/').at(-1), ...body, audio_assets: saved});
       }
+      if (options.method === 'POST' && url.endsWith('/capture/start')) {
+        const body = JSON.parse(options.body);
+        return json({meeting:{meeting_mode:body.meeting_mode,mode_locked:true,capture_state:'started'},duplicate:false});
+      }
+      if (options.method === 'POST' && url.endsWith('/capture/finish')) return json({meeting:{mode_locked:true,capture_state:'finished'},duplicate:false});
       if (options.method === 'POST' && /\/api\/meetings\/[^/]+\/audio$/.test(url)) {
         assert.equal(options.headers['X-CSRF-Token'], 'csrf');
         assert.equal(options.body.get('generation'), '0');
+        assert.ok(options.body.get('capture_token'));
         const file = options.body.get('file');
         const text = await file.text();
         assert.match(text, /requested-1/);
@@ -298,19 +304,19 @@ const cases = {
     if (mode === 'guest') {
       app.run("storageMode = 'guest'; authUser = null; updateAudioRetentionUi();");
       assert.equal(app.element('audio-retention-mode').disabled, true);
-      app.element('audio-retention-mode').value = 'retain';
-      await app.element('audio-retention-mode').dispatch('change');
+      await app.element('audio-retention-mode').click();
       assert.equal(app.run('audioRetentionMode'), 'discard');
       assert.match(app.element('audio-retention-hint').textContent, /登录/);
       return;
     }
 
     if (mode === 'saved') {
-      app.element('audio-retention-mode').value = 'retain';
-      await app.element('audio-retention-mode').dispatch('change');
+      await app.element('audio-retention-mode').click();
       assert.equal(app.run('audioRetentionMode'), 'retain');
     }
     await app.element('record-toggle').click();
+    assert.ok(app.requests.some(request => request.method === 'POST' && request.url.endsWith('/capture/start')),
+      'production start handler must persist the lock before opening capture');
     const socket = app.sockets[0];
     await socket.open();
     if (mode === 'default') {
@@ -322,6 +328,8 @@ const cases = {
 
     const recorder = app.recorders.at(-1);
     assert.equal(recorder.state, 'recording');
+    app.run("setAudioRetentionMode('discard', {persist:false,announce:false})");
+    assert.equal(app.run('audioRetentionMode'),'retain','locked recording route cannot switch to recognition');
     await app.element('record-toggle').click();
     assert.equal(recorder.state, 'paused');
     assert.equal(recorder.pauseCalls, 1);
@@ -353,6 +361,7 @@ const cases = {
       if (options.method === 'PUT' && url.startsWith('/api/meetings/')) {
         const body = JSON.parse(options.body); return json({id: url.split('/').at(-1), ...body, audio_assets: []});
       }
+      if (options.method === 'POST' && url.endsWith('/capture/start')) return json({meeting:{mode_locked:true,capture_state:'started'},duplicate:false});
       if (options.method === 'DELETE') return json({deleted: true});
       if (options.method === 'POST' && /\/audio$/.test(url)) throw new Error('discarded recording must not upload');
       throw new Error(`Unexpected request ${url}`);
@@ -398,7 +407,7 @@ const cases = {
   },
   async retentionClear() {
     const app = meeting();
-    app.run("storageMode='account'; authUser={id:'offline'}; csrfToken='csrf'; activeMeetingId='stored-audio'; showingDemo=false; setAudioRetentionMode('retain',{persist:false,announce:false}); renderMeetingAudioAssets([{id:'audio_old_01'}]); updateRecorderUi('ended');");
+    app.run("storageMode='account'; authUser={id:'offline'}; csrfToken='csrf'; activeMeetingId='stored-audio'; showingDemo=false; setAudioRetentionMode('retain',{persist:false,announce:false}); meetingModeLocked=true; meetingCaptureState='finished'; renderMeetingAudioAssets([{id:'audio_old_01'}]); updateRecorderUi('ended');");
     app.respond = async (url, options = {}) => {
       if (options.method === 'DELETE' && url === '/api/meetings/stored-audio/audio') {
         assert.equal(options.headers['X-CSRF-Token'],'csrf'); return json({deleted:1,audio_generation:8});
@@ -412,9 +421,8 @@ const cases = {
     assert.equal(app.run('meetingAudioAssets.length'),0);
     assert.equal(app.run('meetingAudioGeneration'),8);
     await app.element('record-toggle').click();
-    await app.sockets[0].open();
-    assert.equal(app.run('retainedCaptureContext.generation'),8);
-    app.run("interruptActiveRecording({reason:'test-cleanup'})");
+    assert.equal(app.sockets.length,0,'clear must not unlock a finished meeting');
+    assert.equal(app.run('meetingModeLocked'),true);
   },
   async revision(mode = 'success', preset = '0', mutation) {
     const app = meeting(mutation);

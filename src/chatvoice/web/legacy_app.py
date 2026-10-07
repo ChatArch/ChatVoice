@@ -291,6 +291,16 @@ class MeetingRecordInput(BaseModel):
     todo_markdown: str = Field("", max_length=20000)
     todo_chat_messages: list[MeetingNotesChatMessage] = Field(default_factory=list, max_length=100)
     audio_retention: bool = False
+    meeting_mode: str | None = Field(default=None, pattern="^(recognition|recording)$")
+
+
+class MeetingCaptureStartRequest(BaseModel):
+    meeting_mode: str = Field(..., pattern="^(recognition|recording)$")
+    capture_token: str = Field(..., min_length=8, max_length=180, pattern="^[A-Za-z0-9_-]+$")
+
+
+class MeetingCaptureFinishRequest(BaseModel):
+    capture_token: str = Field(..., min_length=8, max_length=180, pattern="^[A-Za-z0-9_-]+$")
 
 
 class StoredConversationMessage(BaseModel):
@@ -879,6 +889,16 @@ def _meeting_db() -> sqlite3.Connection:
         connection.execute("ALTER TABLE meeting_records ADD COLUMN import_token TEXT NOT NULL DEFAULT ''")
     if "audio_generation" not in meeting_columns:
         connection.execute("ALTER TABLE meeting_records ADD COLUMN audio_generation INTEGER NOT NULL DEFAULT 0")
+    needs_mode_migration = not {"meeting_mode", "mode_locked", "capture_state", "capture_token"}.issubset(meeting_columns)
+    if "meeting_mode" not in meeting_columns:
+        connection.execute("ALTER TABLE meeting_records ADD COLUMN meeting_mode TEXT NOT NULL DEFAULT ''")
+    if "mode_locked" not in meeting_columns:
+        # Existing meetings must fail closed: migration never makes old records blank.
+        connection.execute("ALTER TABLE meeting_records ADD COLUMN mode_locked INTEGER NOT NULL DEFAULT 1")
+    if "capture_state" not in meeting_columns:
+        connection.execute("ALTER TABLE meeting_records ADD COLUMN capture_state TEXT NOT NULL DEFAULT 'finished'")
+    if "capture_token" not in meeting_columns:
+        connection.execute("ALTER TABLE meeting_records ADD COLUMN capture_token TEXT NOT NULL DEFAULT ''")
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS meeting_audio_assets (
@@ -902,6 +922,27 @@ def _meeting_db() -> sqlite3.Connection:
         "CREATE INDEX IF NOT EXISTS meeting_audio_owner_meeting "
         "ON meeting_audio_assets(owner_id, meeting_id, created_at)"
     )
+    if needs_mode_migration:
+        connection.execute(
+            """UPDATE meeting_records
+            SET meeting_mode = CASE
+              WHEN audio_retention = 1 OR EXISTS (
+                SELECT 1 FROM meeting_audio_assets AS audio
+                WHERE audio.owner_id = meeting_records.owner_id
+                  AND audio.meeting_id = meeting_records.meeting_id
+              ) THEN 'recording' ELSE 'recognition' END
+            WHERE meeting_mode NOT IN ('recognition', 'recording')"""
+        )
+        connection.execute(
+            """UPDATE meeting_records
+            SET meeting_mode = 'recording', audio_retention = 1, mode_locked = 1,
+                capture_state = CASE WHEN capture_state = 'blank' THEN 'finished' ELSE capture_state END
+            WHERE meeting_mode = 'recognition' AND EXISTS (
+            SELECT 1 FROM meeting_audio_assets AS audio
+            WHERE audio.owner_id = meeting_records.owner_id
+              AND audio.meeting_id = meeting_records.meeting_id
+            )"""
+        )
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS meeting_import_requests (
@@ -1295,6 +1336,9 @@ def _meeting_row_payload(
     *,
     audio_assets: list[sqlite3.Row] | tuple[sqlite3.Row, ...] | None = None,
 ) -> dict[str, Any]:
+    meeting_mode = row["meeting_mode"] if "meeting_mode" in row.keys() and row["meeting_mode"] in {"recognition", "recording"} else (
+        "recording" if "audio_retention" in row.keys() and bool(row["audio_retention"]) else "recognition"
+    )
     payload: dict[str, Any] = {
         "id": row["meeting_id"],
         "title": row["title"],
@@ -1303,8 +1347,11 @@ def _meeting_row_payload(
         "duration_seconds": row["duration_seconds"],
         "tags": _meeting_tags_from_row(row),
         "preview": row["preview"],
-        "audio_retention": bool(row["audio_retention"]) if "audio_retention" in row.keys() else False,
+        "audio_retention": meeting_mode == "recording",
         "audio_generation": int(row["audio_generation"]) if "audio_generation" in row.keys() else 0,
+        "meeting_mode": meeting_mode,
+        "mode_locked": bool(row["mode_locked"]) if "mode_locked" in row.keys() else True,
+        "capture_state": row["capture_state"] if "capture_state" in row.keys() else "finished",
     }
     if include_content:
         try:
@@ -1382,14 +1429,33 @@ def upsert_meeting(meeting_id: str, record: MeetingRecordInput, request: Request
     summary_chat_messages = [message.model_dump() for message in record.summary_chat_messages]
     tags = _normalize_meeting_tags(record.tags)
     preview = " ".join(segment["text"] for segment in segments)[:120]
+    content_started = bool(segments) or record.duration_seconds > 0
     with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
+        existing = connection.execute(
+            "SELECT * FROM meeting_records WHERE owner_id = ? AND meeting_id = ?",
+            (owner_id, record_id),
+        ).fetchone()
+        requested_mode = record.meeting_mode if "meeting_mode" in record.model_fields_set else None
+        if "audio_retention" in record.model_fields_set:
+            legacy_mode = "recording" if record.audio_retention else "recognition"
+            if requested_mode is not None and requested_mode != legacy_mode:
+                raise HTTPException(status_code=409, detail="会议模式字段互相冲突")
+            requested_mode = legacy_mode
+        if existing is not None:
+            current_mode = existing["meeting_mode"]
+            if requested_mode is not None and bool(existing["mode_locked"]) and requested_mode != current_mode:
+                raise HTTPException(status_code=409, detail="会议模式已锁定，不能切换纯识别与录音识别")
+            selected_mode = requested_mode or current_mode
+        else:
+            selected_mode = requested_mode or "recognition"
         connection.execute(
             """
             INSERT INTO meeting_records (
                 owner_id, meeting_id, title, created_at, updated_at, duration_seconds,
                 transcript_json, summary_title, summary_content, summary_customized,
-                summary_chat_json, tags_json, preview
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                summary_chat_json, tags_json, preview, audio_retention, meeting_mode,
+                mode_locked, capture_state, capture_token
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '')
             ON CONFLICT(owner_id, meeting_id) DO UPDATE SET
                 title = excluded.title,
                 updated_at = excluded.updated_at,
@@ -1400,7 +1466,12 @@ def upsert_meeting(meeting_id: str, record: MeetingRecordInput, request: Request
                 summary_customized = excluded.summary_customized,
                 summary_chat_json = excluded.summary_chat_json,
                 tags_json = excluded.tags_json,
-                preview = excluded.preview
+                preview = excluded.preview,
+                audio_retention = excluded.audio_retention,
+                meeting_mode = excluded.meeting_mode,
+                mode_locked = MAX(meeting_records.mode_locked, excluded.mode_locked),
+                capture_state = CASE WHEN meeting_records.capture_state = 'blank' AND excluded.mode_locked = 1
+                    THEN 'finished' ELSE meeting_records.capture_state END
             """,
             (
                 owner_id,
@@ -1416,6 +1487,10 @@ def upsert_meeting(meeting_id: str, record: MeetingRecordInput, request: Request
                 json.dumps(summary_chat_messages, ensure_ascii=False),
                 json.dumps(tags, ensure_ascii=False),
                 preview,
+                int(selected_mode == "recording"),
+                selected_mode,
+                int(content_started),
+                "finished" if content_started else "blank",
             ),
         )
         # Older clients do not know these fields: omission must preserve Todo.
@@ -1429,11 +1504,6 @@ def upsert_meeting(meeting_id: str, record: MeetingRecordInput, request: Request
                 "UPDATE meeting_records SET todo_chat_json = ? WHERE owner_id = ? AND meeting_id = ?",
                 (json.dumps([message.model_dump() for message in record.todo_chat_messages], ensure_ascii=False), owner_id, record_id),
             )
-        if "audio_retention" in record.model_fields_set:
-            connection.execute(
-                "UPDATE meeting_records SET audio_retention = ? WHERE owner_id = ? AND meeting_id = ?",
-                (int(record.audio_retention), owner_id, record_id),
-            )
         connection.commit()
         row = connection.execute(
             "SELECT * FROM meeting_records WHERE owner_id = ? AND meeting_id = ?",
@@ -1441,6 +1511,67 @@ def upsert_meeting(meeting_id: str, record: MeetingRecordInput, request: Request
         ).fetchone()
         audio_assets = _meeting_audio_rows(connection, owner_id, record_id)
     return JSONResponse(_meeting_row_payload(row, True, audio_assets=audio_assets))
+
+
+@app.post("/api/meetings/{meeting_id}/capture/start")
+def start_meeting_capture(meeting_id: str, capture: MeetingCaptureStartRequest, request: Request) -> JSONResponse:
+    auth = _auth_row(request)
+    _require_csrf(request, auth)
+    owner_id = auth["user_id"]
+    record_id = _validated_record_key(meeting_id, "meeting id")
+    token = _validated_record_key(capture.capture_token, "capture token")
+    with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
+        row = connection.execute(
+            "SELECT * FROM meeting_records WHERE owner_id = ? AND meeting_id = ?", (owner_id, record_id)
+        ).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="meeting not found")
+        if row["capture_state"] == "started" and row["capture_token"] == token and row["meeting_mode"] == capture.meeting_mode:
+            assets = _meeting_audio_rows(connection, owner_id, record_id)
+            return JSONResponse({"meeting": _meeting_row_payload(row, True, audio_assets=assets), "duplicate": True})
+        if bool(row["mode_locked"]) or row["capture_state"] != "blank":
+            raise HTTPException(status_code=409, detail="此会议已经开始或结束，请新建会议后再录音")
+        if row["meeting_mode"] != capture.meeting_mode:
+            raise HTTPException(status_code=409, detail="会议模式与开始请求不一致")
+        connection.execute(
+            "UPDATE meeting_records SET mode_locked = 1, capture_state = 'started', capture_token = ? WHERE owner_id = ? AND meeting_id = ?",
+            (token, owner_id, record_id),
+        )
+        connection.commit()
+        row = connection.execute(
+            "SELECT * FROM meeting_records WHERE owner_id = ? AND meeting_id = ?", (owner_id, record_id)
+        ).fetchone()
+        assets = _meeting_audio_rows(connection, owner_id, record_id)
+    return JSONResponse({"meeting": _meeting_row_payload(row, True, audio_assets=assets), "duplicate": False})
+
+
+@app.post("/api/meetings/{meeting_id}/capture/finish")
+def finish_meeting_capture(meeting_id: str, capture: MeetingCaptureFinishRequest, request: Request) -> JSONResponse:
+    auth = _auth_row(request)
+    _require_csrf(request, auth)
+    owner_id = auth["user_id"]
+    record_id = _validated_record_key(meeting_id, "meeting id")
+    token = _validated_record_key(capture.capture_token, "capture token")
+    with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
+        row = connection.execute(
+            "SELECT * FROM meeting_records WHERE owner_id = ? AND meeting_id = ?", (owner_id, record_id)
+        ).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="meeting not found")
+        if row["capture_token"] != token or row["capture_state"] not in {"started", "finished"}:
+            raise HTTPException(status_code=409, detail="录音收尾与当前会议不匹配")
+        duplicate = row["capture_state"] == "finished"
+        if not duplicate:
+            connection.execute(
+                "UPDATE meeting_records SET capture_state = 'finished' WHERE owner_id = ? AND meeting_id = ?",
+                (owner_id, record_id),
+            )
+            connection.commit()
+            row = connection.execute(
+                "SELECT * FROM meeting_records WHERE owner_id = ? AND meeting_id = ?", (owner_id, record_id)
+            ).fetchone()
+        assets = _meeting_audio_rows(connection, owner_id, record_id)
+    return JSONResponse({"meeting": _meeting_row_payload(row, True, audio_assets=assets), "duplicate": duplicate})
 
 
 @app.delete("/api/meetings/{meeting_id}")
@@ -1485,6 +1616,7 @@ async def finalize_meeting_audio(
     request: Request,
     file: UploadFile = File(...),
     upload_token: str = Form(...),
+    capture_token: str = Form(...),
     generation: int = Form(0, ge=0),
 ) -> JSONResponse:
     auth = _auth_row(request)
@@ -1492,10 +1624,11 @@ async def finalize_meeting_audio(
     owner_id = auth["user_id"]
     record_id = _validated_record_key(meeting_id, "meeting id")
     finalize_token = _validated_record_key(upload_token, "audio upload token")
+    owned_capture_token = _validated_record_key(capture_token, "capture token")
 
     with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
         meeting = connection.execute(
-            "SELECT audio_retention, audio_generation FROM meeting_records WHERE owner_id = ? AND meeting_id = ?",
+            "SELECT audio_retention, audio_generation, meeting_mode, capture_state, capture_token FROM meeting_records WHERE owner_id = ? AND meeting_id = ?",
             (owner_id, record_id),
         ).fetchone()
         duplicate = connection.execute(
@@ -1504,10 +1637,21 @@ async def finalize_meeting_audio(
         ).fetchone()
     if meeting is None:
         raise HTTPException(status_code=404, detail="meeting not found")
+    if meeting["capture_token"] != owned_capture_token:
+        raise HTTPException(status_code=409, detail="录音文件不属于当前会议的录音过程")
+    if meeting["meeting_mode"] != "recording" or not bool(meeting["audio_retention"]):
+        raise HTTPException(status_code=409, detail="纯识别会议不保存或回放原始录音")
     if duplicate is not None:
         return JSONResponse({"audio": _audio_asset_payload(duplicate), "duplicate": True})
-    if not bool(meeting["audio_retention"]):
-        raise HTTPException(status_code=409, detail="audio retention is not enabled for this meeting")
+    with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
+        existing_audio = connection.execute(
+            "SELECT 1 FROM meeting_audio_assets WHERE owner_id = ? AND meeting_id = ? LIMIT 1",
+            (owner_id, record_id),
+        ).fetchone()
+    if existing_audio is not None:
+        raise HTTPException(status_code=409, detail="此会议已有录音，请新建会议后再录音")
+    if meeting["capture_state"] != "started":
+        raise HTTPException(status_code=409, detail="录音文件不属于当前会议的录音过程")
     if meeting["audio_generation"] != generation:
         raise HTTPException(status_code=409, detail="会议录音已清空，这次录音不能重新保存")
 
@@ -1517,19 +1661,29 @@ async def finalize_meeting_audio(
     try:
         with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
             meeting = connection.execute(
-                "SELECT audio_retention, audio_generation FROM meeting_records WHERE owner_id = ? AND meeting_id = ?",
+                "SELECT audio_retention, audio_generation, meeting_mode, capture_state, capture_token FROM meeting_records WHERE owner_id = ? AND meeting_id = ?",
                 (owner_id, record_id),
             ).fetchone()
             if meeting is None:
                 raise HTTPException(status_code=404, detail="meeting not found")
+            if meeting["capture_token"] != owned_capture_token:
+                raise HTTPException(status_code=409, detail="录音文件不属于当前会议的录音过程")
+            if meeting["meeting_mode"] != "recording" or not bool(meeting["audio_retention"]):
+                raise HTTPException(status_code=409, detail="纯识别会议不保存或回放原始录音")
             duplicate = connection.execute(
                 "SELECT * FROM meeting_audio_assets WHERE owner_id = ? AND meeting_id = ? AND upload_token = ?",
                 (owner_id, record_id, finalize_token),
             ).fetchone()
             if duplicate is not None:
                 return JSONResponse({"audio": _audio_asset_payload(duplicate), "duplicate": True})
-            if not bool(meeting["audio_retention"]):
-                raise HTTPException(status_code=409, detail="audio retention is not enabled for this meeting")
+            existing_audio = connection.execute(
+                "SELECT 1 FROM meeting_audio_assets WHERE owner_id = ? AND meeting_id = ? LIMIT 1",
+                (owner_id, record_id),
+            ).fetchone()
+            if existing_audio is not None:
+                raise HTTPException(status_code=409, detail="此会议已有录音，请新建会议后再录音")
+            if meeting["capture_state"] != "started":
+                raise HTTPException(status_code=409, detail="录音文件不属于当前会议的录音过程")
             if meeting["audio_generation"] != generation:
                 raise HTTPException(status_code=409, detail="会议录音已清空，这次录音不能重新保存")
 
@@ -3096,7 +3250,7 @@ def asr_channels(request: Request) -> JSONResponse:
             "max_connection_seconds": ACCOUNT_ASR_STREAM_SECONDS if authenticated else GUEST_ASR_STREAM_SECONDS,
             "context_seconds": ASR_STREAM_CONTEXT_SECONDS,
             "pause_counts_toward_limit": False,
-            "can_continue_existing_meeting": True,
+            "can_continue_existing_meeting": False,
         },
     })
 
@@ -3107,7 +3261,7 @@ async def import_meeting_audio(
     request: Request,
     file: UploadFile = File(...),
     import_token: str = Form(...),
-    retain_audio: bool = Form(False),
+    retain_audio: bool | None = Form(None),
     channel: str = Form(DEFAULT_ASR_CHANNEL),
     correct: bool = Form(True),
 ) -> JSONResponse:
@@ -3198,22 +3352,22 @@ async def import_meeting_audio(
             try:
                 connection.execute(
                     """INSERT INTO meeting_records (owner_id, meeting_id, title, created_at, updated_at,
-                    duration_seconds, transcript_json, preview, audio_retention, import_token)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (owner_id, record_id, title, now, now, duration, json.dumps(segments, ensure_ascii=False), text[:120], int(retain_audio), token),
+                    duration_seconds, transcript_json, preview, audio_retention, import_token,
+                    meeting_mode, mode_locked, capture_state, capture_token)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, 'recording', 1, 'finished', ?)""",
+                    (owner_id, record_id, title, now, now, duration, json.dumps(segments, ensure_ascii=False), text[:120], token, token),
                 )
-                if retain_audio:
-                    audio_id = "audio_" + secrets.token_urlsafe(12)
-                    storage_key = audio_id + staged["extension"]
-                    final_path = _audio_storage_path(storage_key)
-                    os.replace(staged["path"], final_path)
-                    final_path.chmod(0o600)
-                    connection.execute(
-                        """INSERT INTO meeting_audio_assets (id, owner_id, meeting_id, storage_key,
-                        media_type, size_bytes, source, created_at, upload_token, sha256)
-                        VALUES (?, ?, ?, ?, ?, ?, 'import', ?, ?, ?)""",
-                        (audio_id, owner_id, record_id, storage_key, staged["media_type"], staged["size_bytes"], now, token, staged["sha256"]),
-                    )
+                audio_id = "audio_" + secrets.token_urlsafe(12)
+                storage_key = audio_id + staged["extension"]
+                final_path = _audio_storage_path(storage_key)
+                os.replace(staged["path"], final_path)
+                final_path.chmod(0o600)
+                connection.execute(
+                    """INSERT INTO meeting_audio_assets (id, owner_id, meeting_id, storage_key,
+                    media_type, size_bytes, source, created_at, upload_token, sha256)
+                    VALUES (?, ?, ?, ?, ?, ?, 'import', ?, ?, ?)""",
+                    (audio_id, owner_id, record_id, storage_key, staged["media_type"], staged["size_bytes"], now, token, staged["sha256"]),
+                )
                 connection.execute("UPDATE meeting_import_requests SET status = 'completed' WHERE owner_id = ? AND import_token = ?", (owner_id, token))
                 connection.commit()
                 committed = True

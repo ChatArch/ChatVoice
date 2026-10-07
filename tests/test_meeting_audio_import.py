@@ -9,8 +9,8 @@ import pytest
 from test_meeting_audio_storage import audio_app, _login, _wav_bytes
 
 
-@pytest.mark.parametrize('retain', [False, True])
-def test_import_creates_normal_meeting_and_only_retains_on_explicit_request(audio_app, monkeypatch, retain):
+@pytest.mark.parametrize('legacy_retain_value', [None, 'false', 'true'])
+def test_import_always_creates_locked_recording_meeting_with_replay(audio_app, monkeypatch, legacy_retain_value):
     calls = []
     def provider(channel, audio_bytes, filename, correct=True):
         calls.append((channel, audio_bytes))
@@ -20,24 +20,28 @@ def test_import_creates_normal_meeting_and_only_retains_on_explicit_request(audi
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=audio_app.app), base_url='https://app.example.test') as client:
             csrf = await _login(client, audio_app, 'import-owner@example.test')
             path = '/api/meetings/import-one/import'
-            data = {'import_token': 'import-token-0001', 'retain_audio': str(retain).lower(), 'channel': 'stub-local'}
+            data = {'import_token': 'import-token-0001', 'channel': 'stub-local'}
+            if legacy_retain_value is not None:
+                data['retain_audio'] = legacy_retain_value
             files = {'file': ('../../会议.wav', _wav_bytes(), 'audio/wav')}
             imported = await client.post(path, headers=csrf, data=data, files=files)
             assert imported.status_code == 201, imported.text
             meeting = imported.json()['meeting']
             assert meeting['id'] == 'import-one'
-            assert meeting['audio_retention'] is retain
+            assert meeting['audio_retention'] is True
+            assert meeting['meeting_mode'] == 'recording'
+            assert meeting['mode_locked'] is True
+            assert meeting['capture_state'] == 'finished'
             assert meeting['transcript_segments'][0]['text'] == '导入音频的测试转写'
             opened = await client.get('/api/meetings/import-one')
             assert opened.status_code == 200
             assert opened.json()['transcript_segments'] == meeting['transcript_segments']
-            assert len(opened.json()['audio_assets']) == int(retain)
+            assert len(opened.json()['audio_assets']) == 1
             saved_files = list(Path(audio_app.MEETING_AUDIO_DIR).glob('*'))
-            assert len(saved_files) == int(retain)
-            if retain:
-                asset = opened.json()['audio_assets'][0]
-                assert asset['source'] == 'import'
-                assert (await client.get(asset['download_url'])).content == _wav_bytes()
+            assert len(saved_files) == 1
+            asset = opened.json()['audio_assets'][0]
+            assert asset['source'] == 'import'
+            assert (await client.get(asset['download_url'])).content == _wav_bytes()
             duplicate = await client.post(path, headers=csrf, data=data, files=files)
             assert duplicate.status_code == 200
             assert duplicate.json()['duplicate'] is True

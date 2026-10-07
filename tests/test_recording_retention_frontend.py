@@ -24,7 +24,7 @@ def _function_body(source: str, name: str) -> str:
     raise AssertionError(name)
 
 
-def test_meeting_ui_exposes_default_off_retention_and_truthful_audio_controls():
+def test_meeting_ui_exposes_two_route_toggle_lock_and_truthful_audio_controls():
     source = _source()
     start = source.index('id="meeting-audio-controls"')
     controls = source[start:source.index('<div class="waveform-wrap">', start)]
@@ -33,19 +33,22 @@ def test_meeting_ui_exposes_default_off_retention_and_truthful_audio_controls():
     assert 'ResizeObserver' in source
 
     assert 'id="audio-retention-mode"' in controls
-    assert '<option value="discard" selected>只做语音识别，不保存录音</option>' in controls
-    assert '<option value="retain">保存原始录音</option>' in controls
+    assert '<select id="audio-retention-mode">' not in controls
+    assert 'class="mode-toggle"' in controls
+    assert '纯识别' in controls and '录音+识别' in controls and '已锁定' in source
     assert 'id="audio-retention-hint"' in controls
-    assert "不能恢复此前未保存的音频" in controls
+    assert "原始音频用后即弃，不提供回放" in controls
     assert 'id="meeting-audio-assets"' in controls
-    assert "播放" in controls and "下载" in controls
+    assert "播放录音" in source and "下载" in source
 
-    assert "audio-retention-mode').addEventListener('change'" in source
+    assert "audio-retention-mode').addEventListener('click'" in source
     assert "meeting-audio-assets').addEventListener('click'" in source
     save_body = _function_body(source, "saveActiveMeeting")
     assert "audio_retention: audioRetentionMode === 'retain'" in save_body
+    assert "meeting_mode: audioRetentionMode === 'retain' ? 'recording' : 'recognition'" in save_body
     open_body = _function_body(source, "openMeeting")
     assert "meeting.audio_retention" in open_body
+    assert "meeting.mode_locked" in open_body
     assert "renderMeetingAudioAssets(meeting.audio_assets || [])" in open_body
 
 
@@ -61,8 +64,12 @@ def test_no_save_path_has_no_media_recorder_buffer_and_active_mode_is_locked():
     assert "storageMode !== 'account'" in update_body
     assert "audio-retention-mode').disabled" in update_body
     set_body = _function_body(source, "setAudioRetentionMode")
-    assert "不能恢复此前未保存的音频" in set_body
+    assert "meetingModeLocked" in set_body
     assert "请先登录" in set_body
+
+    start_body = _function_body(source, "startRecordingSession")
+    assert start_body.index("/capture/start") < start_body.index("new WebSocket")
+    assert "此会议已经开始或结束，请新建会议" in start_body
 
 
 def test_retained_recorder_flushes_pause_and_tail_once_and_interrupt_discards():
@@ -90,4 +97,3 @@ def test_retained_recorder_flushes_pause_and_tail_once_and_interrupt_discards():
     assert "discardRetainedAudioCapture" in interrupt_body
     error_body = _function_body(source, "handleAsrEvent")
     assert "discardRetainedAudioCapture" in error_body
-
