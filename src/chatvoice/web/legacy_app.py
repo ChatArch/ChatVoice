@@ -1470,7 +1470,7 @@ def upsert_meeting(meeting_id: str, record: MeetingRecordInput, request: Request
                 audio_retention = excluded.audio_retention,
                 meeting_mode = excluded.meeting_mode,
                 mode_locked = MAX(meeting_records.mode_locked, excluded.mode_locked),
-                capture_state = CASE WHEN meeting_records.capture_state = 'blank' AND excluded.mode_locked = 1
+                capture_state = CASE WHEN meeting_records.capture_state = 'blank' AND excluded.capture_state = 'finished'
                     THEN 'finished' ELSE meeting_records.capture_state END
             """,
             (
@@ -1489,7 +1489,7 @@ def upsert_meeting(meeting_id: str, record: MeetingRecordInput, request: Request
                 preview,
                 int(selected_mode == "recording"),
                 selected_mode,
-                int(content_started),
+                int(content_started or selected_mode == "recording"),
                 "finished" if content_started else "blank",
             ),
         )
@@ -1529,7 +1529,7 @@ def start_meeting_capture(meeting_id: str, capture: MeetingCaptureStartRequest, 
         if row["capture_state"] == "started" and row["capture_token"] == token and row["meeting_mode"] == capture.meeting_mode:
             assets = _meeting_audio_rows(connection, owner_id, record_id)
             return JSONResponse({"meeting": _meeting_row_payload(row, True, audio_assets=assets), "duplicate": True})
-        if bool(row["mode_locked"]) or row["capture_state"] != "blank":
+        if row["capture_state"] != "blank":
             raise HTTPException(status_code=409, detail="此会议已经开始或结束，请新建会议后再录音")
         if row["meeting_mode"] != capture.meeting_mode:
             raise HTTPException(status_code=409, detail="会议模式与开始请求不一致")

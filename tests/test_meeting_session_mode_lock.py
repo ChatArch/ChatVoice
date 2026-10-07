@@ -18,7 +18,7 @@ def test_capture_mode_locks_before_transcript_and_rejects_late_switch_or_append(
             created = await client.put(path, headers=csrf, json=_meeting_payload(meeting_mode="recording"))
             assert created.status_code == 200
             assert created.json()["capture_state"] == "blank"
-            assert created.json()["mode_locked"] is False
+            assert created.json()["mode_locked"] is True
 
             started = await client.post(
                 path + "/capture/start",

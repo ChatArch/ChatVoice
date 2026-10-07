@@ -21,7 +21,7 @@ Account and guest data do not automatically migrate between modes. Sending audio
 ## Record and transcribe {#recording}
 
 1. Create a meeting and check the ASR channel in settings.
-2. A blank meeting defaults to **recognition-only**: audio is discarded after processing and cannot be replayed. Before starting, signed-in users may click the mode button to select **recording-and-transcription**, retaining that meeting's audio for replay; guests are recognition-only. Then grant microphone access; use HTTPS remotely.
+2. A blank meeting defaults to **recognition-only**, discarding source audio without replay. Signed-in users may click **Enable recording + recognition** once before start; activation immediately greys and disables the button and retains this meeting's audio. Starting recognition-only without activation also disables it. Guests are recognition-only. Grant microphone access over HTTPS remotely.
 3. Pause and let the current recognition window commit; resuming continues the same meeting.
 4. Starting locks the mode permanently for this meeting. Finish and wait for the last recognition result; in recording-and-transcription, also wait for the audio-save confirmation before replay/download.
 

@@ -299,6 +299,28 @@ const cases = {
     assert.ok(app.requests.some(item => item.method === 'POST' && item.url === `/api/meetings/${owner}/capture/start`));
     assert.equal(app.run('meetingModeLocked'), true);
   },
+  async enableRecordingOnce() {
+    const app = harness();
+    app.run("storageMode = 'account'; authUser = {id:'offline'}; csrfToken = 'csrf'; showingDemo = false; ensureActiveMeeting(); updateAudioRetentionUi()");
+    app.respond = async (url, options = {}) => {
+      if (options.method === 'PUT') return json({id:url.split('/').at(-1),...JSON.parse(options.body)});
+      if (options.method === 'POST' && url.endsWith('/capture/start')) return json({meeting:{meeting_mode:'recording',mode_locked:true,capture_state:'started'}});
+      throw new Error(`Unexpected request ${url}`);
+    };
+    assert.equal(app.element('audio-retention-mode').disabled,false);
+    await app.element('audio-retention-mode').click();
+    assert.equal(app.run('audioRetentionMode'),'retain');
+    assert.equal(app.element('audio-retention-mode').disabled,true,'click activation must immediately grey and disable');
+    assert.equal(app.run('meetingModeLocked'),true);
+    await app.element('audio-retention-mode').click();
+    app.run("setAudioRetentionMode('discard', {persist:false,announce:false})");
+    assert.equal(app.run('audioRetentionMode'),'retain','activated switch cannot turn off even before starting');
+    await app.run('saveActiveMeeting()');
+    const payload=JSON.parse(app.requests.filter(item => item.method === 'PUT').at(-1).body);
+    assert.equal(payload.meeting_mode,'recording');assert.equal(payload.mode_locked,true);
+    await app.element('record-toggle').click();
+    assert.ok(app.requests.some(item => item.method === 'POST' && item.url.endsWith('/capture/start')),'activated route still allows first capture');
+  },
   async finishNewMeetingRace() {
     const app = harness();
     app.run("storageMode = 'account'; authUser = {id: 'offline'}; csrfToken = 'csrf'; setAudioRetentionMode('retain', {persist:false,announce:false})");

@@ -478,6 +478,7 @@
     .audio-control-row button { padding: 7px 10px; border: 1px solid #dedee5; border-radius: 9px; background: white; color: var(--ink); font: inherit; }
     .audio-control-row .mode-toggle[aria-pressed="true"] { border-color: #9c96dd; background: #f3f1ff; color: #423c82; }
     .audio-control-row button:disabled { opacity: .55; }
+    .audio-control-row .mode-toggle:disabled { border-color: #d8d9de; background: #e9eaee; color: #737580; opacity: 1; cursor: not-allowed; }
     .audio-retention-hint { margin: 6px 0 0; color: #737580; line-height: 1.5; }
     .meeting-audio-assets { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; max-height: 90px; overflow: auto; margin-top: 7px; }
     .meeting-audio-assets:empty { display: none; }
@@ -966,8 +967,8 @@
       <section class="meeting-audio-controls" id="meeting-audio-controls" aria-label="会议录音模式">
         <div class="audio-control-row">
           <span>会议模式</span>
-          <button class="mode-toggle" id="audio-retention-mode" type="button" aria-pressed="false">纯识别</button>
-          <strong id="meeting-mode-lock-label">可选择</strong>
+          <button class="mode-toggle" id="audio-retention-mode" type="button" aria-pressed="false">启用录音+识别</button>
+          <strong id="meeting-mode-lock-label">当前：纯识别</strong>
           <button id="import-meeting-audio" type="button" title="支持 WAV、MP3、WebM、Ogg、M4A/MP4、FLAC">导入录音</button>
           <input id="meeting-import-file" type="file" accept="audio/*,.wav,.mp3,.webm,.ogg,.m4a,.mp4,.flac" hidden />
           <button id="cancel-meeting-import" type="button" hidden>取消导入</button>
@@ -1468,13 +1469,13 @@
       $('record-toggle').disabled = meetingCaptureStarting || meetingCaptureFinalizing || meetingCreationRunning || meetingImportRunning || retainedAudioSaving || meetingAudioClearRunning || ['connecting', 'finishing'].includes(recorderState);
       $('account-action').disabled = meetingCaptureStarting || meetingCaptureFinalizing || meetingCreationRunning || meetingImportRunning || retainedAudioSaving || meetingAudioClearRunning || active;
       $('audio-retention-mode').setAttribute('aria-pressed', String(audioRetentionMode === 'retain'));
-      $('audio-retention-mode').textContent = audioRetentionMode === 'retain' ? '录音+识别' : '纯识别';
-      $('meeting-mode-lock-label').textContent = meetingModeLocked ? '已锁定' : '可选择';
+      $('audio-retention-mode').textContent = audioRetentionMode === 'retain' ? '已启用录音+识别' : '启用录音+识别';
+      $('meeting-mode-lock-label').textContent = meetingModeLocked ? (audioRetentionMode === 'retain' ? '已锁定：录音+识别' : '已锁定：纯识别') : '当前：纯识别';
       $('audio-retention-hint').textContent = retainedAudioError || (storageMode !== 'account'
         ? '访客仅支持纯识别；导入音频和“录音+识别”需要登录，不会静默降级。'
         : audioRetentionMode === 'retain'
-          ? `录音+识别：保留本次会议原始录音并支持回放。${meetingModeLocked ? '模式已锁定。' : '开始后模式将锁定。'}`
-          : `纯识别：原始音频用后即弃，不提供回放。${meetingModeLocked ? '模式已锁定。' : '开始后模式将锁定。'}`);
+          ? '录音+识别已启用：保留本次会议录音并支持回放；按钮已锁定，不能关闭。'
+          : `纯识别：原始音频用后即弃，不提供回放。${meetingModeLocked ? '已开始，不能再启用录音。' : '开始前可点击按钮一次启用录音+识别，启用后不能关闭。'}`);
       $('local-save-status').textContent = meetingAudioClearRunning ? '正在清理原始录音…' : retainedAudioSaving ? '正在保存原始录音，请等待…' : retainedAudioError ? '录音保存或清理失败，请查看说明'
         : audioRetentionMode === 'retain' ? '已开启原始录音保存' : '服务器只保存文字和摘要';
     }
@@ -1488,10 +1489,11 @@
         audioRetentionMode = 'discard'; showToast('请先登录再保存原始录音'); updateAudioRetentionUi(); return;
       }
       audioRetentionMode = mode === 'retain' ? 'retain' : 'discard';
+      if (audioRetentionMode === 'retain') meetingModeLocked = true;
       retainedAudioError = '';
       updateAudioRetentionUi();
       if (persist) scheduleMeetingSave(0);
-      if (announce) showToast(audioRetentionMode === 'retain' ? '已选择录音+识别，开始后将永久锁定' : '已选择纯识别，开始后将永久锁定');
+      if (announce) showToast(audioRetentionMode === 'retain' ? '录音+识别已启用，按钮已锁定' : '当前为纯识别模式');
     }
 
     function renderMeetingAudioAssets(assets = []) {
@@ -4062,7 +4064,7 @@
         return;
       }
       if (!storageMode) { showEntryDialog(); return; }
-      if (meetingModeLocked || meetingCaptureState !== 'blank') { showToast('此会议已经开始或结束，请新建会议后再录音'); return; }
+      if (meetingCaptureState !== 'blank') { showToast('此会议已经开始或结束，请新建会议后再录音'); return; }
       if (audioRetentionMode === 'retain') {
         if (storageMode !== 'account') { showToast('录音+识别需要先登录账号'); return; }
         if (typeof MediaRecorder === 'undefined' || !['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'].some((type) => MediaRecorder.isTypeSupported(type))) {
@@ -4566,7 +4568,7 @@
       else await startRecordingSession();
     });
     $('finish-recording').addEventListener('click', () => finishRecording());
-    $('audio-retention-mode').addEventListener('click', () => setAudioRetentionMode(audioRetentionMode === 'retain' ? 'discard' : 'retain'));
+    $('audio-retention-mode').addEventListener('click', () => setAudioRetentionMode('retain'));
     $('import-meeting-audio').addEventListener('click', () => {
       if (!storageMode) { showEntryDialog(); return; }
       if (storageMode !== 'account') { $('meeting-import-status').textContent = '导入音频会保留原文件并支持回放，请先登录账号。'; showToast($('meeting-import-status').textContent); return; }

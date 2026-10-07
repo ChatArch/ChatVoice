@@ -16,6 +16,7 @@ CASES = (
     + [("retentionClear",), ("meetingCreation",)]
     + [("retentionInterrupt", action) for action in ("reset", "new", "delete", "error")]
     + [("startCreationRace",), ("finishNewMeetingRace",), ("startOpenMeetingRace",)]
+    + [("enableRecordingOnce",)]
     + [("revision", "success", str(preset)) for preset in range(4)]
     + [("revision", mode) for mode in ("error", "truncated")]
     + [("summary", mode) for mode in ("success", "failure", "late", "empty")]

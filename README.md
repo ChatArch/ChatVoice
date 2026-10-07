@@ -20,7 +20,7 @@ ChatVoice 是 ChatArch 的录音转写与会议工作区 Python 包，包含 Spe
 要求 Python 3.10 或更高版本，建议安装到独立虚拟环境。
 
 ```bash
-python -m pip install "ChatVoice[web]==0.3.1"
+python -m pip install "ChatVoice[web]==0.3.2"
 chatvoice --version
 chatvoice --tree
 chatvoice serve app --dry-run --json

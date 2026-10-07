@@ -1,6 +1,6 @@
 # Data Retention Boundary
 
-Every blank meeting has exactly two routes: **recognition-only** discards all source audio and has no replay; signed-in users may choose **recording + recognition** before start to retain and replay this meeting.
+Every blank meeting defaults to **recognition-only**, discarding source audio without replay. Before starting, a signed-in user may click **Enable recording + recognition** once to retain and replay this meeting; successful activation immediately greys and disables the button. It is not a reversible mode selector.
 
 | Data | Account mode | Guest mode |
 | --- | --- | --- |
@@ -18,7 +18,7 @@ Every blank meeting has exactly two routes: **recognition-only** discards all so
 | Recognition-only | Discard all source audio after processing and expose no replay | Default for accounts and guests |
 | Recording + recognition | Capture from recording start, associate it with this meeting after normal completion, and allow replay | Logged-in accounts |
 
-The first recognition/recording start persistently locks the route before transcript text arrives. Pause/resume and normal tail finalization remain part of that capture. After finish, create a new meeting for more audio. Clear, reopen and reload do not unlock, and started meetings reject another recording or import. Recording archives remain limited to 128 MiB.
+Enabling recording locks that choice immediately but still permits the first capture. Starting recognition-only without activation also greys the button and locks the route before text arrives. Pause/resume and normal tail finalization remain part of that capture. After finish, create a new meeting for more audio. Clear, reopen and reload do not unlock, and started meetings reject another recording or import. Recording archives remain limited to 128 MiB.
 
 The backend stores lock, start/final state and owned capture identity, rejecting later changes in either direction. Legacy records and mixed retained assets migrate conservatively as finished and are never deleted by classification.
 
