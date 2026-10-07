@@ -251,6 +251,16 @@ const cases = {
       }
     }
     const id = app.run('activeMeetingId');
+    if (state === 'finishing') {
+      if (action === 'new') assert.equal(await app.run('createNewMeeting()'), false);
+      else if (action === 'delete') await app.run(`deleteMeetingRecord(${JSON.stringify(id)})`);
+      else await app.element('reset-recording').click();
+      assert.equal(app.run('activeMeetingId'), id);
+      assert.equal(app.run('recorderState'), 'finishing');
+      assert.equal(socket.closed, undefined, 'destructive action must wait for final transcript');
+      socket.message({demo_event: 'asr.stream.done', final: true});
+      await app.settle(() => app.run('meetingCaptureState') === 'finished');
+    }
     if (action === 'new') { await app.element('quick-new-meeting').click(); await app.settle(() => app.run('activeMeetingId') !== id); }
     else if (action === 'delete') await app.run(`deleteMeetingRecord(${JSON.stringify(id)})`);
     else await app.element('reset-recording').click();
@@ -263,6 +273,60 @@ const cases = {
     const text = app.run('transcriptText()');
     late({ data: JSON.stringify({ demo_event: 'asr.stream.result', result: { corrected_text: '过期结果' } }) });
     assert.equal(app.run('transcriptText()'), text);
+  },
+  async startCreationRace() {
+    const app = harness();
+    app.run("storageMode = 'account'; authUser = {id: 'offline'}; csrfToken = 'csrf'; updateAudioRetentionUi()");
+    const initialSave = deferred();
+    app.respond = async (url, options = {}) => {
+      if (options.method === 'PUT' && url.startsWith('/api/meetings/')) {
+        const body = JSON.parse(options.body);
+        if (app.requests.filter(item => item.method === 'PUT').length === 1) return initialSave.promise;
+        return json({id: url.split('/').at(-1), ...body});
+      }
+      if (options.method === 'POST' && url.endsWith('/capture/start')) return json({meeting:{mode_locked:true,capture_state:'started'}});
+      throw new Error(`Unexpected request ${url}`);
+    };
+    const starting = app.element('record-toggle').click();
+    await app.settle(() => app.requests.some(item => item.method === 'PUT'));
+    const owner = app.run('activeMeetingId');
+    assert.equal(app.element('quick-new-meeting').disabled, true, 'pending start must lock new-meeting action');
+    assert.equal(await app.run('createNewMeeting()'), false, 'new meeting cannot take ownership of pending capture start');
+    assert.equal(app.run('activeMeetingId'), owner);
+    initialSave.resolve(json({id:owner,meeting_mode:'recognition',mode_locked:false,capture_state:'blank'}));
+    await starting;
+    assert.equal(app.run('activeMeetingId'), owner);
+    assert.ok(app.requests.some(item => item.method === 'POST' && item.url === `/api/meetings/${owner}/capture/start`));
+    assert.equal(app.run('meetingModeLocked'), true);
+  },
+  async finishNewMeetingRace() {
+    const app = harness();
+    app.run("storageMode = 'account'; authUser = {id: 'offline'}; csrfToken = 'csrf'; setAudioRetentionMode('retain', {persist:false,announce:false})");
+    const saved = [];
+    app.respond = async (url, options = {}) => {
+      if (options.method === 'PUT') return json({id:url.split('/').at(-1),...JSON.parse(options.body),audio_assets:saved});
+      if (options.method === 'POST' && url.endsWith('/capture/start')) return json({meeting:{mode_locked:true,capture_state:'started'}});
+      if (options.method === 'POST' && /\/audio$/.test(url)) {
+        const file=options.body.get('file'); const text=await file.text();assert.match(text,/tail-data/);
+        const asset={id:'tail-asset',source:'recording',stream_url:url+'/tail-asset',download_url:url+'/tail-asset/download'};
+        saved.push(asset);return json({audio:asset},201);
+      }
+      if (options.method === 'POST' && url.endsWith('/capture/finish')) return json({meeting:{mode_locked:true,capture_state:'finished'}});
+      if (url === '/api/meeting-title') return json({title:'finish title'});
+      if (url === '/api/meeting-notes/polish') return json({content:'finish summary'});
+      throw new Error(`Unexpected request ${url}`);
+    };
+    await app.element('record-toggle').click();const socket=app.sockets[0];await socket.open();
+    const id=app.run('activeMeetingId');const recorder=app.recorders.at(-1);
+    await app.element('finish-recording').click();
+    assert.equal(app.run('recorderState'),'finishing');
+    assert.equal(await app.run('createNewMeeting()'),false,'must not discard final audio tail while ASR is finishing');
+    assert.equal(app.run('activeMeetingId'),id);
+    assert.equal(recorder.stopCalls,1,'same capture must finalize exactly once');
+    socket.message({demo_event:'asr.stream.done',final:true});
+    await app.settle(() => app.run('meetingCaptureState') === 'finished');
+    assert.ok(app.requests.some(item => item.url === `/api/meetings/${id}/capture/finish`));
+    assert.match(app.element('meeting-audio-assets').innerHTML,/tail-asset/);
   },
   async retention(mode = 'default') {
     const app = meeting();
