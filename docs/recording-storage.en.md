@@ -1,13 +1,13 @@
 # Data Retention Boundary
 
-Original meeting audio is **discarded by default**. Account users may explicitly opt in before recording or importing. Processing audio and retaining it are different operations.
+Every blank meeting defaults to **recognition-only**, discarding source audio without replay. Before starting, a signed-in user may click **Enable recording + recognition** once to retain and replay this meeting; successful activation immediately greys and disables the button. It is not a reversible mode selector.
 
 | Data | Account mode | Guest mode |
 | --- | --- | --- |
 | Title, tags and transcript | Owner-isolated server SQLite | Current-browser IndexedDB |
 | Summary, note refinement, Markdown Todo and conversations | Stored with the meeting | Stored with the local meeting |
-| Original meeting recording | Discarded by default; private retention only after opt-in | No server or browser recording archive |
-| Imported original file | Deleted after processing by default; optional private retention | Only the recognized text record is saved |
+| Original meeting recording | Recognition-only discards it; recording + recognition retains it privately | Recognition-only; no recording archive |
+| Imported original file | Always privately retained and replayable | Import is unavailable with a visible login explanation |
 | Realtime conversation text | Stored with the conversation | Browser-local record |
 | Provider credentials | Server-side only | Never sent to the browser |
 
@@ -15,18 +15,18 @@ Original meeting audio is **discarded by default**. Account users may explicitly
 
 | Mode | Behavior | Available to |
 | --- | --- | --- |
-| Transcribe without saving audio | No meeting-audio archive buffer or persistent recording file | Default for accounts and guests |
-| Save original recording | Capture browser-encoded audio from recording start and associate it with the meeting after normal completion | Logged-in accounts |
+| Recognition-only | Discard all source audio after processing and expose no replay | Default for accounts and guests |
+| Recording + recognition | Capture from recording start, associate it with this meeting after normal completion, and allow replay | Logged-in accounts |
 
-Pause and resume belong to the same recording. After finishing, wait for the saved-audio confirmation. Starting another recording after completion creates another audio asset, rather than replacing earlier files. A new pass cannot start while its predecessor is still saving. Recording archives are limited to 128 MiB; an exceeded limit or browser recording failure has an explicit error, not a successful-save claim.
+Enabling recording locks that choice immediately but still permits the first capture. Starting recognition-only without activation also greys the button and locks the route before text arrives. Pause/resume and normal tail finalization remain part of that capture. After finish, create a new meeting for more audio. Clear, reopen and reload do not unlock, and started meetings reject another recording or import. Recording archives remain limited to 128 MiB.
 
-Changing mode affects later recordings only. It neither deletes existing files nor recovers discarded audio. Clearing, creating or deleting an active meeting interrupts and discards incomplete capture; finish and confirm saving before switching meetings if you need the current recording.
+The backend stores lock, start/final state and owned capture identity, rejecting later changes in either direction. Legacy records and mixed retained assets migrate conservatively as finished and are never deleted by classification.
 
 ## Import existing audio
 
 Use the audio-import control in the meeting recorder. WAV, MP3, WebM, Ogg, M4A/MP4 and FLAC containers are accepted up to 128 MiB per file; actual decoding depends on the selected ASR channel. Successful import opens a normal meeting for titles, summaries and note refinement, not a separate audio library.
 
-In account mode, the recording-mode choice also controls original-file retention. With retention off, staged files are removed after normal processing. Guests only create browser-local text meetings. Recognition failures, empty results, cancellation and storage failures do not create half-finished meetings. Cancellation prevents result commit, but cannot promise immediate interruption of upstream or already-running model computation. Check history instead of submitting again if cancellation was not confirmed.
+Import always creates a locked, finished recording + recognition meeting and retains the original for replay; retention is not optional. Import requires login, while guests receive a visible explanation rather than a silent text-only downgrade. Recognition failures, empty results, cancellation and storage failures create no half-finished meeting. Cancellation prevents result commit but cannot promise immediate upstream interruption.
 
 Files over 12 MiB require FFmpeg on the main-service host. Decoding produces sequential 30-second, 16-kHz mono WAV windows through the selected ASR channel and reuses the existing persistent GPU model. Server recognition has a 15-minute budget with cancellation checks between windows. The browser has a 30-minute total upload-and-recognition budget; a long upload consumes that total. Allow 128 MiB plus multipart overhead at the reverse proxy and an ASR request wait of at least 1020 seconds. Smaller files retain the original ASR path.
 

@@ -21,3 +21,13 @@ def test_audio_import_ui_has_file_input_progress_cancel_and_default_privacy():
     assert "meeting-import-file').addEventListener('change'" in source
     assert "cancel-meeting-import').addEventListener('click'" in source
     assert '128 MiB' in source
+def test_web_guide_describes_locked_meeting_routes_not_optional_import_retention():
+    root = Path(__file__).resolve().parents[1]
+    zh = (root / 'docs/web-guide.md').read_text()
+    en = (root / 'docs/web-guide.en.md').read_text()
+    assert '导入始终建立“录音+识别”会议' in zh
+    assert '再次录音须新建会议' in zh
+    assert 'Import always creates a recording-and-transcription meeting' in en
+    assert 'A further recording requires a new meeting' in en
+    for stale in ['先选择是否保存原始录音', '结束后再次开始录音', 'Choose whether to retain the original', 'A later recording pass creates another audio asset']:
+        assert stale not in zh + en

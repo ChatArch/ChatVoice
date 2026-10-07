@@ -62,6 +62,15 @@ def _meeting_payload(**extra):
     }
 
 
+async def _start_capture(client, path: str, csrf: dict[str, str], token: str = "capture-token-0001"):
+    response = await client.post(
+        path + "/capture/start", headers=csrf,
+        json={"meeting_mode": "recording", "capture_token": token},
+    )
+    assert response.status_code == 200, response.text
+    return token
+
+
 def test_audio_retention_defaults_off_and_omission_preserves_explicit_choice(audio_app):
     async def flow():
         async with httpx.AsyncClient(
@@ -98,9 +107,10 @@ def test_retained_audio_finalize_is_private_idempotent_and_deleted_with_meeting(
             await _login(other, audio_app, "audio-other@example.test")
             meeting_path = "/api/meetings/private-audio"
             assert (await owner.put(meeting_path, headers=owner_csrf, json=_meeting_payload(audio_retention=True))).status_code == 200
+            capture_token = await _start_capture(owner, meeting_path, owner_csrf)
 
             upload_path = meeting_path + "/audio"
-            form = {"upload_token": "recording-token-0001"}
+            form = {"upload_token": "recording-token-0001", "capture_token": capture_token}
             files = {"file": ("../../outside.wav", _wav_bytes(), "audio/wav")}
             assert (await anonymous.post(upload_path, data=form, files=files)).status_code == 401
             assert (await owner.post(upload_path, data=form, files=files)).status_code == 403
@@ -161,12 +171,13 @@ def test_audio_upload_rejects_empty_invalid_and_oversize_without_files(audio_app
             csrf = await _login(client, audio_app, "audio-validation@example.test")
             path = "/api/meetings/validation"
             assert (await client.put(path, headers=csrf, json=_meeting_payload(audio_retention=True))).status_code == 200
+            capture_token = await _start_capture(client, path, csrf, "validation-capture-token")
             upload_path = path + "/audio"
 
             empty = await client.post(
                 upload_path,
                 headers=csrf,
-                data={"upload_token": "empty-token-0001"},
+                data={"upload_token": "empty-token-0001", "capture_token": capture_token},
                 files={"file": ("empty.wav", b"", "audio/wav")},
             )
             assert empty.status_code == 400
@@ -174,7 +185,7 @@ def test_audio_upload_rejects_empty_invalid_and_oversize_without_files(audio_app
             invalid = await client.post(
                 upload_path,
                 headers=csrf,
-                data={"upload_token": "invalid-token-01"},
+                data={"upload_token": "invalid-token-01", "capture_token": capture_token},
                 files={"file": ("notes.wav", b"not audio", "audio/wav")},
             )
             assert invalid.status_code == 415
@@ -183,7 +194,7 @@ def test_audio_upload_rejects_empty_invalid_and_oversize_without_files(audio_app
             oversized = await client.post(
                 upload_path,
                 headers=csrf,
-                data={"upload_token": "oversize-token-1"},
+                data={"upload_token": "oversize-token-1", "capture_token": capture_token},
                 files={"file": ("large.wav", _wav_bytes(), "audio/wav")},
             )
             assert oversized.status_code == 413
@@ -208,15 +219,34 @@ def test_audio_schema_migrates_legacy_meetings_and_reset_cleanup(audio_app):
             "INSERT INTO meeting_records(owner_id, meeting_id, title, created_at, updated_at) "
             "VALUES('legacy-owner', 'legacy-meeting', '旧会议', 'now', 'now')"
         )
+        database.execute(
+            """CREATE TABLE meeting_audio_assets (
+              id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, meeting_id TEXT NOT NULL,
+              storage_key TEXT NOT NULL UNIQUE, media_type TEXT NOT NULL, size_bytes INTEGER NOT NULL,
+              source TEXT NOT NULL, created_at TEXT NOT NULL, upload_token TEXT NOT NULL, sha256 TEXT NOT NULL,
+              UNIQUE(owner_id, meeting_id, upload_token))"""
+        )
+        database.execute(
+            "INSERT INTO meeting_audio_assets VALUES('legacy-audio','legacy-owner','legacy-meeting','legacy.wav','audio/wav',4,'recording','now','legacy-upload','hash')"
+        )
+        database.commit()
+    Path(audio_app.MEETING_AUDIO_DIR).mkdir(parents=True, exist_ok=True)
+    legacy_file = Path(audio_app.MEETING_AUDIO_DIR) / "legacy.wav"
+    legacy_file.write_bytes(b"RIFF")
 
     with closing(audio_app._meeting_db()) as database:
         columns = {row[1] for row in database.execute("PRAGMA table_info(meeting_records)")}
-        assert {"audio_retention", "import_token"} <= columns
+        assert {"audio_retention", "import_token", "meeting_mode", "mode_locked", "capture_state", "capture_token"} <= columns
         table = database.execute(
             "SELECT name FROM sqlite_master WHERE type='table' AND name='meeting_audio_assets'"
         ).fetchone()
         assert table is not None
         row = database.execute("SELECT * FROM meeting_records WHERE meeting_id='legacy-meeting'").fetchone()
-        payload = audio_app._meeting_row_payload(row, True, audio_assets=[])
-        assert payload["audio_retention"] is False
-        assert payload["audio_assets"] == []
+        assets = audio_app._meeting_audio_rows(database, "legacy-owner", "legacy-meeting")
+        payload = audio_app._meeting_row_payload(row, True, audio_assets=assets)
+        assert payload["audio_retention"] is True
+        assert payload["meeting_mode"] == "recording"
+        assert payload["mode_locked"] is True
+        assert payload["capture_state"] == "finished"
+        assert payload["audio_assets"][0]["id"] == "legacy-audio"
+        assert legacy_file.read_bytes() == b"RIFF"

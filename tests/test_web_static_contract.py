@@ -365,14 +365,14 @@ def test_raw_audio_retention_is_default_off_and_explicit_account_opt_in():
     footer_markup = source[source.index('<footer class="recording-console'):source.index('</footer>', source.index('<footer class="recording-console'))]
     entry_markup = source[source.index('<dialog id="entry-dialog"'):source.index('<div class="toast"')]
 
-    assert "默认不保存" in footer_markup
+    assert "纯识别：原始音频用后即弃，不提供回放" in footer_markup
     assert "默认不保存" in entry_markup
     assert "可明确选择私有保留" in entry_markup
     assert "服务器只保存文字和摘要" in footer_markup
     assert "服务器不保存录音" in entry_markup
     assert "访客仅保存文字和摘要" in entry_markup
-    assert '<option value="discard" selected>' in footer_markup
-    assert '<option value="retain">保存原始录音</option>' in footer_markup
+    assert '<button class="mode-toggle" id="audio-retention-mode" type="button" aria-pressed="false">启用录音+识别</button>' in footer_markup
+    assert 'id="meeting-mode-lock-label"' in footer_markup
 
     forbidden = [
         "保存到本机",
