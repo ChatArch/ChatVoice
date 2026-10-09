@@ -50,6 +50,25 @@ Drafts are saved and the IndexedDB transaction must complete before leaving for 
 
 Meeting writes contain title, timestamps, duration, tags, transcript segments, summary/refinement conversation and `todo_markdown` / `todo_chat_messages`. Detail responses include content; lists stay lightweight. Older clients omitting Todo fields preserve existing values; explicit empty text/lists clear them.
 
+## Meeting-audio retention and import {#meeting-audio}
+
+These endpoints require account cookies and ownership, with CSRF for writes. Read-only data tokens do not automatically grant audio-file access.
+
+| Method and path | Input and result |
+| --- | --- |
+| `POST /api/meetings/{id}/capture/start` | JSON `meeting_mode`, `capture_token`; atomically lock a blank meeting and own its capture |
+| `POST /api/meetings/{id}/capture/finish` | JSON `capture_token`; mark the matching started capture finished, idempotently |
+| `POST /api/meetings/{id}/audio` | Multipart `file`, `upload_token`, `capture_token`, `generation`; normal recording-route tail, up to 128 MiB |
+| `GET /api/meetings/{id}/audio/{audio_id}` | Private playback with controlled audio MIME and no caching |
+| `GET /api/meetings/{id}/audio/{audio_id}/download` | Attachment download of the same private file |
+| `DELETE /api/meetings/{id}/audio` | Delete all associated audio and increment recording generation |
+| `POST /api/meetings/{id}/import` | Multipart `file`, `import_token`, optional `channel`, `correct`; always retains source, up to 128 MiB |
+| `DELETE /api/meeting-imports/{import_token}` | Cancel an owned import, also removing a just-committed meeting in a completion race |
+
+Meeting writes return `meeting_mode`, `mode_locked` and `capture_state`; legacy `audio_retention` still maps to the two modes, and omitted mode fields preserve the current choice. Explicit reverse mutation after lock returns 409. Details also include `audio_assets` and read-only `audio_generation`. Recognition-only has no audio asset/replay. Recording uploads validate both capture ownership and generation; stale uploads after clear return 409.
+
+Import requires an account, never overwrites a meeting, and returns a locked, finished recording + recognition meeting with replayable source. Even legacy `retain_audio=false` cannot downgrade it. Repeating a completed token returns the existing result; cancelled/failed tokens cannot silently recognize again. Empty files return 400, size limits 413, invalid container/MIME 415, conflicts/cancellation 409, invalid model output 502, storage failure 503, and ASR timeout 504. Failures create no half-finished meeting.
+
 ## Text processing {#text}
 
 | Method and path | Input | Output |

@@ -9,6 +9,8 @@ Keep installed code, persistent state and temporary processing files separate.
 | Account records | One SQLite file |
 | Guest records | Current-browser IndexedDB |
 | ASR intermediates | Runtime `temp/asr` |
+| Explicitly retained meeting audio | Private files in `data/meeting-audio/`; SQLite stores relationships |
+| Upload staging | `temp/audio-uploads/`, removed after normal processing |
 | Model cache | Runtime `model-cache` or explicitly selected model cache |
 
 ## Default layout
@@ -16,11 +18,13 @@ Keep installed code, persistent state and temporary processing files separate.
 ```text
 ~/.chatarch/chatvoice/
 ├── data/
-│   └── meetings.sqlite3
+│   ├── meetings.sqlite3
+│   └── meeting-audio/
 ├── logs/
 ├── run/
 ├── temp/
-│   └── asr/
+│   ├── asr/
+│   └── audio-uploads/
 └── model-cache/
 ```
 
@@ -41,9 +45,11 @@ Typed ChatEnv registration does not export values into arbitrary CLI processes. 
 | `auth_sessions` | Session digests, CSRF and expiry |
 | `api_tokens` | Token digests, scopes, expiry and revocation |
 | `meeting_records` | Transcript, tags, summary/refinement history, Markdown Todo and Todo history |
+| `meeting_audio_assets` | Owner, meeting, private storage key, format, size and source; no audio bytes |
+| `meeting_import_requests` | Idempotency identifiers and pending/completed/failed/cancelled state |
 | `conversation_records` | Realtime conversation text and model/voice metadata |
 
-Transcript segments, tags and messages use JSON text columns; summaries and `todo_markdown` are document text. Raw recordings are not database fields. Old records have empty Todo content; clients omitting Todo fields do not clear stored values.
+Transcript segments, tags and messages use JSON text columns; summaries and `todo_markdown` are document text. Recording bytes are not stored in SQLite; explicit retention writes private files associated by the asset table. Old records default to no retention, and clients omitting retention/Todo fields preserve existing values.
 
 Storage is single-node SQLite WAL. There is no implemented Postgres/MySQL switch; adding web workers is not a database migration.
 
@@ -54,6 +60,8 @@ chatvoice data dump --output "$HOME/.chatarch/chatvoice/backup.sqlite3" --json
 ```
 
 The command uses a consistent SQLite snapshot. Copying only the main database file during active writes can miss WAL state.
+
+The command does not back up recording bytes. With retention enabled, stop the service normally and back up the snapshot together with `data/meeting-audio/`, preserving storage keys on restore. Restoring SQLite alone may leave unplayable asset metadata and cannot recover missing files.
 
 Restore replaces the active database. Stop the service first and verify the input:
 

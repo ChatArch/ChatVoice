@@ -5,6 +5,7 @@ Speakr has three top-level modes: **meeting recording, voice studio and realtime
 | Goal | Entry | Stored content |
 | --- | --- | --- |
 | Capture ideas or a meeting | Recording / transcript | Text, title and tags |
+| Import existing audio or retain a recording | New-meeting mode button and import control | Recognition-only stores text; recording-and-transcription stores playable audio |
 | Summarize and refine wording | Summary / note refinement | Summary and refinement conversation |
 | Build an action plan | Convert to Todo below the summary | Markdown Todo and its conversation |
 | Synthesize speech | Voice studio | Temporary preview/download, not generation history |
@@ -21,11 +22,21 @@ Account and guest data do not automatically migrate between modes. Sending audio
 ## Record and transcribe {#recording}
 
 1. Create a meeting and check the ASR channel in settings.
-2. Start recording and grant microphone access. Remote access should use HTTPS.
+2. A blank meeting defaults to **recognition-only**, discarding source audio without replay. Signed-in users may click **Enable recording + recognition** once before start; activation immediately greys and disables the button and retains this meeting's audio. Starting recognition-only without activation also disables it. Guests are recognition-only. Grant microphone access over HTTPS remotely.
 3. Pause and let the current recognition window commit; resuming continues the same meeting.
-4. Finish and wait for the last recognition result before reviewing the summary.
+4. Starting locks the mode permanently for this meeting. Finish and wait for the last recognition result; in recording-and-transcription, also wait for the audio-save confirmation before replay/download.
 
 Edit or refresh the title, add tags, and open saved history. Copying a transcript does not export raw audio. Clearing, creating or deleting an active meeting interrupts recording resources; confirm that you intend to discard the active state.
+
+The mode cannot switch after starting or finishing. Recognition-only cannot gain audio later, and a recording-and-transcription meeting cannot become recognition-only. A further recording requires a new meeting; pause/resume stays in the same capture. Clearing audio does not unlock the mode; deleting a meeting removes its associated files. Only the owner can replay/download audio. Archives are limited to 128 MiB.
+
+## Import existing audio {#audio-import}
+
+1. Sign in, then use **Import audio** to select a local file. Guests see a login explanation rather than an import that silently drops the audio.
+2. WAV, MP3, WebM, Ogg, M4A/MP4 and FLAC are accepted up to 128 MiB per file; the configured ASR channel must support decoding the selected format.
+3. The page shows upload/recognition status and a cancel control. Import always creates a recording-and-transcription meeting with retained, replayable original audio; continue with titles, summaries, note refinement and Todo.
+
+An imported meeting is locked and cannot gain a second recording; an existing recognition-only meeting cannot be converted by import. Empty, invalid, oversized, failed or cancelled imports create no new meeting. Check history instead of resubmitting if cancellation was not confirmed; model computation may still need to finish normally. See [retention and backup](recording-storage.md).
 
 ## Summarize and refine {#summary}
 

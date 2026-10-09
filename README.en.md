@@ -20,7 +20,7 @@ ChatVoice is the ChatArch Python package behind the Speakr recording and meeting
 Python 3.10+ is required. Use a dedicated virtual environment.
 
 ```bash
-python -m pip install "ChatVoice[web]==0.2.0"
+python -m pip install "ChatVoice[web]==0.3.2"
 chatvoice --version
 chatvoice --tree
 chatvoice serve app --dry-run --json
@@ -30,7 +30,8 @@ Installation neither starts a service nor downloads GPU models. The quick start 
 
 ## Capabilities
 
-- Meeting recording, live transcription, pause/resume, titles, tags and history.
+- Meeting recording, live transcription, pause/resume, titles, tags and history. Audio is discarded by default; account users may explicitly retain recordings for owner-protected playback and download.
+- A blank meeting has exactly two routes: recognition-only discards source audio with no replay; signed-in users may choose recording + recognition to retain and replay this meeting. First start locks the route permanently. Import requires login, always retains the source for replay, and supports files up to 128 MiB (over 12 MiB uses sequential 30-second ASR windows).
 - Summary generation, direct editing, conversation-based refinement and undo.
 - Explicit summary-to-Todo conversion, a separate Markdown editor and refinement conversation, copy and `.md` export. No automatic conversion or task execution.
 - Configurable system TTS and an independent one-shot voice-cloning service.
@@ -44,7 +45,9 @@ The Copilot preview adapts Backchannel's bounded live context and lightweight pa
 
 ## Data and security
 
-Account records use SQLite below `~/.chatarch/chatvoice`. Guest records remain in the browser. Audio passes through transcription processing but is not retained as a meeting recording archive. Provider keys never reach the browser.
+Account records use SQLite below `~/.chatarch/chatvoice`. Guest records remain in the browser. Original audio is discarded by default; explicit account opt-in stores private files associated with the meeting. Playback, download and deletion check ownership. Guests cannot retain server recordings. Provider keys never reach the browser.
+
+Clearing does not unlock a meeting route; a finished meeting needs a new meeting for more audio. Explicit clear/delete keeps existing cleanup semantics, while migration never deletes legacy audio. A database backup does not include recording bytes; back up the private audio directory together with the database when retention is used.
 
 Self-registration is disabled; operators provision invited accounts. ChatVoice uses the built-in `ChatVoiceAuth` backend from ChatLogin 0.1.2 and a customizable shared `LoginUI` at `/login`. Existing accounts, sessions and CSRF remain compatible; ChatVoice retains owner and token policy. Guest drafts must commit their IndexedDB transaction before login navigation.
 

@@ -5,6 +5,8 @@ This map explains what ChatVoice owns. Invocation details live in the [CLI tree]
 | Capability | Entry | Dependency/boundary |
 | --- | --- | --- |
 | Recording and transcription | Web, ASR HTTP/WebSocket | Microphone permission and configured ASR; stub is only a fixture |
+| Two meeting routes and lock | Web and meeting-audio APIs | Choose recognition-only or recording + recognition while blank; first start persists the lock and finished meetings reject append |
+| Existing audio import | Web and meeting-import APIs | Login required, always retained and replayable; configured ASR, 128 MiB, cancellation/rollback |
 | Summaries and refinement | Web, notes API | Independent text model; transcript is retained |
 | Markdown Todo | Web, Todo API, Python callback module | Explicit conversion/edit/refinement/undo/export; no task execution |
 | Meeting and conversation storage | Web and account APIs | Account SQLite or guest IndexedDB |
@@ -26,7 +28,7 @@ This map explains what ChatVoice owns. Invocation details live in the [CLI tree]
 ## Outside current scope
 
 - Todo execution, mind maps or cross-system task orchestration.
-- Raw meeting-audio archives, permanent cloned-voice libraries or audio history.
+- A general recording-file library, raw realtime-conversation archives, permanent cloned-voice libraries or generated-audio history.
 - Postgres/MySQL switching or distributed storage.
 - Automatic deployment/migration of every model backend or proxy management.
 

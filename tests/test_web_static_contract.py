@@ -143,7 +143,7 @@ def test_title_refresh_quick_new_and_reset_confirmation_are_exposed():
     assert "confirm(" in reset_body
     assert "确定清空这一次录音/会议内容吗" in reset_body
     assert "interruptActiveRecording({ reason: 'reset'" in reset_body
-    assert "resetSession()" in reset_body
+    assert "resetSession(" in reset_body
 
     assert "refresh-title').addEventListener('click', refreshMeetingTitle" in source
     assert "quick-new-meeting').addEventListener('click', () => createNewMeeting()" in source
@@ -178,7 +178,7 @@ def test_destructive_meeting_actions_interrupt_active_recording_resources_first(
 
     request_reset_body = _function_body(source, "requestResetSession")
     assert "interruptActiveRecording({ reason: 'reset'" in request_reset_body
-    assert request_reset_body.index("interruptActiveRecording({ reason: 'reset'") < request_reset_body.index("resetSession()")
+    assert request_reset_body.index("interruptActiveRecording({ reason: 'reset'") < request_reset_body.index("resetSession(")
 
     create_body = _function_body(source, "createNewMeeting")
     assert "请先结束当前录音" not in create_body
@@ -360,17 +360,19 @@ def test_meeting_tag_picker_supports_presets_custom_values_and_saved_metadata():
     assert "tags: [...meetingTags]" in source
 
 
-def test_raw_audio_archive_is_not_offered_in_meeting_recorder():
+def test_raw_audio_retention_is_default_off_and_explicit_account_opt_in():
     source = _script_source()
     footer_markup = source[source.index('<footer class="recording-console'):source.index('</footer>', source.index('<footer class="recording-console'))]
     entry_markup = source[source.index('<dialog id="entry-dialog"'):source.index('<div class="toast"')]
 
-    assert "默认不保存" not in footer_markup
-    assert "默认不保存" not in entry_markup
-    assert "服务器不保存录音，只保存文本和摘要" in entry_markup
+    assert "纯识别：原始音频用后即弃，不提供回放" in footer_markup
+    assert "默认不保存" in entry_markup
+    assert "可明确选择私有保留" in entry_markup
     assert "服务器只保存文字和摘要" in footer_markup
     assert "服务器不保存录音" in entry_markup
-    assert "音频只用于实时识别" in entry_markup
+    assert "访客仅保存文字和摘要" in entry_markup
+    assert '<button class="mode-toggle" id="audio-retention-mode" type="button" aria-pressed="false">启用录音+识别</button>' in footer_markup
+    assert 'id="meeting-mode-lock-label"' in footer_markup
 
     forbidden = [
         "保存到本机",

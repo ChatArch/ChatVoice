@@ -50,6 +50,25 @@ app = create_app(login_ui=LoginUI(
 
 会议保存包含标题、时间、时长、标签、转写片段、摘要、完善对话，以及 `todo_markdown`、`todo_chat_messages`。详情返回正文，列表保持轻量。旧客户端省略 Todo 字段不会清空既有值，显式空字符串/空列表可以清空。
 
+## 会议录音保存与导入 {#meeting-audio}
+
+下列接口要求账号 Cookie 与会议所有权，写操作同时校验 CSRF；只读数据 Token 不自动获得音频文件访问权。
+
+| 方法与路径 | 请求与结果 |
+| --- | --- |
+| `POST /api/meetings/{id}/capture/start` | JSON：`meeting_mode`、`capture_token`；仅空白会议，原子锁定路线与本次采集 |
+| `POST /api/meetings/{id}/capture/finish` | JSON：`capture_token`；把匹配的已开始采集标记为完成，可幂等重试 |
+| `POST /api/meetings/{id}/audio` | multipart：`file`、`upload_token`、`capture_token`、`generation`；录音+识别的正常尾部，最大 128 MiB |
+| `GET /api/meetings/{id}/audio/{audio_id}` | 私有音频播放；受控音频 MIME 与禁止缓存 |
+| `GET /api/meetings/{id}/audio/{audio_id}/download` | 同一私有文件的附件下载 |
+| `DELETE /api/meetings/{id}/audio` | 清理会议所有音频并递增录音代次 |
+| `POST /api/meetings/{id}/import` | multipart：`file`、`import_token`，可选 `channel`、`correct`；固定保留原文件，最大 128 MiB |
+| `DELETE /api/meeting-imports/{import_token}` | 取消自己的导入；完成与取消交错时也清理刚建立的会议 |
+
+会议保存返回 `meeting_mode`、`mode_locked`、`capture_state`；旧 `audio_retention` 字段继续映射两种模式，省略模式字段会保留既有选择。锁定后显式反向修改返回 409。详情还返回 `audio_assets` 和只读 `audio_generation`。纯识别无音频资产/回放；录音上传同时校验采集身份与代次，清空后的旧上传返回 409。
+
+导入要求账号且不覆盖已有会议，固定返回已锁定、已完成的录音+识别 `meeting` 并保留可回放原文件；旧客户端提交 `retain_audio=false` 也不会降级。相同完成 token 返回既有结果。取消或失败 token 不能静默重复识别。空文件 400、超限 413、容器/MIME 错误 415、冲突/取消 409、无效模型结果 502、存储失败 503、识别超时 504；失败时不留下半成品会议。
+
 ## 文本处理 {#text}
 
 | 方法与路径 | 请求关键字段 | 返回 |
