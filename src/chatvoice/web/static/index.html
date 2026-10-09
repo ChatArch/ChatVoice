@@ -4974,7 +4974,13 @@
     }
 
     document.querySelectorAll('.content-tab').forEach((button) => button.addEventListener('click', () => setActiveTab(button.dataset.tab)));
-    document.querySelectorAll('.product-tab').forEach((button) => button.addEventListener('click', () => switchProductView(button.dataset.product)));
+    document.querySelectorAll('.product-tab').forEach((button) => button.addEventListener('click', () => {
+      if (button.dataset.product === 'copilot') {
+        void showCopilotPage();
+        return;
+      }
+      switchProductView(button.dataset.product);
+    }));
     $('voice-options').addEventListener('click', (event) => {
       const button = event.target.closest('.voice-card');
       if (button && $('voice-options').contains(button)) selectTtsVoice(button.dataset.voice);

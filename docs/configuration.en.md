@@ -64,7 +64,11 @@ All example addresses, keys and model names are placeholders.
 | `CHATVOICE_COPILOT_THINKING_MODE` | `provider-default` | Fast-answer thinking policy: `provider-default` adds no vendor field; `ark-disabled` sends Volcengine Ark `thinking.type=disabled` only for the Copilot request; other values fail closed |
 | `CHATVOICE_ENV_PROFILE` | Empty | Load a named ChatEnv ChatVoice profile without changing the global active profile; missing names do not fall back to active |
 
-Uploads accept TXT, Markdown, PDF and DOCX; URL fetch is not supported. PDFs with no extractable text return an OCR-not-supported error. Material text, pre-meeting instructions and answer state are isolated by logged-in owner; writes use the existing cookie and CSRF boundary.
+Uploads accept TXT, Markdown, basic text PDFs and DOCX; URL fetch is not supported. Files are capped at 2 MiB, with declared and chunked body limits before multipart parsing. Answer/prepare JSON bodies are limited to 1 MiB before parsing. Authentication, CSRF and the preview flag are checked before the material form is parsed.
+
+PDF parsing uses `pypdf>=6.19,<7.0` and validates direct-length streams, escaped names and decode limits before extraction. No-filter, Flate, ASCII85, ASCIIHex and RunLength streams are supported within those limits. Indirect lengths, nested streams, compressed object/xref streams, Form references, custom decode parameters and unsupported image/encryption/LZW filters fail closed. Re-export complex files as basic text PDFs or use TXT/Markdown. Scanned PDFs with no text do not receive OCR.
+
+Copilot explicitly requests `max_tokens=384` and checks SSE line/event/aggregate bytes, event count, output length, a 60-second elapsed deadline and a 15-second socket-read timeout. The token parameter is not a spending guarantee. Disconnect, logout and session invalidation stop processing at cooperative read boundaries, close the response and never produce `done`. Partial output is not completion, and cancellation cannot reverse quota already spent. Owner and cookie/CSRF boundaries remain unchanged.
 
 ## ASR {#asr}
 

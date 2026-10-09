@@ -256,7 +256,9 @@ def test_homepage_toolbar_uses_left_history_menu_and_right_settings_menu_only():
     assert "grid-template-columns: repeat(3" not in toolbar_css
     assert "querySelectorAll('.product-menu-action').forEach" not in source
     assert "querySelectorAll('.product-tab').forEach" in source
-    assert "addEventListener('click', () => switchProductView" in source
+    assert "button.dataset.product === 'copilot'" in source
+    assert "void showCopilotPage();" in source
+    assert "switchProductView(button.dataset.product);" in source
     switch_body = _function_body(source, "switchProductView")
     assert "workspace-title" not in switch_body
     assert "product-menu-action" not in switch_body

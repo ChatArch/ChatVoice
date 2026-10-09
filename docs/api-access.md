@@ -93,7 +93,9 @@ app = create_app(login_ui=LoginUI(
 | `POST /api/copilot/answer/stream` | SSE 快速回答，需 CSRF |
 | `POST /api/copilot/prepare` | 可选后台准备；未启用自动准备时返回 409 |
 
-回答流事件为 `meta`、`delta`、`done` 或 `error`。`meta.evidence` 是检索到的材料片段，不是外部验证引用；调用方必须等待 `done.completion_marker == "copilot.answer.done"`。请求绑定 `request_id`、`transcript_revision`、`material_revision`，迟到或失效结果应由客户端丢弃。
+材料文件限制为 2 MiB，multipart 解析前检查声明/实际正文长度；回答和准备 JSON 正文在解析前限制为 1 MiB。PDF 只接受安全限制内的基本文字与直接长度流；名称转义参与校验，复杂对象/交叉引用/Form、嵌套流、自定义解码参数、间接长度和不支持过滤器会明确拒绝。复杂文件请导出普通文字 PDF 或使用 TXT/Markdown；扫描文件不做 OCR。
+
+回答流事件为 `meta`、`delta`、`done` 或 `error`。`meta.evidence` 是检索片段，不是外部验证引用；必须等待 `done.completion_marker == "copilot.answer.done"`。上游显式设置 `max_tokens=384`，服务端另检查输入/输出字节、事件数、60 秒截止时间与 15 秒单次读等待边界。断开、登出、会话失效、超限或截断不会产生 `done`，不能把部分输出当成完成。请求绑定 `request_id`、`transcript_revision`、`material_revision`；迟到或失效结果应由客户端丢弃。
 
 ## Markdown Todo {#todo}
 

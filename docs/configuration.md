@@ -64,7 +64,11 @@ CHATVOICE_MEETING_TITLE_MODEL=title-model
 | `CHATVOICE_COPILOT_THINKING_MODE` | `provider-default` | 快答思考策略：`provider-default` 不增加厂家字段；`ark-disabled` 仅对本次 Copilot 请求发送火山方舟 `thinking.type=disabled`；其他值拒绝启动请求 |
 | `CHATVOICE_ENV_PROFILE` | 空 | 加载指定 ChatEnv ChatVoice profile，不修改全局 active profile；缺失不会回退 active profile |
 
-材料上传支持 TXT、Markdown、PDF、DOCX；不支持 URL 抓取。PDF 没有可提取文字时返回 OCR 不支持。材料文本、会前说明和快速回答状态按登录账号隔离，写操作继续使用既有 Cookie + CSRF 边界。
+材料上传支持 TXT、Markdown、基本文字 PDF、DOCX；不支持 URL 抓取。材料文件精确限制为 2 MiB，multipart 解析前同时限制声明长度和分块正文；回答/准备的 JSON 正文在解析前限制为 1 MiB。认证、CSRF 与预览开关在材料表单解析前检查。
+
+PDF 使用 `pypdf>=6.19,<7.0`，先验证直接长度流、名称转义和解码上限，再提取文字。无过滤、Flate、ASCII85、ASCIIHex、RunLength 流可在限制内读取；间接长度、嵌套流、压缩对象/交叉引用流、Form 引用、自定义解码参数和不支持的图像/加密/LZW 过滤会明确拒绝。复杂文件请重新导出普通文字 PDF，或改用 TXT/Markdown；无文字的扫描 PDF 不做 OCR。
+
+快速回答是预览功能：上游请求显式设置 `max_tokens=384`，并检查 SSE 行/事件/总字节、事件数、输出长度、60 秒截止时间与 15 秒单次读等待边界。token 参数不是费用保证；断开、退出账号或会话失效会在协作读边界停止、关闭响应，且不会返回 `done`。部分输出不是完成结果，已消耗的上游额度不会被取消操作撤销。材料与回答按账号隔离，写操作继续使用 Cookie + CSRF。
 
 ## ASR {#asr}
 
