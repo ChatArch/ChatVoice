@@ -341,13 +341,21 @@ def _pdf_object_header_end(data: bytes, position: int, end: int) -> int | None:
     """Recognize a direct object header outside skipped strings and streams."""
     if data[position] not in b"0123456789":
         return None
+    # Only attempt at a token boundary; failed recognition must not scan the
+    # same numeric suffix again at every subsequent byte.
+    if position > 0 and data[position - 1] not in _PDF_DELIMITERS:
+        return None
     first_end = position
     while first_end < end and data[first_end] in b"0123456789":
         first_end += 1
+        if first_end - position > 10:
+            raise _pdf_limit_error("PDF 数字 token 超过安全长度。")
     second_start = _skip_pdf_space_and_comments(data, first_end, end)
     second_end = second_start
     while second_end < end and data[second_end] in b"0123456789":
         second_end += 1
+        if second_end - second_start > 10:
+            raise _pdf_limit_error("PDF 数字 token 超过安全长度。")
     if second_end == second_start:
         return None
     keyword_start = _skip_pdf_space_and_comments(data, second_end, end)

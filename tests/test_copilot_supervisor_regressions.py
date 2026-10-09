@@ -56,6 +56,29 @@ def test_pdf_nested_direct_stream_cannot_hide_from_preflight():
     assert exc.value.code == "pdf_stream_unsupported"
 
 
+class _ReadCountingBytes(bytes):
+    def __new__(cls, value):
+        result = super().__new__(cls, value)
+        result.reads = 0
+        return result
+
+    def __getitem__(self, key):
+        self.reads += 1
+        return super().__getitem__(key)
+
+
+@pytest.mark.parametrize("middle", [b"9" * 256, (b"1234567890\n" * 32)])
+def test_pdf_non_object_numeric_tokens_have_linear_preflight_work(middle):
+    # Count deterministic byte visits on sub-kilobyte inputs, not wall time or
+    # a huge workload. A long token may be rejected with a controlled error.
+    data = _ReadCountingBytes(b"%PDF-1.4\n" + middle + b"\n%%EOF\n")
+    try:
+        materials._preflight_pdf_streams(data)
+    except materials.MaterialParseError:
+        pass
+    assert data.reads <= 14 * len(data) + 200, "Failed header recognition must not rescan each numeric suffix"
+
+
 def test_pdf_numeric_length_abuse_is_a_controlled_parse_error():
     blob = b"%PDF-1.4\n1 0 obj\n<< /Length " + b"9" * 5000 + b">>\nstream\nx\nendstream\nendobj\n%%EOF\n"
     with pytest.raises(materials.MaterialParseError):
