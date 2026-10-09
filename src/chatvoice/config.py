@@ -79,6 +79,10 @@ class ChatVoiceConfig(BaseEnvConfig):
         "CHATVOICE_HOME",
         desc="Override ChatVoice runtime root. Defaults to $CHATARCH_HOME/chatvoice or ~/.chatarch/chatvoice.",
     )
+    CHATVOICE_ENV_PROFILE = EnvField(
+        "CHATVOICE_ENV_PROFILE",
+        desc="Optional named ChatEnv ChatVoice profile to load for this service without changing the global active profile.",
+    )
     CHATVOICE_SQLITE_PATH = EnvField(
         "CHATVOICE_SQLITE_PATH",
         desc="Optional explicit SQLite database path under the ChatVoice runtime root.",
@@ -154,6 +158,20 @@ class ChatVoiceConfig(BaseEnvConfig):
         "CHATVOICE_OPENAI_API_MODEL",
         default="qwen3.7-plus",
         desc="Default ChatVoice-scoped OpenAI-compatible model for text/model-backed tasks.",
+    )
+    CHATVOICE_COPILOT_ENABLED = EnvField(
+        "CHATVOICE_COPILOT_ENABLED",
+        default="0",
+        desc="Enable the preview-only Speakr Copilot page and APIs.",
+    )
+    CHATVOICE_COPILOT_AUTO_PREPARE = EnvField(
+        "CHATVOICE_COPILOT_AUTO_PREPARE",
+        default="0",
+        desc="Opt-in background preparation for live Copilot answers.",
+    )
+    CHATVOICE_COPILOT_THINKING_MODE = EnvField(
+        "CHATVOICE_COPILOT_THINKING_MODE",
+        desc="Copilot-only thinking policy: provider-default or ark-disabled (sends thinking.type=disabled). Unknown modes fail closed.",
     )
 
 

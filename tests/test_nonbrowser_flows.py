@@ -7,7 +7,13 @@ import pytest
 
 
 CASES = (
-    [("title", mode) for mode in ("success", "empty", "failure", "late", "manual")]
+    [("copilot", mode) for mode in ("success", "disabled")]
+    + [("copilotAudio", mode) for mode in ("mic", "systemUnsupported")]
+    + [("copilotDirect",), ("copilotDraft",), ("copilotDedupe",)]
+    + [("copilotGraph", mode) for mode in ("mix", "unsupported")]
+    + [("copilotMaterialSafety", mode) for mode in ("lateList", "lateUpload", "lateDelete", "repeatList")]
+    + [("copilotSafety", kind, action) for kind in ("draft", "manual") for action in ("question", "instructions", "style", "material", "transcript", "denial", "continued", "stop", "pause", "reset", "logout")]
+    + [("title", mode) for mode in ("success", "empty", "failure", "late", "manual")]
     + [("clone", mode) for mode in ("success", "guest", "noReference", "noConsent", "failed", "stale", "staleCreate", "staleAudio", "poll")]
     + [("realtime", mode) for mode in ("success", "connectFailure", "micFailure")]
     + [("meeting",), ("token",), ("navigation",), ("lateRevision",), ("mutations",), ("asrFinish",), ("access", "success"), ("access", "failure")]

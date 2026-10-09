@@ -1,5 +1,15 @@
 # 更新日志
 
+## 0.4.0 - 2026-10-09
+
+### 新增
+
+- 增加预览版 **会中助手**：`CHATVOICE_COPILOT_ENABLED=1` 后开放 `/copilot`、导航入口和 `/api/copilot/*`。
+- 支持按账号隔离的 TXT/Markdown/PDF/DOCX 材料上传、提取文本预览、删除和大小/数量/文本上限；扫描 PDF 明确提示不支持 OCR。
+- 复用 `/ws/asr/stream` 与会议纪要文本模型生成 SSE 快速回答；证据标注为检索上下文，不伪装外部引用。
+- 引入 `chatvoice.copilot` 纯 Python 上下文/检索/解析层，改写自 Backchannel 的有界 live context 思路，并添加第三方 NOTICE。
+- 增加 `CHATVOICE_ENV_PROFILE`，允许服务加载指定 ChatEnv ChatVoice profile 而不修改全局 active profile。
+
 ## 0.3.2 - 2026-10-07
 
 - 默认纯识别；开始前的“启用录音+识别”是单向按钮，点击生效后立即禁用变灰，不能关闭；直接开始纯识别也锁灰。服务端持久化该选择，清空、重开或刷新不解锁，已结束会议拒绝追加音频。
