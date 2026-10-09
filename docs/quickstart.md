@@ -36,7 +36,7 @@
 ```bash
 python3 -m venv "$HOME/.chatarch/chatvoice/.venv"
 . "$HOME/.chatarch/chatvoice/.venv/bin/activate"
-python -m pip install "ChatVoice[web]==0.3.2"
+python -m pip install "ChatVoice[web]==0.4.0"
 chatvoice --version
 chatvoice --tree
 ```
