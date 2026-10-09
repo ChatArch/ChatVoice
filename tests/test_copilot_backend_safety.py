@@ -81,9 +81,10 @@ def test_pdf_page_limit_is_rejection(monkeypatch):
 
 @pytest.mark.parametrize("suffix", ["txt", "pdf"])
 def test_text_limit_rejects_instead_of_clipping(monkeypatch, suffix):
-    monkeypatch.setitem(sys.modules, "pypdf", SimpleNamespace(PdfReader=lambda *a, **k: SimpleNamespace(pages=[SimpleNamespace(extract_text=lambda: "x" * 21)])))
+    from test_copilot_resource_bounds import _text_pdf
+    data = _text_pdf("x" * 21) if suffix == "pdf" else b"x" * 21
     with pytest.raises(materials.MaterialParseError) as err:
-        materials.parse_material_bytes("large." + suffix, b"x" * 21, text_cap=20)
+        materials.parse_material_bytes("large." + suffix, data, text_cap=20)
     assert err.value.status_code == 413
 
 
@@ -100,16 +101,21 @@ def test_copilot_serves_real_app(copilot_app):
 
 
 def test_upload_read_is_bounded(copilot_app, monkeypatch):
-    class Upload:
-        filename = "huge.txt"
-        async def read(self, size=-1):
-            assert size == copilot_app.MAX_COPILOT_MATERIAL_BYTES + 1
-            return b"x" * size
-    monkeypatch.setattr(copilot_app, "_auth_row", lambda request: {"user_id": "test"})
-    monkeypatch.setattr(copilot_app, "_require_csrf", lambda *a: None)
-    with pytest.raises(copilot_app.HTTPException) as err:
-        run(copilot_app.copilot_upload_material(None, Upload()))
-    assert err.value.status_code == 413
+    from starlette.datastructures import UploadFile
+    original = UploadFile.read
+    reads = []
+    async def observed_read(self, size=-1):
+        reads.append(size)
+        return await original(self, size)
+    monkeypatch.setattr(UploadFile, "read", observed_read)
+    monkeypatch.setattr(copilot_app, "MAX_COPILOT_MATERIAL_BYTES", 32)
+    async def scenario():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=copilot_app.app), base_url="https://app.example.test") as client:
+            csrf = await _login(client, copilot_app, "bounded@example.test")
+            response = await client.post("/api/copilot/materials", headers=csrf, files={"file": ("huge.txt", b"x" * 33, "text/plain")})
+            assert response.status_code == 413
+    run(scenario())
+    assert 33 in reads
 
 
 @pytest.mark.parametrize("value,outcome", [("missing", {}), ("empty", {}), ("broken", ValueError("sensitive")), (" ", {})])
@@ -142,7 +148,12 @@ def test_copilot_thinking_payload_scoped(copilot_app, monkeypatch, mode):
         calls.append(json.loads(req.data))
         return io.BytesIO(b'data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\n')
     monkeypatch.setattr(text_api, "_open_request", opened)
-    list(copilot_app._copilot_answer_stream(copilot_app.CopilotAnswerRequest(question="synthetic", request_id="offline-test"), "test"))
+    async def scenario():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=copilot_app.app), base_url="https://app.example.test") as client:
+            csrf = await _login(client, copilot_app, "thinking@example.test")
+            response = await client.post("/api/copilot/answer/stream", headers=csrf, json={"question": "synthetic", "request_id": "offline-test"})
+            assert "event: done" in response.text
+    run(scenario())
     assert len(calls) == 1
     assert calls[0].get("thinking") == ({"type": "disabled"} if mode == "ark-disabled" else None)
     settings = text_api.TextSettings("https://example.test/v1", "offline", "model")
@@ -153,8 +164,12 @@ def test_unknown_thinking_fails_before_network(copilot_app, monkeypatch):
     monkeypatch.setattr(copilot_app, "COPILOT_THINKING_MODE", "typo")
     monkeypatch.setattr(copilot_app, "_copilot_messages", lambda *a: ([], [], 0))
     monkeypatch.setattr(text_api, "_open_request", lambda *a, **k: pytest.fail("Unknown mode must never call model"))
-    out = "".join(copilot_app._copilot_answer_stream(copilot_app.CopilotAnswerRequest(question="synthetic", request_id="offline-test"), "test"))
-    assert "event: error" in out and "event: done" not in out
+    async def scenario():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=copilot_app.app), base_url="https://app.example.test") as client:
+            csrf = await _login(client, copilot_app, "unknown@example.test")
+            response = await client.post("/api/copilot/answer/stream", headers=csrf, json={"question": "synthetic", "request_id": "offline-test"})
+            assert "event: error" in response.text and "event: done" not in response.text
+    run(scenario())
 
 
 def test_notice_has_complete_mit_and_wheel_configuration():

@@ -8,28 +8,13 @@ import json
 import socket
 import sys
 
-import fastapi.routing
 import httpx
 import pytest
-import starlette.responses
 
 
 @pytest.fixture
 def copilot_app(monkeypatch, tmp_path):
     monkeypatch.setattr(socket.socket, "connect", lambda *args, **kwargs: pytest.fail("Real network forbidden"))
-
-    async def deterministic_executor(func=None, *args, function=None, arguments=None, **kwargs):
-        if function is not None:
-            return function(**(arguments or {}))
-        return func(*args, **kwargs)
-
-    async def deterministic_iterator(iterator):
-        for item in iterator:
-            yield item
-
-    monkeypatch.setattr(fastapi.routing, "run_in_threadpool", deterministic_executor)
-    monkeypatch.setattr(asyncio, "to_thread", deterministic_executor)
-    monkeypatch.setattr(starlette.responses, "iterate_in_threadpool", deterministic_iterator)
     monkeypatch.setenv("CHATARCH_HOME", str(tmp_path / "chatarch"))
     monkeypatch.setenv("CHATVOICE_HOME", str(tmp_path / "voice"))
     monkeypatch.setenv("CHATVOICE_ASR_CHANNEL", "stub-local")
@@ -55,7 +40,7 @@ async def _login(client, module, account):
 
 
 def run(coro):
-    return asyncio.run(asyncio.wait_for(coro, timeout=12))
+    return asyncio.run(coro)
 
 
 def test_copilot_page_and_status_follow_feature_flag(copilot_app, monkeypatch):
@@ -99,6 +84,22 @@ def test_material_upload_is_authenticated_csrf_owned_and_validated(copilot_app):
     run(scenario())
 
 
+def test_copilot_body_limit_runs_before_disabled_or_unauthenticated_handler(copilot_app, monkeypatch):
+    monkeypatch.setattr(copilot_app, "MAX_COPILOT_MATERIAL_BYTES", 8)
+    monkeypatch.setattr(copilot_app, "COPILOT_MATERIAL_ENVELOPE_BYTES", 8)
+
+    async def scenario():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=copilot_app.app), base_url="https://app.example.test") as client:
+            monkeypatch.setattr(copilot_app, "COPILOT_ENABLED", False)
+            disabled = await client.post("/api/copilot/materials", files={"file": ("a.txt", b"small", "text/plain")})
+            assert disabled.status_code == 413
+            monkeypatch.setattr(copilot_app, "COPILOT_ENABLED", True)
+            unauthenticated = await client.post("/api/copilot/materials", files={"file": ("a.txt", b"small", "text/plain")})
+            assert unauthenticated.status_code == 413
+
+    run(scenario())
+
+
 def test_answer_stream_uses_notes_settings_and_reports_empty_error(copilot_app, monkeypatch):
     from chatvoice import text_api
 
@@ -111,6 +112,7 @@ def test_answer_stream_uses_notes_settings_and_reports_empty_error(copilot_app, 
         assert request.get_header("Authorization") == "Bearer offline-secret"
         assert payload["model"] == "offline-model"
         assert set(payload) <= {"model", "messages", "stream", "max_tokens"}
+        assert payload["max_tokens"] == copilot_app.COPILOT_MAX_TOKENS
         body = 'data: ' + json.dumps({"choices": [{"delta": {"content": "可以这样回答。"}}]}) + "\n\ndata: [DONE]\n\n"
         return io.BytesIO(body.encode())
 
@@ -139,6 +141,144 @@ def test_answer_stream_uses_notes_settings_and_reports_empty_error(copilot_app, 
             })
             assert "event: error" in failed.text and "event: done" not in failed.text
     run(scenario())
+
+
+def test_copilot_message_assembly_enforces_total_content_budget(copilot_app, monkeypatch):
+    docs = [copilot_app.copilot_context.MaterialDocument(
+        "m1", "pricing.txt", "客户可以选择 SSO 企业版方案。" * 30,
+    )]
+    monkeypatch.setattr(copilot_app, "_copilot_documents", lambda _owner: (docs, 3))
+    request = copilot_app.CopilotAnswerRequest(
+        question="客户现在需要怎样答复 SSO？" * 12,
+        transcript="最近转写内容。" * 120,
+        instructions="只根据上下文回答。" * 30,
+        answer_style="简短中文。" * 20,
+        request_id="bounded-message-test",
+    )
+    messages, _evidence, _revision = copilot_app._copilot_messages(
+        request, "missing-owner", total_budget=3000,
+    )
+    assert request.question in messages[-1]["content"]
+    assert "# Retrieved context from uploaded materials" in messages[-1]["content"]
+    assert "# Evidence rendering note" not in messages[-1]["content"]
+    assert sum(len(message["content"]) for message in messages) <= 3000
+
+
+class _ControlledProvider:
+    def __init__(self, values):
+        self.values = iter(values)
+        self.closed = False
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        return next(self.values)
+
+    def close(self):
+        self.closed = True
+
+
+def test_copilot_asgi_disconnect_closes_provider_without_done(copilot_app, monkeypatch):
+    from chatvoice import text_api
+
+    provider = _ControlledProvider(["first", "second"])
+    monkeypatch.setattr(text_api, "stream_text", lambda *_args, **_kwargs: provider)
+
+    async def scenario():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=copilot_app.app), base_url="https://app.example.test") as client:
+            csrf = await _login(client, copilot_app, "disconnect@example.test")
+            body = json.dumps({"question": "现在怎么答？", "request_id": "disconnect-test"}).encode()
+            cookie = client.cookies.get(copilot_app.AUTH_COOKIE_NAME)
+            disconnect_ready = asyncio.Event()
+            request_sent = False
+            disconnect_delivered = False
+            sent = []
+
+            async def receive():
+                nonlocal request_sent, disconnect_delivered
+                if not request_sent:
+                    request_sent = True
+                    return {"type": "http.request", "body": body, "more_body": False}
+                await disconnect_ready.wait()
+                disconnect_delivered = True
+                return {"type": "http.disconnect"}
+
+            async def send(message):
+                sent.append(message)
+                if message["type"] == "http.response.body" and b"event: delta" in message.get("body", b""):
+                    disconnect_ready.set()
+
+            scope = {
+                "type": "http", "asgi": {"version": "3.0", "spec_version": "2.0"}, "http_version": "1.1",
+                "method": "POST", "scheme": "https", "path": "/api/copilot/answer/stream",
+                "raw_path": b"/api/copilot/answer/stream", "query_string": b"",
+                "headers": [
+                    (b"host", b"app.example.test"), (b"content-type", b"application/json"),
+                    (b"content-length", str(len(body)).encode()),
+                    (b"cookie", f"{copilot_app.AUTH_COOKIE_NAME}={cookie}".encode()),
+                    (b"x-csrf-token", csrf["X-CSRF-Token"].encode()),
+                ],
+                "client": ("127.0.0.1", 12345), "server": ("app.example.test", 443),
+            }
+            await copilot_app.app(scope, receive, send)
+            response = b"".join(message.get("body", b"") for message in sent if message["type"] == "http.response.body")
+            assert disconnect_delivered
+            assert b"event: delta" in response
+            assert b"event: done" not in response
+
+    run(scenario())
+    assert provider.closed
+
+
+def test_copilot_asgi_logout_invalidates_stream_without_done(copilot_app, monkeypatch):
+    from chatvoice import text_api
+
+    provider = _ControlledProvider(["first", "second"])
+    monkeypatch.setattr(text_api, "stream_text", lambda *_args, **_kwargs: provider)
+
+    async def scenario():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=copilot_app.app), base_url="https://app.example.test") as client:
+            csrf = await _login(client, copilot_app, "logout@example.test")
+            body = json.dumps({"question": "现在怎么答？", "request_id": "logout-test"}).encode()
+            cookie = client.cookies.get(copilot_app.AUTH_COOKIE_NAME)
+            request_sent = False
+            sent = []
+            logged_out = []
+
+            async def receive():
+                nonlocal request_sent
+                if not request_sent:
+                    request_sent = True
+                    return {"type": "http.request", "body": body, "more_body": False}
+                await asyncio.Event().wait()
+
+            async def send(message):
+                sent.append(message)
+                if message["type"] == "http.response.body" and b"event: delta" in message.get("body", b"") and not logged_out:
+                    result = await client.post("/api/auth/logout", headers=csrf)
+                    logged_out.append(result.status_code)
+
+            scope = {
+                "type": "http", "asgi": {"version": "3.0", "spec_version": "2.0"}, "http_version": "1.1",
+                "method": "POST", "scheme": "https", "path": "/api/copilot/answer/stream",
+                "raw_path": b"/api/copilot/answer/stream", "query_string": b"",
+                "headers": [
+                    (b"host", b"app.example.test"), (b"content-type", b"application/json"),
+                    (b"content-length", str(len(body)).encode()),
+                    (b"cookie", f"{copilot_app.AUTH_COOKIE_NAME}={cookie}".encode()),
+                    (b"x-csrf-token", csrf["X-CSRF-Token"].encode()),
+                ],
+                "client": ("127.0.0.1", 12346), "server": ("app.example.test", 443),
+            }
+            await copilot_app.app(scope, receive, send)
+            response = b"".join(message.get("body", b"") for message in sent if message["type"] == "http.response.body")
+            assert logged_out == [200]
+            assert b"event: delta" in response
+            assert b"event: done" not in response
+
+    run(scenario())
+    assert provider.closed
 
 
 def test_copilot_tables_live_in_host_sqlite(copilot_app):

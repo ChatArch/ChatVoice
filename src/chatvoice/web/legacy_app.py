@@ -34,6 +34,8 @@ from dashscope.audio.tts_v2 import AudioFormat, SpeechSynthesizer
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
+from starlette.concurrency import iterate_in_threadpool
+from starlette.datastructures import UploadFile as StarletteUploadFile
 
 from chatvoice import __version__
 from chatvoice import todo_markdown
@@ -199,8 +201,20 @@ COPILOT_ENABLED = _env_bool("CHATVOICE_COPILOT_ENABLED")
 COPILOT_AUTO_PREPARE = _env_bool("CHATVOICE_COPILOT_AUTO_PREPARE")
 COPILOT_THINKING_MODE = _env_value("CHATVOICE_COPILOT_THINKING_MODE", default="provider-default").strip().lower()
 MAX_COPILOT_MATERIAL_BYTES = 2 * 1024 * 1024
+COPILOT_MATERIAL_ENVELOPE_BYTES = 64 * 1024
+COPILOT_JSON_REQUEST_BYTES = 1024 * 1024
 MAX_COPILOT_MATERIALS = 12
 MAX_COPILOT_TEXT_CHARS = 120_000
+COPILOT_TOTAL_CONTENT_BUDGET_CHARS = copilot_context.LIVE_CONTEXT_BUDGET_CHARS
+COPILOT_MAX_TOKENS = 384
+COPILOT_SSE_MAX_LINE_BYTES = 16 * 1024
+COPILOT_SSE_MAX_EVENT_BYTES = 12 * 1024
+COPILOT_SSE_MAX_STREAM_BYTES = 128 * 1024
+COPILOT_SSE_MAX_EVENTS = 128
+COPILOT_OUTPUT_MAX_CHARS = 16_000
+COPILOT_OUTPUT_MAX_BYTES = 48 * 1024
+COPILOT_PROVIDER_READ_TIMEOUT_SECONDS = 15
+COPILOT_STREAM_DEADLINE_SECONDS = 60
 PASSWORD_ITERATIONS = 310_000
 MAX_MEETING_TAGS = 24
 MAX_MEETING_TAG_LENGTH = 40
@@ -221,9 +235,15 @@ SUPPORTED_AUDIO_TYPES: dict[str, tuple[str, str]] = {
     "mp4": (".m4a", "audio/mp4"),
     "flac": (".flac", "audio/flac"),
 }
-app.add_middleware(AudioUploadLimits, limit_for_path=lambda path: (
-    MAX_RETAINED_AUDIO_BYTES if path.endswith('/audio') else MAX_IMPORTED_AUDIO_BYTES
-) + AUDIO_UPLOAD_ENVELOPE_BYTES)
+def _upload_request_limit(path: str) -> int:
+    if path == '/api/copilot/materials':
+        return MAX_COPILOT_MATERIAL_BYTES + COPILOT_MATERIAL_ENVELOPE_BYTES
+    if path in {'/api/copilot/answer/stream', '/api/copilot/prepare'}:
+        return COPILOT_JSON_REQUEST_BYTES
+    return (MAX_RETAINED_AUDIO_BYTES if path.endswith('/audio') else MAX_IMPORTED_AUDIO_BYTES) + AUDIO_UPLOAD_ENVELOPE_BYTES
+
+
+app.add_middleware(AudioUploadLimits, limit_for_path=_upload_request_limit)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://127.0.0.1", "http://localhost", "http://127.0.0.1:18087", "http://localhost:18087"],
@@ -798,37 +818,46 @@ def copilot_list_materials(request: Request) -> JSONResponse:
 
 
 @app.post("/api/copilot/materials")
-async def copilot_upload_material(request: Request, file: UploadFile = File(...)) -> JSONResponse:
+async def copilot_upload_material(request: Request) -> JSONResponse:
     _require_copilot_enabled()
     auth = _auth_row(request)
     _require_csrf(request, auth)
-    filename = Path(file.filename or "material.txt").name[:160]
-    data = await file.read(MAX_COPILOT_MATERIAL_BYTES + 1)
-    if not data:
-        raise HTTPException(status_code=400, detail="材料为空")
-    if len(data) > MAX_COPILOT_MATERIAL_BYTES:
-        raise HTTPException(status_code=413, detail="材料过大")
+    if not request.headers.get("content-type", "").lower().startswith("multipart/form-data"):
+        raise HTTPException(status_code=415, detail="材料必须使用 multipart/form-data 上传")
+    form = await request.form()
     try:
-        text = parse_material_bytes(filename, data, text_cap=MAX_COPILOT_TEXT_CHARS)
-    except MaterialParseError as exc:
-        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": str(exc)}) from None
-    preview = text[:500]
-    material_id = "mat_" + secrets.token_urlsafe(12)
-    with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
-        count = connection.execute("SELECT count(*) FROM copilot_materials WHERE owner_id = ?", (auth["user_id"],)).fetchone()[0]
-        if count >= MAX_COPILOT_MATERIALS:
-            raise HTTPException(status_code=400, detail=f"材料最多保留 {MAX_COPILOT_MATERIALS} 份")
-        connection.execute(
-            """
-            INSERT INTO copilot_materials (owner_id, material_id, filename, content_type, text, preview, byte_size, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (auth["user_id"], material_id, filename, file.content_type or "application/octet-stream", text, preview, len(data), _iso_utc()),
-        )
-        connection.commit()
-        row = connection.execute("SELECT * FROM copilot_materials WHERE owner_id = ? AND material_id = ?", (auth["user_id"], material_id)).fetchone()
-        revision = _copilot_material_revision(connection, auth["user_id"])
-    return JSONResponse({"material": _copilot_material_payload(row), "material_revision": revision})
+        file = form.get("file")
+        if not isinstance(file, StarletteUploadFile):
+            raise HTTPException(status_code=422, detail="缺少材料文件")
+        filename = Path(file.filename or "material.txt").name[:160]
+        data = await file.read(MAX_COPILOT_MATERIAL_BYTES + 1)
+        if not data:
+            raise HTTPException(status_code=400, detail="材料为空")
+        if len(data) > MAX_COPILOT_MATERIAL_BYTES:
+            raise HTTPException(status_code=413, detail="材料过大")
+        try:
+            text = parse_material_bytes(filename, data, text_cap=MAX_COPILOT_TEXT_CHARS)
+        except MaterialParseError as exc:
+            raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": str(exc)}) from None
+        preview = text[:500]
+        material_id = "mat_" + secrets.token_urlsafe(12)
+        with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
+            count = connection.execute("SELECT count(*) FROM copilot_materials WHERE owner_id = ?", (auth["user_id"],)).fetchone()[0]
+            if count >= MAX_COPILOT_MATERIALS:
+                raise HTTPException(status_code=400, detail=f"材料最多保留 {MAX_COPILOT_MATERIALS} 份")
+            connection.execute(
+                """
+                INSERT INTO copilot_materials (owner_id, material_id, filename, content_type, text, preview, byte_size, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (auth["user_id"], material_id, filename, file.content_type or "application/octet-stream", text, preview, len(data), _iso_utc()),
+            )
+            connection.commit()
+            row = connection.execute("SELECT * FROM copilot_materials WHERE owner_id = ? AND material_id = ?", (auth["user_id"], material_id)).fetchone()
+            revision = _copilot_material_revision(connection, auth["user_id"])
+        return JSONResponse({"material": _copilot_material_payload(row), "material_revision": revision})
+    finally:
+        await form.close()
 
 
 @app.delete("/api/copilot/materials/{material_id}")
@@ -859,28 +888,70 @@ def _copilot_documents(owner_id: str) -> tuple[list[copilot_context.MaterialDocu
     return docs, revision
 
 
-def _copilot_messages(req: CopilotAnswerRequest, owner_id: str) -> tuple[list[dict[str, str]], list[dict[str, Any]], int]:
+def _copilot_messages(
+    req: CopilotAnswerRequest,
+    owner_id: str,
+    *,
+    total_budget: int | None = None,
+) -> tuple[list[dict[str, str]], list[dict[str, Any]], int]:
+    total_budget = COPILOT_TOTAL_CONTENT_BUDGET_CHARS if total_budget is None else total_budget
+    if not isinstance(total_budget, int) or total_budget <= 0:
+        raise HTTPException(status_code=422, detail="会中助手上下文预算无效")
+    system = copilot_context.LIVE_SYSTEM_PROMPT
+    if len(system) >= total_budget:
+        raise HTTPException(status_code=422, detail="会中助手上下文预算不足以保留当前问题")
     docs, material_revision = _copilot_documents(owner_id)
     snippets = copilot_context.retrieve_material_snippets(req.question + "\n" + req.transcript, docs)
     transcript_lines = [("会议", line.strip()) for line in req.transcript.splitlines() if line.strip()]
     directives = [req.answer_style]
     if req.instructions.strip():
         directives.append(req.instructions.strip())
-    prompt = copilot_context.build_live_prompt(
-        {
-            "meeting_context": req.instructions,
-            "directives": directives,
-            "documents": [(item.filename, item.text) for item in snippets],
-            "lines": transcript_lines,
-        },
-        req.question,
-    )
+    try:
+        prompt = copilot_context.build_live_prompt(
+            {
+                # Instructions are present once as explicit directives; do not
+                # duplicate them as pre-meeting context in the model request.
+                "directives": directives,
+                "documents": [(item.filename, item.text) for item in snippets],
+                "lines": transcript_lines,
+            },
+            req.question,
+            budget=total_budget - len(system),
+        )
+    except copilot_context.ContextBudgetError as exc:
+        raise HTTPException(status_code=422, detail="会中助手上下文预算不足以保留当前问题") from exc
     evidence = [{"id": item.source_id, "filename": item.filename, "text": item.text, "score": item.score} for item in snippets]
-    user = prompt + "\n\n# Evidence rendering note\n" + copilot_context.format_evidence(snippets)
-    return [{"role": "system", "content": copilot_context.LIVE_SYSTEM_PROMPT}, {"role": "user", "content": user}], evidence, material_revision
+    messages = [{"role": "system", "content": system}, {"role": "user", "content": prompt}]
+    if sum(len(message["content"]) for message in messages) > total_budget:
+        raise HTTPException(status_code=422, detail="会中助手上下文超过安全预算")
+    return messages, evidence, material_revision
 
 
-def _copilot_answer_stream(req: CopilotAnswerRequest, owner_id: str):
+async def _copilot_request_is_active(request: Request, owner_id: str) -> bool:
+    try:
+        if await request.is_disconnected():
+            return False
+        row = _auth_row(request, required=False)
+        return row is not None and row["user_id"] == owner_id
+    except Exception:
+        return False
+
+
+async def _watch_copilot_request(request: Request, owner_id: str, invalidated: threading.Event):
+    """Invalidate a blocked provider read independently of response deltas."""
+    try:
+        while not invalidated.is_set():
+            if not await _copilot_request_is_active(request, owner_id):
+                return
+            await asyncio.sleep(.02)
+    finally:
+        invalidated.set()
+
+
+async def _copilot_answer_stream(req: CopilotAnswerRequest, request: Request, owner_id: str):
+    provider = None
+    watcher = None
+    invalidated = threading.Event()
     try:
         if COPILOT_THINKING_MODE not in {"provider-default", "ark-disabled"}:
             raise HTTPException(status_code=503, detail="Invalid CHATVOICE_COPILOT_THINKING_MODE")
@@ -888,6 +959,10 @@ def _copilot_answer_stream(req: CopilotAnswerRequest, owner_id: str):
         if settings is None:
             raise HTTPException(status_code=503, detail="会中助手需要配置会议纪要文本模型")
         messages, evidence, material_revision = _copilot_messages(req, owner_id)
+        if not await _copilot_request_is_active(request, owner_id):
+            invalidated.set()
+            return
+        watcher = asyncio.create_task(_watch_copilot_request(request, owner_id, invalidated))
         yield _sse_message("meta", {
             "request_id": req.request_id,
             "transcript_revision": req.transcript_revision,
@@ -896,36 +971,77 @@ def _copilot_answer_stream(req: CopilotAnswerRequest, owner_id: str):
             "thinking_mode": COPILOT_THINKING_MODE or "provider-default",
         })
         received = False
-        for delta in text_api.stream_text(settings, messages, thinking_mode=COPILOT_THINKING_MODE):
+        provider = text_api.stream_text(
+            settings,
+            messages,
+            timeout=COPILOT_PROVIDER_READ_TIMEOUT_SECONDS,
+            thinking_mode=COPILOT_THINKING_MODE,
+            max_tokens=COPILOT_MAX_TOKENS,
+            max_line_bytes=COPILOT_SSE_MAX_LINE_BYTES,
+            max_event_bytes=COPILOT_SSE_MAX_EVENT_BYTES,
+            max_stream_bytes=COPILOT_SSE_MAX_STREAM_BYTES,
+            max_events=COPILOT_SSE_MAX_EVENTS,
+            max_output_chars=COPILOT_OUTPUT_MAX_CHARS,
+            max_output_bytes=COPILOT_OUTPUT_MAX_BYTES,
+            deadline=time.monotonic() + COPILOT_STREAM_DEADLINE_SECONDS,
+            should_continue=lambda: not invalidated.is_set(),
+        )
+        async for delta in iterate_in_threadpool(provider):
+            if not await _copilot_request_is_active(request, owner_id):
+                invalidated.set()
+                return
             received = received or bool(delta.strip())
             yield _sse_message("delta", {"text": delta})
+        if not await _copilot_request_is_active(request, owner_id):
+            invalidated.set()
+            return
         if not received:
             yield _sse_message("error", {"message": "模型没有返回可用回答"})
             return
         yield _sse_message("done", {"request_id": req.request_id, "completion_marker": "copilot.answer.done", "model": settings.model})
     except HTTPException as exc:
-        yield _sse_message("error", {"message": str(exc.detail), "status": exc.status_code})
-    except text_api.TextRequestError as exc:
-        yield _sse_message("error", {"message": str(exc)})
+        if await _copilot_request_is_active(request, owner_id):
+            yield _sse_message("error", {"message": "会中助手暂时不可用，请检查配置或稍后重试。", "status": exc.status_code})
+    except text_api.TextRequestError:
+        if await _copilot_request_is_active(request, owner_id):
+            yield _sse_message("error", {"message": "模型回答未完成，请重试。"})
+    except asyncio.CancelledError:
+        invalidated.set()
+        raise
     except Exception as exc:
-        yield _sse_message("error", {"message": str(exc)[:700] or type(exc).__name__})
+        logger.warning("Copilot stream failed: %s", type(exc).__name__)
+        if await _copilot_request_is_active(request, owner_id):
+            yield _sse_message("error", {"message": "会中助手请求失败，请重试。"})
+    finally:
+        invalidated.set()
+        if watcher is not None:
+            watcher.cancel()
+            try:
+                await watcher
+            except asyncio.CancelledError:
+                pass
+        if provider is not None:
+            try:
+                provider.close()
+            except Exception:
+                pass
 
 
 @app.post("/api/copilot/answer/stream")
-def copilot_answer_stream(req: CopilotAnswerRequest, request: Request) -> StreamingResponse:
+async def copilot_answer_stream(req: CopilotAnswerRequest, request: Request) -> StreamingResponse:
     _require_copilot_enabled()
     auth = _auth_row(request)
     _require_csrf(request, auth)
     _independent_text_settings("notes", None)
     return StreamingResponse(
-        _copilot_answer_stream(req, auth["user_id"]),
+        _copilot_answer_stream(req, request, auth["user_id"]),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"},
     )
 
 
 @app.post("/api/copilot/prepare")
-def copilot_prepare(req: CopilotPrepareRequest, request: Request) -> StreamingResponse:
+async def copilot_prepare(req: CopilotPrepareRequest, request: Request) -> StreamingResponse:
     _require_copilot_enabled()
     auth = _auth_row(request)
     _require_csrf(request, auth)
@@ -933,7 +1049,7 @@ def copilot_prepare(req: CopilotPrepareRequest, request: Request) -> StreamingRe
         raise HTTPException(status_code=409, detail="后台准备未启用")
     _independent_text_settings("notes", None)
     return StreamingResponse(
-        _copilot_answer_stream(req, auth["user_id"]),
+        _copilot_answer_stream(req, request, auth["user_id"]),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"},
     )

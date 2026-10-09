@@ -93,7 +93,9 @@ When `CHATVOICE_COPILOT_ENABLED=1` is set:
 | `POST /api/copilot/answer/stream` | SSE fast answer, CSRF required |
 | `POST /api/copilot/prepare` | Optional speculative preparation; returns 409 when disabled |
 
-Answer stream events are `meta`, `delta`, `done` or `error`. `meta.evidence` contains retrieved material snippets, not verified external citations; clients must wait for `done.completion_marker == "copilot.answer.done"`. Requests bind `request_id`, `transcript_revision` and `material_revision`; late or stale results should be discarded by the client.
+Material files are capped at 2 MiB, with declared and actual body limits before multipart parsing. Answer/prepare JSON bodies are capped at 1 MiB before parsing. PDFs accept basic text and bounded direct-length streams; escaped names participate in validation. Complex object/xref/Form layouts, nested streams, custom decode parameters, indirect lengths and unsupported filters are rejected before extraction. Re-export complex files as basic text PDFs or use TXT/Markdown; scanned files do not receive OCR.
+
+Answer stream events are `meta`, `delta`, `done` or `error`. `meta.evidence` contains retrieved snippets, not verified external citations; clients must wait for `done.completion_marker == "copilot.answer.done"`. Copilot explicitly requests `max_tokens=384`, and separately checks SSE line/event/aggregate bytes, event count, output length, a 60-second elapsed deadline and a 15-second socket-read timeout. Disconnect, logout, invalid sessions, limit errors and truncation produce no `done`; partial output is not completion. Requests bind `request_id`, `transcript_revision` and `material_revision`; clients discard late or stale results.
 
 ## Markdown Todo {#todo}
 

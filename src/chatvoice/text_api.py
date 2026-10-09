@@ -5,9 +5,11 @@ profiles or voice/global credentials. Errors contain no upstream response text.
 """
 from __future__ import annotations
 
-from collections.abc import Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass, field
 import json
+import math
+import time
 from typing import Any
 from urllib.parse import urlsplit
 import urllib.request
@@ -130,52 +132,163 @@ def complete_text(settings: TextSettings, messages: list[dict[str, str]], *, tim
         raise TextRequestError('Text service request failed or returned an invalid response') from None
 
 
-def stream_text(settings: TextSettings, messages: list[dict[str, str]], *, timeout: float = 120,
-                thinking_mode: str = 'provider-default') -> Iterator[str]:
+def _positive_limit(value: int | None, name: str) -> int | None:
+    if value is None:
+        return None
+    if not isinstance(value, int) or value <= 0:
+        raise ValueError(f'{name} must be a positive integer')
+    return value
+
+
+def _stream_may_continue(deadline: float | None, should_continue: Callable[[], bool] | None) -> None:
+    if deadline is not None and time.monotonic() >= deadline:
+        raise TextRequestError('Text service stream exceeded configured deadline')
+    if should_continue is not None and not should_continue():
+        raise TextRequestError('Text service stream was cancelled')
+
+
+def _readline_with_deadline(
+    response: Any,
+    *,
+    limit: int,
+    deadline: float | None,
+    should_continue: Callable[[], bool] | None,
+) -> bytes:
+    """Read a bounded SSE line while checking cancellation between bytes.
+
+    ``HTTPResponse.readline`` can remain inside one buffered call while a peer
+    trickles a never-ending line. Copilot's small aggregate/line caps make a
+    byte-at-a-time read acceptable and let its elapsed deadline take effect at
+    a deterministic cooperative boundary without a watchdog thread.
+    """
+    line = bytearray()
+    while True:
+        _stream_may_continue(deadline, should_continue)
+        chunk = response.read(1)
+        # Cancellation/deadline can change during the read of the terminating
+        # newline too; no final frame may bypass the post-read check.
+        _stream_may_continue(deadline, should_continue)
+        if not chunk:
+            return bytes(line)
+        if not isinstance(chunk, bytes):
+            raise TextRequestError('Text service returned an invalid stream')
+        line.extend(chunk)
+        if len(line) > limit:
+            raise TextRequestError('Text service stream exceeded configured limit')
+        if chunk == b'\n':
+            return bytes(line)
+
+
+def stream_text(
+    settings: TextSettings,
+    messages: list[dict[str, str]],
+    *,
+    timeout: float = 120,
+    thinking_mode: str = 'provider-default',
+    max_tokens: int | None = None,
+    max_line_bytes: int | None = None,
+    max_event_bytes: int | None = None,
+    max_stream_bytes: int | None = None,
+    max_events: int | None = None,
+    max_output_chars: int | None = None,
+    max_output_bytes: int | None = None,
+    deadline: float | None = None,
+    should_continue: Callable[[], bool] | None = None,
+) -> Iterator[str]:
     """Yield content deltas; errors, empty output and truncated streams raise.
 
     A normal finish marker or [DONE] is required; partial output is never done.
     Vendor-specific thinking is opt-in per request; default callers are unchanged.
     """
+    if not isinstance(timeout, (int, float)) or not math.isfinite(timeout) or timeout <= 0:
+        raise ValueError('timeout must be a finite positive number')
+    if deadline is not None and (not isinstance(deadline, (int, float)) or not math.isfinite(deadline)):
+        raise ValueError('deadline must be a finite monotonic timestamp')
+    max_tokens = _positive_limit(max_tokens, 'max_tokens')
+    max_line_bytes = _positive_limit(max_line_bytes, 'max_line_bytes')
+    max_event_bytes = _positive_limit(max_event_bytes, 'max_event_bytes')
+    max_stream_bytes = _positive_limit(max_stream_bytes, 'max_stream_bytes')
+    max_events = _positive_limit(max_events, 'max_events')
+    max_output_chars = _positive_limit(max_output_chars, 'max_output_chars')
+    max_output_bytes = _positive_limit(max_output_bytes, 'max_output_bytes')
+    response = None
     try:
         received_content = False
         finished = False
-        request = _request(settings, messages, stream=True, thinking_mode=thinking_mode)
-        with _open_request(request, timeout=timeout) as response:
-            for raw_line in response:
-                line = raw_line.decode('utf-8').strip()
-                if not line or line.startswith((':', 'event:', 'id:', 'retry:')):
-                    continue
-                if not line.startswith('data:'):
-                    raise TextRequestError('Text service returned an invalid stream')
-                data = line[5:].strip()
-                if data == '[DONE]':
-                    finished = True
-                    break
-                body = _checked_body(json.loads(data))
-                choices = body.get('choices')
-                if not isinstance(choices, list):
-                    raise TextRequestError('Text service returned an invalid stream')
-                if not choices and body.get('usage'):
-                    continue
-                choice = choices[0]
-                delta = choice.get('delta', {}).get('content')
-                if delta is not None and not isinstance(delta, str):
-                    raise TextRequestError('Text service returned invalid content')
-                if delta:
-                    received_content = received_content or bool(delta.strip())
-                    yield delta
-                reason = choice.get('finish_reason')
-                if reason:
-                    if reason != 'stop':
-                        raise TextRequestError('Text service did not complete the text output')
-                    finished = True
+        stream_bytes = 0
+        event_count = 0
+        output_chars = 0
+        output_bytes = 0
+        _stream_may_continue(deadline, should_continue)
+        request = _request(settings, messages, stream=True, max_tokens=max_tokens, thinking_mode=thinking_mode)
+        response = _open_request(request, timeout=float(timeout))
+        while True:
+            _stream_may_continue(deadline, should_continue)
+            if max_line_bytes is not None or deadline is not None or should_continue is not None:
+                raw_line = _readline_with_deadline(
+                    response,
+                    limit=max_line_bytes or 64 * 1024,
+                    deadline=deadline,
+                    should_continue=should_continue,
+                )
+            else:
+                raw_line = response.readline()
+            if not raw_line:
+                break
+            stream_bytes += len(raw_line)
+            if max_stream_bytes is not None and stream_bytes > max_stream_bytes:
+                raise TextRequestError('Text service stream exceeded configured limit')
+            line = raw_line.decode('utf-8').strip()
+            if not line or line.startswith((':', 'event:', 'id:', 'retry:')):
+                continue
+            if not line.startswith('data:'):
+                raise TextRequestError('Text service returned an invalid stream')
+            data = line[5:].strip()
+            event_count += 1
+            if max_events is not None and event_count > max_events:
+                raise TextRequestError('Text service stream exceeded configured limit')
+            if max_event_bytes is not None and len(data.encode('utf-8')) > max_event_bytes:
+                raise TextRequestError('Text service stream exceeded configured limit')
+            if data == '[DONE]':
+                finished = True
+                break
+            body = _checked_body(json.loads(data))
+            choices = body.get('choices')
+            if not isinstance(choices, list):
+                raise TextRequestError('Text service returned an invalid stream')
+            if not choices and body.get('usage'):
+                continue
+            if not choices:
+                raise TextRequestError('Text service returned an invalid stream')
+            choice = choices[0]
+            delta = choice.get('delta', {}).get('content')
+            if delta is not None and not isinstance(delta, str):
+                raise TextRequestError('Text service returned invalid content')
+            if delta:
+                output_chars += len(delta)
+                output_bytes += len(delta.encode('utf-8'))
+                if ((max_output_chars is not None and output_chars > max_output_chars)
+                        or (max_output_bytes is not None and output_bytes > max_output_bytes)):
+                    raise TextRequestError('Text service stream exceeded configured limit')
+                received_content = received_content or bool(delta.strip())
+                yield delta
+            reason = choice.get('finish_reason')
+            if reason:
+                if reason != 'stop':
+                    raise TextRequestError('Text service did not complete the text output')
+                finished = True
         if not received_content or not finished:
             raise TextRequestError('Text service returned empty or incomplete content')
     except TextRequestError:
         raise
     except Exception:
         raise TextRequestError('Text service stream failed or returned an invalid response') from None
+    finally:
+        if response is not None:
+            try:
+                response.close()
+            except Exception:
+                pass
 
 
 def probe_text_configuration(values: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
