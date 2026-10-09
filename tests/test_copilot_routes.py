@@ -18,8 +18,10 @@ import starlette.responses
 def copilot_app(monkeypatch, tmp_path):
     monkeypatch.setattr(socket.socket, "connect", lambda *args, **kwargs: pytest.fail("Real network forbidden"))
 
-    async def deterministic_executor(function, *args, **kwargs):
-        return function(*args, **kwargs)
+    async def deterministic_executor(func=None, *args, function=None, arguments=None, **kwargs):
+        if function is not None:
+            return function(**(arguments or {}))
+        return func(*args, **kwargs)
 
     async def deterministic_iterator(iterator):
         for item in iterator:
