@@ -1,5 +1,12 @@
 # 更新日志
 
+## Unreleased
+
+### 新增
+
+- 记录未发布预览的 ChatLogin managed users 消费方接入：同一受邀账号和 `meeting_session` 可进入 `/user-management/users` 与 `/user-management/profile`，保留既有账号、会议、对话、录音、API token、guest 数据和业务 `owner_id`。
+- 新增 `CHATVOICE_PUBLIC_ORIGIN` 文档：由 typed `ChatVoiceConfig` 读取的受信任固定 origin，仅允许 scheme/host/port，不从请求 Host、凭据、path、query 或 fragment 推导。
+
 ## 0.4.1 - 2026-10-10
 
 ### 修复

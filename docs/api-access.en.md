@@ -39,6 +39,8 @@ Drafts are saved and the IndexedDB transaction must complete before leaving for 
 | `GET /api/heartbeat` | Version, database state and ASR prewarm/heartbeat |
 | `GET /api/status` | Sanitized configuration and model/backend status |
 | `GET /login` | Customizable shared ChatLogin page |
+| `GET /user-management/users` | User-management page; visible to OWNER/ADMIN |
+| `GET /user-management/profile` | Current-account profile page |
 | `POST /api/auth/login` | `account` or `username`, `password`, optional safe local `next`; returns user/CSRF/redirect data and sets a session cookie |
 | `GET /api/auth/session` | Current session state |
 | `POST /api/auth/logout` | End a session; CSRF required |
@@ -49,6 +51,8 @@ Drafts are saved and the IndexedDB transaction must complete before leaving for 
 | `GET/PUT/DELETE /api/conversations/{id}` | Conversation detail, save or delete |
 
 Meeting writes contain title, timestamps, duration, tags, transcript segments, summary/refinement conversation and `todo_markdown` / `todo_chat_messages`. Detail responses include content; lists stay lightweight. Older clients omitting Todo fields preserve existing values; explicit empty text/lists clear them.
+
+`/user-management/*` is a same-origin page/API group in the unreleased preview and reuses the original `meeting_session` cookie. Role, status, deletion, password change, and owner transfer invalidate affected sessions; business meetings, audio, and tokens still follow ChatVoice ownership and scope authorization.
 
 ## Meeting-audio retention and import {#meeting-audio}
 

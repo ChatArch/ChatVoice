@@ -13,6 +13,7 @@ ChatVoice 是 ChatArch 的录音转写与会议工作区 Python 包，包含 Spe
 | 将摘要转为待办，继续对话修改并导出 | [Markdown Todo](https://arch.gh.wzhecnu.cn/ChatVoice/markdown-todo/) |
 | 配置 ASR、文本模型、语音合成或声音复刻 | [配置参考](https://arch.gh.wzhecnu.cn/ChatVoice/configuration/) |
 | 部署服务、邀请账号、备份数据 | [部署与启动](https://arch.gh.wzhecnu.cn/ChatVoice/deployment/) |
+| 管理受邀账号和本人资料 | [用户管理](https://arch.gh.wzhecnu.cn/ChatVoice/user-management/) |
 | 查看命令或接入自己的程序 | [CLI 树](https://arch.gh.wzhecnu.cn/ChatVoice/cli-tree/) · [HTTP 接口](https://arch.gh.wzhecnu.cn/ChatVoice/api-access/) · [Python 接口树](https://arch.gh.wzhecnu.cn/ChatVoice/interface-tree/) |
 
 ## 安装与检查
@@ -49,7 +50,7 @@ chatvoice serve app --dry-run --json
 
 清空会议不会解除模式锁；显式清空或删除仍按既有规则清理关联录音。迁移保守保留旧音频，不因模式归类删除历史数据。数据库备份不包含录音文件，使用录音+识别时须同时备份私有音频目录。
 
-自助注册关闭，由部署者创建受邀账号。ChatVoice 直接依赖 ChatLogin 0.1.2 的内建 `ChatVoiceAuth`，复用既有账号、会话和 CSRF；`/login` 使用可定制的共享 `LoginUI`。会议所有权和 Token 权限仍由 ChatVoice 控制，访客草稿等待 IndexedDB 事务提交后才跳转登录。详见[数据保留边界](https://arch.gh.wzhecnu.cn/ChatVoice/recording-storage/)。
+自助注册关闭，由部署者创建受邀账号。当前稳定包复用 ChatLogin 的 `ChatVoiceAuth`、既有账号、会话和 CSRF；未发布预览可在匹配 ChatLogin/ChatVoice 候选 wheel 对上挂载 `/user-management`，让 OWNER/ADMIN 管理目录、普通成员管理本人资料。会议所有权和 Token 权限仍由 ChatVoice 控制，访客草稿等待 IndexedDB 事务提交后才跳转登录。详见[数据保留边界](https://arch.gh.wzhecnu.cn/ChatVoice/recording-storage/)与[用户管理](https://arch.gh.wzhecnu.cn/ChatVoice/user-management/)。
 
 ## 开发
 

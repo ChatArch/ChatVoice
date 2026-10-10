@@ -87,6 +87,11 @@ class ChatVoiceConfig(BaseEnvConfig):
         "CHATVOICE_SQLITE_PATH",
         desc="Optional explicit SQLite database path under the ChatVoice runtime root.",
     )
+    CHATVOICE_PUBLIC_ORIGIN = EnvField(
+        "CHATVOICE_PUBLIC_ORIGIN",
+        default="http://127.0.0.1:18087",
+        desc="Trusted browser origin for account-management CSRF/Host checks, for example https://speakr.example.com.",
+    )
     CHATVOICE_VOICECLONE_URL = EnvField(
         "CHATVOICE_VOICECLONE_URL",
         desc="Local VoiceClone sidecar base URL for one-shot voice cloning.",

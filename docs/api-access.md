@@ -39,6 +39,8 @@ app = create_app(login_ui=LoginUI(
 | `GET /api/heartbeat` | 服务版本、数据库状态、ASR 心跳与预热状态 |
 | `GET /api/status` | 脱敏配置/模型/语音后端状态 |
 | `GET /login` | 可定制的 ChatLogin 共享登录页 |
+| `GET /user-management/users` | 用户管理页；OWNER/ADMIN 可见 |
+| `GET /user-management/profile` | 当前账号个人资料页 |
 | `POST /api/auth/login` | `account` 或 `username`、`password`，可选安全本地 `next`；返回用户、CSRF 和回跳信息，并设置会话 Cookie |
 | `GET /api/auth/session` | 当前会话状态 |
 | `POST /api/auth/logout` | 退出会话；需 CSRF |
@@ -49,6 +51,8 @@ app = create_app(login_ui=LoginUI(
 | `GET/PUT/DELETE /api/conversations/{id}` | 实时对话详情/保存/删除 |
 
 会议保存包含标题、时间、时长、标签、转写片段、摘要、完善对话，以及 `todo_markdown`、`todo_chat_messages`。详情返回正文，列表保持轻量。旧客户端省略 Todo 字段不会清空既有值，显式空字符串/空列表可以清空。
+
+`/user-management/*` 是未发布预览中的同源页面/API 组，复用原 `meeting_session` Cookie。角色、状态、删除、改密和 owner 交接会使受影响会话失效；业务会议、录音和 Token 仍按 ChatVoice 所有权与 scope 授权。
 
 ## 会议录音保存与导入 {#meeting-audio}
 

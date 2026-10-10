@@ -54,7 +54,12 @@ def test_account_alias_cookie_and_local_next(host, key):
     response = client.post('/api/auth/login', json={key: ' ALICE@EXAMPLE.INVALID ', 'password': PASSWORD, 'next': '/?tab=notes#draft', 'user_id': 'usr_bob', 'role': 'admin'})
     assert response.status_code == 200
     payload = response.json()
-    assert payload['user'] == {'id': 'usr_alice', 'account': 'alice@example.invalid', 'display_name': 'Alice'}
+    assert payload['user'] == {
+        'id': 'usr_alice',
+        'account': 'alice@example.invalid',
+        'display_name': 'Alice',
+        'role': 'user',
+    }
     assert payload['next'] == '/?tab=notes#draft'
     assert payload['csrf_token']
     cookie = response.headers['set-cookie']

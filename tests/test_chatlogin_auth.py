@@ -7,6 +7,7 @@ from importlib.resources import files
 import sqlite3
 
 import chatlogin
+from chatlogin.backends import adopt_owner
 from fastapi.testclient import TestClient
 import pytest
 
@@ -26,6 +27,7 @@ CREATE TABLE auth_sessions (token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL,
 
 @pytest.fixture
 def host(monkeypatch, tmp_path):
+    monkeypatch.setenv("CHATVOICE_PUBLIC_ORIGIN", "http://127.0.0.1")
     from chatvoice.web import legacy_app as app
     path = tmp_path / "legacy.sqlite3"
     with sqlite3.connect(path) as db:
@@ -40,7 +42,7 @@ def host(monkeypatch, tmp_path):
                     NOW.isoformat(), (NOW + timedelta(days=30)).isoformat()))
     monkeypatch.setattr(app, "MEETING_DB_PATH", path)
     monkeypatch.setattr(app, "_utc_now", lambda: NOW)
-    return app, TestClient(app.app)
+    return app, TestClient(app.app, base_url="http://127.0.0.1")
 
 
 def login(client, name="alice"):
@@ -71,7 +73,12 @@ def test_real_core_handles_login_resolve_csrf_revoke(host, monkeypatch):
     csrf = login(client)
     token = client.cookies.get("meeting_session")
     payload = client.get("/api/auth/session").json()
-    assert payload["user"] == {"id": "usr_alice", "account": "alice@example.invalid", "display_name": "Alice"}
+    assert payload["user"] == {
+        "id": "usr_alice",
+        "account": "alice@example.invalid",
+        "display_name": "Alice",
+        "role": "user",
+    }
     assert payload["csrf_token"] == csrf
     with closing(app._meeting_db()) as db:
         row = db.execute("SELECT * FROM auth_sessions WHERE token_hash = ?", (hashlib.sha256(token.encode()).hexdigest(),)).fetchone()
@@ -142,7 +149,7 @@ def test_schema_and_auth_dialog_bytes_unchanged(host):
 
 def test_owner_isolation_same_id_and_guest_cloud_denial(host):
     app, alice = host
-    bob, guest = TestClient(app.app), TestClient(app.app)
+    bob, guest = TestClient(app.app, base_url="http://127.0.0.1"), TestClient(app.app, base_url="http://127.0.0.1")
     for client, name in ((alice, "alice"), (bob, "bob")):
         csrf = login(client, name)
         for kind, extra in (("meetings", {}), ("conversations", {"model": "synthetic", "voice": "test", "messages": []})):
@@ -182,3 +189,57 @@ def test_store_namespace_capacity_atomic_replace_and_role(host):
             operation()
     store.purge_expired("chatvoice", session.expires_at)
     assert store.get("chatvoice", new_digest) is None
+
+
+def test_same_cookie_reaches_user_management_and_preserves_business_acl(host):
+    app, owner_client = host
+    bob_client = TestClient(app.app, base_url="http://127.0.0.1")
+    adopt_owner(app._USER_MANAGEMENT.users.store, "alice@example.invalid")
+
+    owner_csrf = login(owner_client, "alice")
+    bob_csrf = login(bob_client, "bob")
+
+    owner_session = owner_client.get("/api/auth/session").json()
+    assert owner_session["user"]["id"] == "usr_alice"
+    assert owner_session["user"]["role"] == "owner"
+
+    users = owner_client.get("/user-management/api/users")
+    assert users.status_code == 200, users.text
+    assert {record["user_id"] for record in users.json()["users"]} == {"usr_alice", "usr_bob"}
+
+    owner_client.put(
+        "/api/meetings/shared-record",
+        headers={"X-CSRF-Token": owner_csrf},
+        json={"title": "owner private", "created_at": NOW.isoformat(), "updated_at": NOW.isoformat()},
+    )
+    bob_client.put(
+        "/api/meetings/shared-record",
+        headers={"X-CSRF-Token": bob_csrf},
+        json={"title": "bob private", "created_at": NOW.isoformat(), "updated_at": NOW.isoformat()},
+    )
+    assert owner_client.get("/api/meetings/shared-record").json()["title"] == "owner private"
+    assert bob_client.get("/api/meetings/shared-record").json()["title"] == "bob private"
+
+
+def test_disabled_user_cookie_and_bearer_token_are_denied(host):
+    app, owner_client = host
+    disabled_client = TestClient(app.app, base_url="http://127.0.0.1")
+    adopt_owner(app._USER_MANAGEMENT.users.store, "alice@example.invalid")
+
+    owner_csrf = login(owner_client, "alice")
+    disabled_csrf = login(disabled_client, "bob")
+    token_response = disabled_client.post(
+        "/api/tokens",
+        headers={"X-CSRF-Token": disabled_csrf},
+        json={"name": "synthetic", "scopes": ["read:meetings"]},
+    )
+    assert token_response.status_code == 200, token_response.text
+    bearer = token_response.json()["token"]
+
+    owner = app._USER_MANAGEMENT.users.authenticate("alice@example.invalid", PASSWORD)
+    app._USER_MANAGEMENT.users.update_user(owner, "usr_bob", enabled=False)
+
+    assert disabled_client.get("/api/auth/session").json() == {"authenticated": False}
+    denied = disabled_client.get("/api/data/meetings", headers={"Authorization": f"Bearer {bearer}"})
+    assert denied.status_code == 401
+    assert owner_client.get("/api/auth/session").json()["csrf_token"] == owner_csrf

@@ -13,6 +13,7 @@ ChatVoice is the ChatArch Python package behind the Speakr recording and meeting
 | Convert a summary into an action plan | [Markdown Todo](https://arch.gh.wzhecnu.cn/ChatVoice/en/markdown-todo/) |
 | Configure ASR, text, TTS or voice cloning | [Configuration](https://arch.gh.wzhecnu.cn/ChatVoice/en/configuration/) |
 | Deploy, invite accounts and back up data | [Deployment](https://arch.gh.wzhecnu.cn/ChatVoice/en/deployment/) |
+| Manage invited accounts and profiles | [User Management](https://arch.gh.wzhecnu.cn/ChatVoice/en/user-management/) |
 | Integrate with automation | [CLI tree](https://arch.gh.wzhecnu.cn/ChatVoice/en/cli-tree/) · [HTTP API](https://arch.gh.wzhecnu.cn/ChatVoice/en/api-access/) · [Python interfaces](https://arch.gh.wzhecnu.cn/ChatVoice/en/interface-tree/) |
 
 ## Install and inspect
@@ -49,7 +50,7 @@ Account records use SQLite below `~/.chatarch/chatvoice`. Guest records remain i
 
 Clearing does not unlock a meeting route; a finished meeting needs a new meeting for more audio. Explicit clear/delete keeps existing cleanup semantics, while migration never deletes legacy audio. A database backup does not include recording bytes; back up the private audio directory together with the database when retention is used.
 
-Self-registration is disabled; operators provision invited accounts. ChatVoice uses the built-in `ChatVoiceAuth` backend from ChatLogin 0.1.2 and a customizable shared `LoginUI` at `/login`. Existing accounts, sessions and CSRF remain compatible; ChatVoice retains owner and token policy. Guest drafts must commit their IndexedDB transaction before login navigation.
+Self-registration is disabled; operators provision invited accounts. The stable package reuses ChatLogin `ChatVoiceAuth`, existing accounts, sessions and CSRF. The unreleased preview can mount `/user-management` with a matching ChatLogin/ChatVoice candidate wheel pair, so OWNER/ADMIN users manage the directory and members manage their own profile. ChatVoice retains meeting ownership and token policy. Guest drafts must commit their IndexedDB transaction before login navigation.
 
 ## Development
 

@@ -20,6 +20,8 @@ chatvoice
 ├── accounts
 │   ├── create_account(account, password, display_name=None)
 │   └── list_accounts()
+├── web.user_management
+│   └── create_user_management_router(...)          # 未发布预览；挂载 ChatLogin managed routes
 └── backup
     ├── dump_database(output, *, overwrite=False)
     └── import_database(input_path, *, backup_current=True)

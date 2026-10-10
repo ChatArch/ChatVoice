@@ -10,6 +10,7 @@
 | 摘要与完善 | 网页、纪要接口 | 独立文本模型；保留转写 |
 | Markdown Todo | 网页、Todo 接口、Python 回调模块 | 手动触发、可编辑/对话/撤销/导出，不执行任务 |
 | 会议与实时对话存储 | 网页、账号数据接口 | 账号 SQLite；访客 IndexedDB |
+| 受邀账号用户管理 | `/user-management`、原账号 Cookie | 未发布预览；复用原 `accounts` / `auth_sessions`，不开放自助注册 |
 | 只读数据接入 | Token、CLI、Python | scope 与所有权检查 |
 | 系统语音合成 | 声音工作室、TTS 接口 | 独立 TTS 配置与动态音色 |
 | 一次性声音复刻 | 声音工作室、复刻代理 | 账号、授权参考与独立 sidecar |
