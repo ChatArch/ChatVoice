@@ -42,7 +42,7 @@ def host(monkeypatch, tmp_path):
                     NOW.isoformat(), (NOW + timedelta(days=30)).isoformat()))
     monkeypatch.setattr(app, "MEETING_DB_PATH", path)
     monkeypatch.setattr(app, "_utc_now", lambda: NOW)
-    return app, TestClient(app.app, base_url="http://127.0.0.1")
+    return app, TestClient(app.app, base_url=app._USER_MANAGEMENT.origin)
 
 
 def login(client, name="alice"):
@@ -149,7 +149,7 @@ def test_schema_and_auth_dialog_bytes_unchanged(host):
 
 def test_owner_isolation_same_id_and_guest_cloud_denial(host):
     app, alice = host
-    bob, guest = TestClient(app.app, base_url="http://127.0.0.1"), TestClient(app.app, base_url="http://127.0.0.1")
+    bob, guest = TestClient(app.app, base_url=app._USER_MANAGEMENT.origin), TestClient(app.app, base_url=app._USER_MANAGEMENT.origin)
     for client, name in ((alice, "alice"), (bob, "bob")):
         csrf = login(client, name)
         for kind, extra in (("meetings", {}), ("conversations", {"model": "synthetic", "voice": "test", "messages": []})):
@@ -193,7 +193,7 @@ def test_store_namespace_capacity_atomic_replace_and_role(host):
 
 def test_same_cookie_reaches_user_management_and_preserves_business_acl(host):
     app, owner_client = host
-    bob_client = TestClient(app.app, base_url="http://127.0.0.1")
+    bob_client = TestClient(app.app, base_url=app._USER_MANAGEMENT.origin)
     adopt_owner(app._USER_MANAGEMENT.users.store, "alice@example.invalid")
 
     owner_csrf = login(owner_client, "alice")
@@ -223,7 +223,7 @@ def test_same_cookie_reaches_user_management_and_preserves_business_acl(host):
 
 def test_disabled_user_cookie_and_bearer_token_are_denied(host):
     app, owner_client = host
-    disabled_client = TestClient(app.app, base_url="http://127.0.0.1")
+    disabled_client = TestClient(app.app, base_url=app._USER_MANAGEMENT.origin)
     adopt_owner(app._USER_MANAGEMENT.users.store, "alice@example.invalid")
 
     owner_csrf = login(owner_client, "alice")
