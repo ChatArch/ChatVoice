@@ -3,7 +3,7 @@ from pathlib import Path
 import re
 
 ROOT = Path(__file__).resolve().parents[1]
-PROVIDER = "ChatLogin @ git+https://github.com/ChatArch/ChatLogin.git@65e4cf6b00309802ed0abe9678a4701b6d1faf4c"
+PROVIDER = "ChatLogin @ git+https://github.com/ChatArch/ChatLogin.git@62541684499f6e32e4a6af8ca5c59ba28e82f765"
 
 
 def test_web_extra_pins_the_merged_managed_provider_until_public_release():
