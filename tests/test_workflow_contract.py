@@ -42,7 +42,8 @@ def test_ci_checks_installed_and_built_wheel_contracts():
     assert "chatvoice --tree-brief" in workflow
     assert "python -m build" in workflow
     assert "python -m twine check dist/*" in workflow
-    assert '"$RUNNER_TEMP/chatvoice-wheel/bin/python" -m pip install dist/*.whl' in workflow
+    first_install = next(line.strip() for line in workflow.splitlines() if '"$RUNNER_TEMP/chatvoice-wheel/bin/python" -m pip install' in line)
+    assert first_install == '"$RUNNER_TEMP/chatvoice-wheel/bin/python" -m pip install "$(printf \'%s\' dist/*.whl)[web]"'
     assert "mkdocs build --strict" in workflow
 
 

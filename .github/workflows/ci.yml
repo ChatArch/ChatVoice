@@ -52,7 +52,7 @@ jobs:
       - name: Verify built wheel CLI and profile contracts
         run: |
           python -m venv "$RUNNER_TEMP/chatvoice-wheel"
-          "$RUNNER_TEMP/chatvoice-wheel/bin/python" -m pip install dist/*.whl
+          "$RUNNER_TEMP/chatvoice-wheel/bin/python" -m pip install "$(printf '%s' dist/*.whl)[web]"
           (
             cd "$RUNNER_TEMP"
             "$RUNNER_TEMP/chatvoice-wheel/bin/chatvoice" --version
