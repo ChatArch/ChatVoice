@@ -13,7 +13,7 @@
 | ADMIN | `/user-management/users`、`/user-management/profile` | 管理普通用户和本人资料；不能授予 admin 或接管 owner |
 | USER | `/user-management/profile` | 查看/修改本人资料与密码 |
 
-网页账号卡在 OWNER/ADMIN 登录后显示“用户管理”，所有登录成员显示“个人账号”。原会议、录音、实时对话和会中助手导航保持业务权限检查。
+网页右上角 `•••` 设置菜单在 OWNER/ADMIN 登录后显示“管理员页面”，进入 `/user-management/users`；账号卡也显示“用户管理”。所有登录成员显示“个人账号”。原会议、录音、实时对话和会中助手导航保持业务权限检查。
 
 ## 数据保留与权限
 
@@ -29,4 +29,3 @@
 `CHATVOICE_PUBLIC_ORIGIN=https://voice.example.invalid` 是服务端 typed `ChatVoiceConfig` 读取的受信任固定 origin。它只表示浏览器实际访问的 scheme/host/port，不包含用户名密码、path、query 或 fragment，也不从请求 `Host`、代理头或 caller host 推导。
 
 受邀账号仍通过现有 `chatvoice accounts add/list` 或等价受信任工具维护。唯一 owner 采用通过宿主 Python setup 调用匹配 ChatLogin provider 的 `adopt_owner(...)` 完成；不要发明或记录公开 owner CLI 命令。
-

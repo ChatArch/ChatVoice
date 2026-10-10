@@ -231,6 +231,10 @@ def test_homepage_toolbar_uses_left_history_menu_and_right_settings_menu_only():
     assert "toolbar-menu-list" in site_bar
     assert "打开设置，包含识别状态、模型和 API Token" in site_bar
     assert "<b>设置</b>" in site_bar
+    assert "id=\"open-user-management\"" in site_bar
+    assert "href=\"/user-management/users\"" in site_bar
+    assert "<b>管理员页面</b>" in site_bar
+    assert "id=\"open-user-management\" href=\"/user-management/users\" role=\"menuitem\" hidden" in site_bar
     assert "product-menu-action" not in site_bar
     assert "open-model-status" not in site_bar
     assert "open-token-settings" not in site_bar
@@ -252,6 +256,7 @@ def test_homepage_toolbar_uses_left_history_menu_and_right_settings_menu_only():
     assert "width: 228px" not in toolbar_css
     assert "width: min(246px" not in source
     assert ".toolbar-menu-list { display: grid; grid-template-columns: 1fr" in toolbar_css
+    assert ".toolbar-menu-action[hidden] { display: none !important; }" in source
     assert "grid-template-columns: 26px max-content" in toolbar_css
     assert "grid-template-columns: repeat(3" not in toolbar_css
     assert "querySelectorAll('.product-menu-action').forEach" not in source
@@ -267,6 +272,9 @@ def test_homepage_toolbar_uses_left_history_menu_and_right_settings_menu_only():
     assert "toggle-settings-menu').addEventListener('pointerdown'" in source
     assert "toggle-settings-menu').addEventListener('click'" in source
     assert "settings-menu').addEventListener('click'" in source
+    account_body = _function_body(source, "updateAccountUi")
+    assert "const canManageUsers = loggedIn && ['owner', 'admin'].includes(authUser.role || '')" in account_body
+    assert "open-user-management').hidden = !canManageUsers" in account_body
     assert "copy-transcript').addEventListener('click', copyTranscriptText" in source
 
 

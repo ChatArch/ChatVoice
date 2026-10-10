@@ -13,7 +13,7 @@ User management reuses the original Speakr invited-account login. After signing 
 | ADMIN | `/user-management/users`, `/user-management/profile` | Manage ordinary users and own profile; cannot grant admin or take over owner |
 | USER | `/user-management/profile` | View/update own profile and password |
 
-The web account card shows "User management" for OWNER/ADMIN and "Profile" for every signed-in member. Meetings, recordings, realtime conversations, and Copilot keep their business authorization checks.
+The top-right `...` settings menu shows "Admin page" for OWNER/ADMIN and opens `/user-management/users`; the account card also shows "User management". Every signed-in member sees "Profile". Meetings, recordings, realtime conversations, and Copilot keep their business authorization checks.
 
 ## Preservation and Permissions
 
@@ -29,4 +29,3 @@ The web account card shows "User management" for OWNER/ADMIN and "Profile" for e
 `CHATVOICE_PUBLIC_ORIGIN=https://voice.example.invalid` is the trusted fixed origin read through server-side typed `ChatVoiceConfig`. It represents only the browser-visible scheme/host/port, with no credentials, path, query, or fragment, and is never derived from request `Host`, proxy headers, or caller host.
 
 Invited accounts still use the existing `chatvoice accounts add/list` flow or equivalent trusted tooling. Single-owner adoption is performed by host Python setup with the matching ChatLogin provider's `adopt_owner(...)`; do not invent or document a public owner CLI command.
-

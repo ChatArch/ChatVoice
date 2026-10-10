@@ -21,7 +21,7 @@ chatvoice
 │   ├── create_account(account, password, display_name=None)
 │   └── list_accounts()
 ├── web.user_management
-│   └── create_user_management_router(...)          # Unreleased preview; mounts ChatLogin managed routes
+│   └── install_user_management(...)                # Unreleased preview; mounts ChatLogin managed routes
 └── backup
     ├── dump_database(output, *, overwrite=False)
     └── import_database(input_path, *, backup_current=True)
