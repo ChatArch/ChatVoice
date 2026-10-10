@@ -1,7 +1,7 @@
 # User Management
 
 !!! warning "Unreleased preview"
-    This page describes a capability in a matching ChatLogin/ChatVoice candidate wheel pair. Public ChatVoice 0.4.1 and public ChatLogin 0.1.6 do not necessarily include these pages and APIs. Stable installation should adopt it after a matching release.
+    This capability is in the current source but has not been published as a new PyPI release. The source `web` extra pins the merged, reviewed ChatLogin commit, so installing `ChatVoice[web]` from source obtains the matching authentication component. Public ChatVoice 0.4.1 and ChatLogin 0.1.6 do not include the complete new administration capability. For offline deployment, use a matching reviewed wheel pair; restore a normal version range after the provider's feature release.
 
 User management reuses the original Speakr invited-account login. After signing in with the same account password, the original `meeting_session` cookie reaches the meeting workspace, `/user-management/profile`, and role-gated `/user-management/users`. There is no public signup, no second user database, and no migration of meetings, conversations, ASR state, voice jobs, API tokens, or guest IndexedDB data.
 
