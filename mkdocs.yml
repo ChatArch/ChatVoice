@@ -41,6 +41,7 @@ plugins:
             开始使用: Getting Started
             快速上手: Quick Start
             网页使用: Web Guide
+            用户管理: User Management
             能力地图: Capability Map
             功能指南: Features
             独立文本模型: Text Models
@@ -86,6 +87,7 @@ nav:
   - 开始使用:
       - 快速上手: quickstart.md
       - 网页使用: web-guide.md
+      - 用户管理: user-management.md
       - 能力地图: capability-map.md
   - 功能指南:
       - 独立文本模型: text-models.md

@@ -54,7 +54,12 @@ def test_account_alias_cookie_and_local_next(host, key):
     response = client.post('/api/auth/login', json={key: ' ALICE@EXAMPLE.INVALID ', 'password': PASSWORD, 'next': '/?tab=notes#draft', 'user_id': 'usr_bob', 'role': 'admin'})
     assert response.status_code == 200
     payload = response.json()
-    assert payload['user'] == {'id': 'usr_alice', 'account': 'alice@example.invalid', 'display_name': 'Alice'}
+    assert payload['user'] == {
+        'id': 'usr_alice',
+        'account': 'alice@example.invalid',
+        'display_name': 'Alice',
+        'role': 'user',
+    }
     assert payload['next'] == '/?tab=notes#draft'
     assert payload['csrf_token']
     cookie = response.headers['set-cookie']
@@ -62,7 +67,7 @@ def test_account_alias_cookie_and_local_next(host, key):
     assert 'HttpOnly' in cookie and 'SameSite=lax' in cookie
 
 
-@pytest.mark.parametrize('case', ['guest-return', 'save-before-login', 'active-recording', 'active-realtime', 'failed-meeting-save', 'failed-conversation-save', 'txn-meeting-complete', 'txn-meeting-abort', 'txn-conversation-complete', 'txn-conversation-abort'])
+@pytest.mark.parametrize('case', ['guest-return', 'management-menu-role', 'save-before-login', 'active-recording', 'active-realtime', 'failed-meeting-save', 'failed-conversation-save', 'txn-meeting-complete', 'txn-meeting-abort', 'txn-conversation-complete', 'txn-conversation-abort'])
 def test_shared_login_host_controller(case):
     node = shutil.which('node')
     assert node, 'Node 22 required'

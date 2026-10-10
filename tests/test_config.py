@@ -38,6 +38,8 @@ def test_config_marks_credentials_and_database_url_sensitive():
     assert "CHATVOICE_OPENAI_API_BASE" in fields
     assert "CHATVOICE_OPENAI_API_KEY" in fields
     assert "CHATVOICE_OPENAI_API_MODEL" in fields
+    assert "CHATVOICE_PUBLIC_ORIGIN" in fields
+    assert fields["CHATVOICE_PUBLIC_ORIGIN"].default == "http://127.0.0.1:18087"
     assert "CHATVOICE_MEETING_NOTES_PROVIDER" in fields
     assert "CHATVOICE_MEETING_NOTES_CRS_PROFILE" in fields
     assert "CHATVOICE_MEETING_NOTES_CRS_API_BASE" in fields
@@ -58,3 +60,25 @@ def test_config_uses_canonical_chatenv_profile_storage_paths(tmp_path):
     assert store.profile_path(ChatVoiceConfig, "example") == (
         tmp_path / "envs" / "ChatVoice" / "example.env"
     )
+
+
+def test_public_origin_validation_rejects_untrusted_shapes():
+    from chatvoice.web.user_management import validate_public_origin
+
+    assert validate_public_origin("https://speakr.example.test") == "https://speakr.example.test"
+    assert validate_public_origin("http://127.0.0.1:18087/") == "http://127.0.0.1:18087"
+    for value in (
+        "https://user@speakr.example.test",
+        "https://speakr.example.test/path",
+        "https://speakr.example.test?x=1",
+        "https://speakr.example.test#frag",
+        "http://127.0.0.1:99999",
+        "ftp://speakr.example.test",
+        "https://speakr.example.test bad",
+    ):
+        try:
+            validate_public_origin(value)
+        except RuntimeError:
+            pass
+        else:
+            raise AssertionError(f"origin accepted unexpectedly: {value}")

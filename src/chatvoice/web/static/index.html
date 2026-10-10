@@ -65,6 +65,8 @@
     .account-copy strong { font-size: 10px; }
     .account-copy small { margin-top: 3px; color: #9a9ca2; font-size: 8px; }
     .account-action { padding: 6px 8px; border: 0; border-radius: 8px; background: #f3f3f4; font-size: 8px; }
+    .account-links { display: none; margin-top: 8px; gap: 10px; font-size: 8px; }
+    .account-links a { color: var(--ink); text-decoration: none; }
     .sidebar-footnote { margin: 9px 8px 2px; color: #b0b1b5; font-size: 8px; line-height: 1.55; }
     .sidebar-backdrop { display: none; }
     body.sidebar-collapsed .site-shell { padding-left: 0; }
@@ -124,6 +126,7 @@
     .toolbar-menu[hidden] { display: none; }
     .toolbar-menu-list { display: grid; grid-template-columns: 1fr; gap: 6px; }
     .toolbar-menu-action { min-height: 40px; display: grid; grid-template-columns: 26px max-content; align-items: center; gap: 8px; padding: 7px 8px; border: 0; border-radius: 12px; background: #fff; color: #4c4e55; text-align: left; text-decoration: none; }
+    .toolbar-menu-action[hidden] { display: none !important; }
     .toolbar-menu-action:hover { background: #eeeeff; color: var(--violet); }
 
     .toolbar-menu b, .toolbar-menu small { display: block; }
@@ -742,6 +745,10 @@
         <span class="account-copy"><strong id="account-name">选择使用方式</strong><small id="account-storage">尚未进入</small></span>
         <button class="account-action" id="account-action" type="button">选择</button>
       </div>
+      <nav class="account-links" id="account-links" aria-label="账号">
+        <a id="profile-link" href="/user-management/profile">个人账号</a>
+        <a id="user-management-link" href="/user-management/users">用户管理</a>
+      </nav>
       <p class="sidebar-footnote" id="storage-note">原始录音默认不保存；登录账号可明确选择私有保留。</p>
     </aside>
     <button class="sidebar-backdrop" id="sidebar-backdrop" type="button" aria-label="关闭会议记录"></button>
@@ -770,6 +777,7 @@
           <div class="toolbar-menu" id="settings-menu" role="menu" aria-label="设置菜单" hidden>
             <div class="toolbar-menu-list" aria-label="更多入口">
               <button class="toolbar-menu-action" id="open-settings" type="button" role="menuitem" data-settings-focus="asr-channel" aria-label="打开设置，包含识别状态、模型和 API Token"><span class="menu-icon" aria-hidden="true">⚙</span><b>设置</b></button>
+              <a class="toolbar-menu-action" id="open-user-management" href="/user-management/users" role="menuitem" hidden><span class="menu-icon" aria-hidden="true">管</span><b>管理员页面</b></a>
               <a class="toolbar-menu-action" href="https://arch.gh.wzhecnu.cn/ChatVoice/" target="_blank" rel="noreferrer" role="menuitem"><span class="menu-icon" aria-hidden="true">文</span><b>文档</b></a>
               <a class="toolbar-menu-action" href="https://github.com/ChatArch/ChatVoice" target="_blank" rel="noreferrer" role="menuitem"><span class="menu-icon" aria-hidden="true">GH</span><b>GitHub</b></a>
             </div>
@@ -3921,6 +3929,10 @@
       $('account-name').textContent = loggedIn ? (authUser.display_name || authUser.account) : storageMode === 'guest' ? '访客模式' : '选择使用方式';
       $('account-storage').textContent = loggedIn ? '服务器同步' : storageMode === 'guest' ? '仅此浏览器' : '尚未进入';
       $('account-action').textContent = loggedIn ? '退出' : storageMode === 'guest' ? '登录' : '选择';
+      $('account-links').style.display = loggedIn ? 'flex' : 'none';
+      const canManageUsers = loggedIn && ['owner', 'admin'].includes(authUser.role || '');
+      $('user-management-link').style.display = canManageUsers ? 'inline' : 'none';
+      $('open-user-management').hidden = !canManageUsers;
       if (!['recording', 'paused', 'connecting', 'finishing'].includes(recorderState)) asrPassLimitSeconds = 10 * 60;
       updateSidebarContext();
       updateRecordingLimitUi();

@@ -86,3 +86,5 @@ chatvoice accounts list --json
 ```
 
 不要将密码直接写入命令参数或公共脚本。随后在网页选择账号登录。长期运行与 HTTPS 入口见[部署指南](deployment.md)。
+
+未发布的用户管理预览不会新增公开注册，也不会改变 `chatvoice accounts add/list` 拓扑。唯一 owner 的选择通过受信任 Python adoption 完成，不是 CLI 命令。成员登录后可进入[用户管理](user-management.md)中说明的个人资料页。

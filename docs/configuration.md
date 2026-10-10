@@ -63,6 +63,7 @@ CHATVOICE_MEETING_TITLE_MODEL=title-model
 | `CHATVOICE_COPILOT_AUTO_PREPARE` | `0` | 允许后台准备草稿；默认关闭，手动 Submit 始终可用 |
 | `CHATVOICE_COPILOT_THINKING_MODE` | `provider-default` | 快答思考策略：`provider-default` 不增加厂家字段；`ark-disabled` 仅对本次 Copilot 请求发送火山方舟 `thinking.type=disabled`；其他值拒绝启动请求 |
 | `CHATVOICE_ENV_PROFILE` | 空 | 加载指定 ChatEnv ChatVoice profile，不修改全局 active profile；缺失不会回退 active profile |
+| `CHATVOICE_PUBLIC_ORIGIN` | `http://127.0.0.1:18087` | 用户管理预览的受信任固定公网 origin，例如 `https://voice.example.invalid`；只允许 scheme/host/port，不含凭据、path、query 或 fragment，绝不从请求 Host 推导 |
 
 材料上传支持 TXT、Markdown、基本文字 PDF、DOCX；不支持 URL 抓取。材料文件精确限制为 2 MiB，multipart 解析前同时限制声明长度和分块正文；回答/准备的 JSON 正文在解析前限制为 1 MiB。认证、CSRF 与预览开关在材料表单解析前检查。
 

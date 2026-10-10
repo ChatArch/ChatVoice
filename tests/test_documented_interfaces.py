@@ -1,16 +1,44 @@
 """Documented routes must exist in the actual packaged application."""
 from pathlib import Path
 import re
+from types import SimpleNamespace
 
 
 def _route(path):
     return re.sub(r"\{[^}]+\}", "{}", path.split("?", 1)[0])
 
 
+def _join_path(prefix, path):
+    prefix = (prefix or "").rstrip("/")
+    path = path if str(path).startswith("/") else "/" + str(path)
+    return (prefix + path) or "/"
+
+
+def _included_prefix(route):
+    context = getattr(route, "include_context", None)
+    return getattr(context, "prefix", "") if context is not None else ""
+
+
+def _actual_routes(routes, prefix=""):
+    for route in routes:
+        path = getattr(route, "path", None)
+        if isinstance(path, str):
+            yield SimpleNamespace(path=_join_path(prefix, path), methods=getattr(route, "methods", None))
+            continue
+        children = getattr(route, "routes", None)
+        if children is not None:
+            yield from _actual_routes(children, _join_path(prefix, _included_prefix(route)))
+            continue
+        original = getattr(route, "original_router", None)
+        original_routes = getattr(original, "routes", None)
+        if original_routes is not None:
+            yield from _actual_routes(original_routes, _join_path(prefix, _included_prefix(route)))
+
+
 def test_documented_http_and_websocket_routes_exist():
     from chatvoice.web.legacy_app import app
     known = set()
-    for route in app.routes:
+    for route in _actual_routes(app.routes):
         for method in getattr(route, "methods", None) or {"WS"}:
             known.add((method, _route(route.path)))
     docs = Path(__file__).resolve().parents[1] / "docs"

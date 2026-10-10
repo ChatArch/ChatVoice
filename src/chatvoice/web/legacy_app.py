@@ -45,10 +45,11 @@ from chatvoice.copilot.materials import MaterialParseError, parse_material_bytes
 from chatvoice.config import ChatVoiceConfig
 from chatvoice.paths import state_paths
 from chatlogin import AccessDenied, StoreFull
-from chatvoice.web.auth_adapter import AuthAdapter
+from chatvoice.web.auth_adapter import AuthAdapter, initialize_chatvoice_managed_schema
 from pydantic import AliasChoices, BaseModel, Field
 from chatlogin.security import safe_next
 from chatvoice.web.login_ui import install_login_ui
+from chatvoice.web.user_management import install_user_management
 from chatvoice.web.upload_limits import AudioUploadLimits
 
 try:
@@ -1134,21 +1135,30 @@ def provision_managed_account(account: str, password: str, display_name: str | N
     """Create an invited account from trusted server-side tooling; never exposed as an HTTP route."""
     normalized = _normalized_account(account)
     if not 8 <= len(password) <= 128:
-        raise ValueError("password must be 8–128 characters")
+        raise ValueError("password must be 8-128 characters")
     name = (display_name or normalized.split("@", 1)[0]).strip()
-    if not 1 <= len(name) <= 40:
-        raise ValueError("display name must be 1–40 characters")
-    salt = secrets.token_bytes(16)
+    if not 1 <= len(name) <= 256:
+        raise ValueError("display name must be 1-256 characters")
+    from chatlogin.credentials import hash_password
+    from chatlogin.identity import Role
+    password_hash = hash_password(password)
+    now = _utc_now().timestamp()
     user_id = "usr_" + secrets.token_urlsafe(18)
-    with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
-        try:
+    try:
+        with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
             connection.execute(
-                "INSERT INTO accounts (id, account, display_name, password_salt, password_hash, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                (user_id, normalized, name, salt, _password_hash(password, salt), _iso_utc()),
+                "INSERT INTO chatlogin_managed_users "
+                "(account_instance, user_id, username, username_key, display_name, role, enabled, deleted, "
+                "password_salt, password_digest, password_iterations, auth_revision, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, 1, 0, ?, ?, ?, 0, ?, ?)",
+                (
+                    "chatvoice", user_id, normalized, normalized, name, Role.USER.value,
+                    password_hash.salt, password_hash.digest, password_hash.iterations, now, now,
+                ),
             )
-        except sqlite3.IntegrityError as exc:
-            raise ValueError("account already exists") from exc
-        connection.commit()
+            connection.commit()
+    except sqlite3.IntegrityError as exc:
+        raise ValueError("account already exists") from exc
     return {"id": user_id, "account": normalized, "display_name": name}
 
 
@@ -1182,6 +1192,7 @@ def _meeting_db() -> sqlite3.Connection:
         )
         """
     )
+    initialize_chatvoice_managed_schema(connection)
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS api_tokens (
@@ -1341,6 +1352,16 @@ _AUTH = AuthAdapter(
     lambda: _meeting_db(), lambda: _MEETING_DB_LOCK,
     lambda: _utc_now().timestamp(), ttl=AUTH_SESSION_DAYS * 24 * 60 * 60,
 )
+_USER_MANAGEMENT = install_user_management(
+    app,
+    connect=lambda: _meeting_db(),
+    lock=lambda: _MEETING_DB_LOCK,
+    clock=lambda: _utc_now().timestamp(),
+    login_ui=app.state.login_ui,
+    cookie_name=AUTH_COOKIE_NAME,
+    ttl=AUTH_SESSION_DAYS * 24 * 60 * 60,
+    origin=_env_value("CHATVOICE_PUBLIC_ORIGIN", default="http://127.0.0.1:18087"),
+)
 
 
 def _auth_row(request: Request, *, required: bool = True) -> Mapping[str, Any] | None:
@@ -1363,9 +1384,15 @@ def _require_csrf(request: Request, auth: Mapping[str, Any]) -> None:
 
 
 def _auth_payload(row: Mapping[str, Any], csrf_token: str | None = None) -> dict[str, Any]:
+    role = row.get("role") if isinstance(row, dict) else (row["role"] if "role" in row.keys() else None)
     payload: dict[str, Any] = {
         "authenticated": True,
-        "user": {"id": row["user_id"] if "user_id" in row.keys() else row["id"], "account": row["account"], "display_name": row["display_name"]},
+        "user": {
+            "id": row["user_id"] if "user_id" in row.keys() else row["id"],
+            "account": row["account"],
+            "display_name": row["display_name"],
+            **({"role": role} if role else {}),
+        },
     }
     if csrf_token is not None:
         payload["csrf_token"] = csrf_token
@@ -1500,9 +1527,13 @@ def _api_token_auth_row(request: Request, *, scope: str) -> sqlite3.Row:
     token_hash = _api_token_hash(token.strip())
     now = _utc_now()
     with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
+        account_columns = {column[1] for column in connection.execute("PRAGMA table_info(accounts)").fetchall()}
+        account_select = "a.account, a.display_name"
+        if {"enabled", "deleted"}.issubset(account_columns):
+            account_select += ", a.enabled AS account_enabled, a.deleted AS account_deleted"
         row = connection.execute(
-            """
-            SELECT t.*, a.account, a.display_name
+            f"""
+            SELECT t.*, {account_select}
             FROM api_tokens AS t JOIN accounts AS a ON a.id = t.owner_id
             WHERE t.token_hash = ?
             """,
@@ -1512,6 +1543,8 @@ def _api_token_auth_row(request: Request, *, scope: str) -> sqlite3.Row:
             raise HTTPException(status_code=401, detail="invalid API token")
         if row["revoked_at"]:
             raise HTTPException(status_code=401, detail="revoked API token")
+        if "account_deleted" in row.keys() and (bool(row["account_deleted"]) or not bool(row["account_enabled"])):
+            raise HTTPException(status_code=401, detail="disabled API token owner")
         if row["expires_at"] and datetime.fromisoformat(row["expires_at"]) <= now:
             raise HTTPException(status_code=401, detail="expired API token")
         try:

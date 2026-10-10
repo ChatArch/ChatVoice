@@ -34,6 +34,18 @@ def test_accounts_add_and_list_use_packaged_runtime(monkeypatch, tmp_path):
     assert '"account": "person@example.com"' in listed.output
     assert 'password' not in listed.output.lower()
 
+    with legacy_app._meeting_db() as connection:
+        row = connection.execute(
+            "SELECT role, enabled, deleted, auth_revision, password_iterations FROM accounts WHERE account=?",
+            ("person@example.com",),
+        ).fetchone()
+    assert row["role"] == "user"
+    assert row["enabled"] == 1
+    assert row["deleted"] == 0
+    assert row["auth_revision"] == 0
+    assert 1 <= row["password_iterations"] <= 10_000_000
+    assert legacy_app._AUTH.login("person@example.com", "correct horse battery") is not None
+
 
 def test_cli_tree_exposes_account_commands():
     result = CliRunner().invoke(main, ["--tree"])

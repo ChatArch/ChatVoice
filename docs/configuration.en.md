@@ -63,6 +63,7 @@ All example addresses, keys and model names are placeholders.
 | `CHATVOICE_COPILOT_AUTO_PREPARE` | `0` | Allows speculative draft preparation; off by default, manual Submit remains available |
 | `CHATVOICE_COPILOT_THINKING_MODE` | `provider-default` | Fast-answer thinking policy: `provider-default` adds no vendor field; `ark-disabled` sends Volcengine Ark `thinking.type=disabled` only for the Copilot request; other values fail closed |
 | `CHATVOICE_ENV_PROFILE` | Empty | Load a named ChatEnv ChatVoice profile without changing the global active profile; missing names do not fall back to active |
+| `CHATVOICE_PUBLIC_ORIGIN` | `http://127.0.0.1:18087` | Trusted fixed public origin for the user-management preview, for example `https://voice.example.invalid`; scheme/host/port only, no credentials/path/query/fragment, never derived from request Host |
 
 Uploads accept TXT, Markdown, basic text PDFs and DOCX; URL fetch is not supported. Files are capped at 2 MiB, with declared and chunked body limits before multipart parsing. Answer/prepare JSON bodies are limited to 1 MiB before parsing. Authentication, CSRF and the preview flag are checked before the material form is parsed.
 

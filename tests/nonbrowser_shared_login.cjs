@@ -10,6 +10,17 @@ const {harness, assert, json} = require('./nonbrowser_harness.cjs');
     assert.equal(app.run('storageMode'), 'guest');
     assert.ok(!app.element('entry-dialog').open);
     assert.equal(app.requests.length, 0, 'guest return must not contact cloud');
+  } else if (test === 'management-menu-role') {
+    function render(role) {
+      app.run(`storageMode='account'; authUser=${JSON.stringify(role ? {id: 'fixture', role} : null)}; updateAccountUi();`);
+      return app.element('open-user-management').hidden;
+    }
+    assert.equal(app.element('open-user-management').hidden, true, 'no-JS initial markup must fail closed');
+    assert.equal(render('owner'), false);
+    assert.equal(render('admin'), false);
+    assert.equal(render('user'), true);
+    app.run("storageMode='guest'; authUser=null; updateAccountUi();");
+    assert.equal(app.element('open-user-management').hidden, true);
   } else if (test === 'save-before-login') {
     await app.run("activateStorageMode('guest')");
     app.run("appendTranscript('访客草稿'); syncSummaryContent('访客纪要'); todoMarkdown = '- [ ] 保留 Todo';");

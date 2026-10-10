@@ -10,6 +10,7 @@ This map explains what ChatVoice owns. Invocation details live in the [CLI tree]
 | Summaries and refinement | Web, notes API | Independent text model; transcript is retained |
 | Markdown Todo | Web, Todo API, Python callback module | Explicit conversion/edit/refinement/undo/export; no task execution |
 | Meeting and conversation storage | Web and account APIs | Account SQLite or guest IndexedDB |
+| Invited-account management | `/user-management`, original account cookie | Unreleased preview; reuses original `accounts` / `auth_sessions`, no self-registration |
 | Read-only data integration | Token, CLI, Python | Scopes and ownership |
 | System speech synthesis | Voice studio, TTS API | Independent TTS settings and dynamic voices |
 | One-shot cloning | Voice studio, clone proxy | Account, authorized reference and independent sidecar |

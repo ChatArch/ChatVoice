@@ -23,7 +23,7 @@ def test_runtime_dependency_and_shared_tree_contract():
     assert '"click>=8.0,<9.0"' in pyproject
     assert '"chatstyle>=0.2.0,<0.3.0"' in pyproject
     assert '"chatenv>=0.2.11,<0.3.0"' in pyproject
-    assert '"ChatLogin>=0.1.2,<0.2.0"' in pyproject
+    assert '"ChatLogin>=0.1.6,<0.2.0"' in pyproject
     assert '[project.entry-points."chatenv.configs"]' in pyproject
     assert 'chatvoice = "chatvoice.config"' in pyproject
     assert "add_tree_option" in cli
@@ -42,7 +42,8 @@ def test_ci_checks_installed_and_built_wheel_contracts():
     assert "chatvoice --tree-brief" in workflow
     assert "python -m build" in workflow
     assert "python -m twine check dist/*" in workflow
-    assert '"$RUNNER_TEMP/chatvoice-wheel/bin/python" -m pip install dist/*.whl' in workflow
+    first_install = next(line.strip() for line in workflow.splitlines() if '"$RUNNER_TEMP/chatvoice-wheel/bin/python" -m pip install' in line)
+    assert first_install == '"$RUNNER_TEMP/chatvoice-wheel/bin/python" -m pip install "$(printf \'%s\' dist/*.whl)[web]"'
     assert "mkdocs build --strict" in workflow
 
 
