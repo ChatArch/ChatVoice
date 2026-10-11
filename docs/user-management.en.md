@@ -1,7 +1,10 @@
 # User Management
 
-!!! warning "Unreleased preview"
-    This capability is in the current source but has not been published as a new PyPI release. The source `web` extra pins the merged, reviewed ChatLogin commit, so installing `ChatVoice[web]` from source obtains the matching authentication component. Public ChatVoice 0.4.1 and ChatLogin 0.1.6 do not include the complete new administration capability. For offline deployment, use a matching reviewed wheel pair; restore a normal version range after the provider's feature release.
+```bash
+python -m pip install "ChatVoice[web]==0.5.0"
+```
+
+ChatVoice 0.5.0 depends on the published `ChatLogin>=0.2.0,<0.3.0` range, so user management needs no Git installation. For offline deployment, pin wheels inside that public release range.
 
 User management reuses the original Speakr invited-account login. After signing in with the same account password, the original `meeting_session` cookie reaches the meeting workspace, `/user-management/profile`, and role-gated `/user-management/users`. There is no public signup, no second user database, and no migration of meetings, conversations, ASR state, voice jobs, API tokens, or guest IndexedDB data.
 
@@ -28,4 +31,4 @@ The top-right `...` settings menu shows "Admin page" for OWNER/ADMIN and opens `
 
 `CHATVOICE_PUBLIC_ORIGIN=https://voice.example.invalid` is the trusted fixed origin read through server-side typed `ChatVoiceConfig`. It represents only the browser-visible scheme/host/port, with no credentials, path, query, or fragment, and is never derived from request `Host`, proxy headers, or caller host.
 
-Invited accounts still use the existing `chatvoice accounts add/list` flow or equivalent trusted tooling. Single-owner adoption is performed by host Python setup with the matching ChatLogin provider's `adopt_owner(...)`; do not invent or document a public owner CLI command.
+Invited accounts still use the existing `chatvoice accounts add/list` flow or equivalent trusted tooling. Single-owner adoption is performed by host Python setup with ChatLogin provider's `adopt_owner(...)`; do not invent or document a public owner CLI command.

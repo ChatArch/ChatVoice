@@ -9,14 +9,14 @@
 | 数据导出 | Bearer Token 与对应 scope | 程序化只读导出 |
 | 文本/ASR/TTS 处理 | 当前可供访客调用；服务端持有模型密钥 | 转换内容，不代表已保存记录 |
 | 声音复刻任务 | 账号会话、任务所有权，创建/删除需 CSRF | 授权声音的一次性生成 |
-| 会中助手 | 账号 Cookie + 所有权检查；写操作需 CSRF | 预览版材料与快速回答 |
+| 会中助手 | 账号 Cookie + 所有权检查；写操作需 CSRF | 账号材料与快速回答 |
 
 !!! warning "公开入口需要访问与额度控制"
     模型处理接口不是 Bearer 数据导出接口。部署者应限制滥用并核实上游额度，不要把“密钥未暴露给浏览器”误当成无限制开放模型调用。
 
 ## 共享登录组件 {#login-ui}
 
-ChatVoice 使用 `ChatLogin>=0.1.2,<0.2.0` 内建的 `ChatVoiceAuth`，直接复用旧账号/会话 schema、密码材料与 Cookie；不另建用户库。宿主只保留连接、HTTP 响应与业务权限映射。
+ChatVoice 使用 `ChatLogin>=0.2.0,<0.3.0` 内建的 `ChatVoiceAuth`，直接复用旧账号/会话 schema、密码材料与 Cookie；不另建用户库。宿主只保留连接、HTTP 响应与业务权限映射。
 
 `/login` 使用共享 `LoginUI` 的表单、CSS 和脚本，并提供声笺品牌覆盖。需要其他主题或宿主模板时，通过 Python 入口配置，无需编辑 site-packages：
 
@@ -52,7 +52,7 @@ app = create_app(login_ui=LoginUI(
 
 会议保存包含标题、时间、时长、标签、转写片段、摘要、完善对话，以及 `todo_markdown`、`todo_chat_messages`。详情返回正文，列表保持轻量。旧客户端省略 Todo 字段不会清空既有值，显式空字符串/空列表可以清空。
 
-`/user-management/*` 是未发布预览中的同源页面/API 组，复用原 `meeting_session` Cookie。角色、状态、删除、改密和 owner 交接会使受影响会话失效；业务会议、录音和 Token 仍按 ChatVoice 所有权与 scope 授权。
+`/user-management/*` 是同源页面/API 组，复用原 `meeting_session` Cookie。角色、状态、删除、改密和 owner 交接会使受影响会话失效；业务会议、录音和 Token 仍按 ChatVoice 所有权与 scope 授权。
 
 ## 会议录音保存与导入 {#meeting-audio}
 

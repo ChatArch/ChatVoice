@@ -9,14 +9,14 @@ Web sessions, stored records and model processing have distinct boundaries. All 
 | Data export | Bearer token with matching scope | Programmatic read-only export |
 | Text/ASR/TTS processing | Currently callable by guests; model keys remain server-side | Process content, not automatically save records |
 | Voice-cloning jobs | Account, job ownership and CSRF for create/delete | Authorized one-shot synthesis |
-| Copilot | Account cookies and owner checks; CSRF for writes | Preview materials and fast answers |
+| Copilot | Account cookies and owner checks; CSRF for writes | Account materials and fast answers |
 
 !!! warning "Protect public processing endpoints"
     Model-processing routes are not Bearer data-export routes. Operators must control abuse and upstream quota. Hiding credentials from the browser does not make unrestricted model access safe.
 
 ## Shared login component {#login-ui}
 
-ChatVoice directly uses `ChatLogin>=0.1.2,<0.2.0` and its built-in `ChatVoiceAuth` backend, preserving existing account/session schema, password material and cookies. The host retains only connection callbacks, HTTP mapping and business policy.
+ChatVoice directly uses `ChatLogin>=0.2.0,<0.3.0` and its built-in `ChatVoiceAuth` backend, preserving existing account/session schema, password material and cookies. The host retains only connection callbacks, HTTP mapping and business policy.
 
 `/login` renders shared LoginUI forms, CSS and scripts with host branding. Supply another theme or trusted template from the Python entrypoint without editing site-packages:
 
@@ -52,7 +52,7 @@ Drafts are saved and the IndexedDB transaction must complete before leaving for 
 
 Meeting writes contain title, timestamps, duration, tags, transcript segments, summary/refinement conversation and `todo_markdown` / `todo_chat_messages`. Detail responses include content; lists stay lightweight. Older clients omitting Todo fields preserve existing values; explicit empty text/lists clear them.
 
-`/user-management/*` is a same-origin page/API group in the unreleased preview and reuses the original `meeting_session` cookie. Role, status, deletion, password change, and owner transfer invalidate affected sessions; business meetings, audio, and tokens still follow ChatVoice ownership and scope authorization.
+`/user-management/*` is a same-origin page/API group and reuses the original `meeting_session` cookie. Role, status, deletion, password change, and owner transfer invalidate affected sessions; business meetings, audio, and tokens still follow ChatVoice ownership and scope authorization.
 
 ## Meeting-audio retention and import {#meeting-audio}
 

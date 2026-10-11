@@ -1,7 +1,10 @@
 # 用户管理
 
-!!! warning "未发布预览"
-    本页描述当前源码中的能力，尚未作为新版本发布到 PyPI。当前源码的 `web` extra 固定引用已合并并审查的 ChatLogin 提交；从源码安装 `ChatVoice[web]` 会获得匹配的认证组件。公开 ChatVoice 0.4.1 与公开 ChatLogin 0.1.6 不包含完整的新管理能力。离线部署请使用匹配的已审 wheel 对；待 provider 正式发布后再改回普通版本范围。
+```bash
+python -m pip install "ChatVoice[web]==0.5.0"
+```
+
+ChatVoice 0.5.0 依赖公开发布的 `ChatLogin>=0.2.0,<0.3.0`，无需 Git 安装即可获得用户管理 provider。离线部署时固定同一公开版本范围内的 wheel。
 
 用户管理复用原 Speakr 受邀账号登录。用户用同一个账号密码登录后，原 `meeting_session` Cookie 同时访问会议工作区、`/user-management/profile` 和按角色可见的 `/user-management/users`。不新增公开注册，不复制第二套用户库，也不迁移会议、对话、ASR、声音任务、API token 或访客 IndexedDB 数据。
 
@@ -28,4 +31,4 @@
 
 `CHATVOICE_PUBLIC_ORIGIN=https://voice.example.invalid` 是服务端 typed `ChatVoiceConfig` 读取的受信任固定 origin。它只表示浏览器实际访问的 scheme/host/port，不包含用户名密码、path、query 或 fragment，也不从请求 `Host`、代理头或 caller host 推导。
 
-受邀账号仍通过现有 `chatvoice accounts add/list` 或等价受信任工具维护。唯一 owner 采用通过宿主 Python setup 调用匹配 ChatLogin provider 的 `adopt_owner(...)` 完成；不要发明或记录公开 owner CLI 命令。
+受邀账号仍通过现有 `chatvoice accounts add/list` 或等价受信任工具维护。唯一 owner 采用通过宿主 Python setup 调用 ChatLogin provider 的 `adopt_owner(...)` 完成；不要发明或记录公开 owner CLI 命令。
