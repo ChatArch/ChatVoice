@@ -17,10 +17,14 @@ module.exports = {
   async copilotDirect() {
     const app = setup(); app.context.location.pathname='/copilot';
     await app.run('bootstrapAccess()');
-    assert.equal(app.run('activeProductView'),'copilot');
-    assert.equal(app.element('copilot-shell').hidden,false);
+    assert.equal(app.run('activeProductView'),'meeting');
+    assert.equal(app.element('copilot-shell').hidden,true);
+    assert.equal(app.requests.some(r=>r.url.startsWith('/api/copilot/')),false);
     const moves=[]; app.context.location.assign=url=>moves.push(url);
-    await app.run('openSharedLogin()'); assert.deepEqual(moves,['/login?next=%2Fcopilot']);
+    await app.run('openSharedLogin()'); assert.deepEqual(moves,['/login?next=%2F']);
+    // The remaining beta controller coverage is a private harness state;
+    // neither URL bootstrap nor the public switcher can enter it.
+    app.run("activeProductView='copilot'");
     app.element('copilot-material-file').files=[new Blob(['synthetic material'])];
     await app.element('copilot-upload').click();
     assert.ok(app.requests.some(r=>r.url==='/api/copilot/materials' && r.method==='POST'));

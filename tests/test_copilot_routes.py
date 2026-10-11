@@ -43,12 +43,11 @@ def run(coro):
     return asyncio.run(coro)
 
 
-def test_copilot_page_and_status_follow_feature_flag(copilot_app, monkeypatch):
+def test_copilot_web_is_retired_while_beta_status_follows_flag(copilot_app, monkeypatch):
     async def scenario():
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=copilot_app.app), base_url="https://app.example.test") as client:
             page = await client.get("/copilot")
-            assert page.status_code == 200
-            assert "会中助手" in page.text
+            assert page.status_code == 404
             status = (await client.get("/api/copilot/status")).json()
             assert status["enabled"] is True
             monkeypatch.setattr(copilot_app, "COPILOT_ENABLED", False)

@@ -16,7 +16,7 @@ ChatVoice 0.5.0 依赖公开发布的 `ChatLogin>=0.2.0,<0.3.0`，无需 Git 安
 | ADMIN | `/user-management/users`、`/user-management/profile` | 管理普通用户和本人资料；不能授予 admin 或接管 owner |
 | USER | `/user-management/profile` | 查看/修改本人资料与密码 |
 
-网页右上角 `•••` 设置菜单在 OWNER/ADMIN 登录后显示“管理员页面”，进入 `/user-management/users`；账号卡也显示“用户管理”。所有登录成员显示“个人账号”。原会议、录音、实时对话和会中助手导航保持业务权限检查。
+网页右上角 `•••` 设置菜单在 OWNER/ADMIN 登录后显示“管理员页面”，进入 `/user-management/users`；账号卡也显示“用户管理”。所有登录成员显示“个人账号”。原会议、录音和实时对话保持业务权限检查；会中助手仅保留内部 beta，不显示网页入口。
 
 ## 数据保留与权限
 

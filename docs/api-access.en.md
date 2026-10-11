@@ -83,13 +83,13 @@ Import requires an account, never overwrites a meeting, and returns a locked, fi
 
 Revision deltas use canvas/reply separator markers. Require explicit `done`; socket EOF is not completion. Keep the prior document when the stream fails.
 
-## Copilot preview {#copilot}
+## Internal Copilot beta {#copilot}
 
-When `CHATVOICE_COPILOT_ENABLED=1` is set:
+The web entry is retired and `GET /copilot` always returns 404. The following retained internal beta APIs may be tested with explicit `CHATVOICE_COPILOT_ENABLED=1` in an isolated experimental instance; this does not restore public app navigation:
 
 | Method and path | Purpose |
 | --- | --- |
-| `GET /copilot` | Chinese-first in-meeting assistant page |
+| `GET /copilot` | Retired web entry; always returns 404 |
 | `GET /api/copilot/status` | Enabled state, material limits and preparation policy |
 | `GET /api/copilot/materials` | Current owner's materials |
 | `POST /api/copilot/materials` | Multipart `file`; TXT/MD/PDF/DOCX, CSRF required |
