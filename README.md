@@ -21,7 +21,7 @@ ChatVoice 是 ChatArch 的录音转写与会议工作区 Python 包，包含 Spe
 要求 Python 3.10 或更高版本，建议安装到独立虚拟环境。
 
 ```bash
-python -m pip install "ChatVoice[web]==0.4.1"
+python -m pip install "ChatVoice[web]==0.5.0"
 chatvoice --version
 chatvoice --tree
 chatvoice serve app --dry-run --json
@@ -50,7 +50,7 @@ chatvoice serve app --dry-run --json
 
 清空会议不会解除模式锁；显式清空或删除仍按既有规则清理关联录音。迁移保守保留旧音频，不因模式归类删除历史数据。数据库备份不包含录音文件，使用录音+识别时须同时备份私有音频目录。
 
-自助注册关闭，由部署者创建受邀账号。当前稳定包复用 ChatLogin 的 `ChatVoiceAuth`、既有账号、会话和 CSRF；未发布预览可在匹配 ChatLogin/ChatVoice 候选 wheel 对上挂载 `/user-management`，让 OWNER/ADMIN 管理目录、普通成员管理本人资料。会议所有权和 Token 权限仍由 ChatVoice 控制，访客草稿等待 IndexedDB 事务提交后才跳转登录。详见[数据保留边界](https://arch.gh.wzhecnu.cn/ChatVoice/recording-storage/)与[用户管理](https://arch.gh.wzhecnu.cn/ChatVoice/user-management/)。
+自助注册关闭，由部署者创建受邀账号。ChatVoice 0.5.0 复用 ChatLogin 0.2.0 的 `ChatVoiceAuth`、既有账号、会话和 CSRF，并挂载 `/user-management`：OWNER/ADMIN 管理目录，普通成员管理本人资料。会议所有权和 Token 权限仍由 ChatVoice 控制，访客草稿等待 IndexedDB 事务提交后才跳转登录。详见[数据保留边界](https://arch.gh.wzhecnu.cn/ChatVoice/recording-storage/)与[用户管理](https://arch.gh.wzhecnu.cn/ChatVoice/user-management/)。
 
 ## 开发
 

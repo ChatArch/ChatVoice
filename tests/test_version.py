@@ -2,4 +2,4 @@ from chatvoice import __version__
 
 
 def test_version_present():
-    assert __version__ == "0.4.1"
+    assert __version__ == "0.5.0"

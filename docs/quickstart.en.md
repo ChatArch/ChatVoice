@@ -36,7 +36,7 @@ Python 3.10+ is required. This POSIX example uses a virtual environment under Ch
 ```bash
 python3 -m venv "$HOME/.chatarch/chatvoice/.venv"
 . "$HOME/.chatarch/chatvoice/.venv/bin/activate"
-python -m pip install "ChatVoice[web]==0.4.1"
+python -m pip install "ChatVoice[web]==0.5.0"
 chatvoice --version
 chatvoice --tree
 ```
@@ -87,4 +87,4 @@ chatvoice accounts list --json
 
 Never place the password in command arguments or public scripts. Sign in through the web app afterward. See [deployment](deployment.md) for persistent supervision and HTTPS.
 
-The unreleased user-management preview adds no public signup and does not change the `chatvoice accounts add/list` topology. The single owner is selected through trusted Python adoption, not a CLI command. After sign-in, members can use the profile page described in [User Management](user-management.en.md).
+User management adds no public signup and does not change the `chatvoice accounts add/list` topology. The single owner is selected through trusted Python adoption, not a CLI command. After sign-in, members can use the profile page described in [User Management](user-management.en.md).

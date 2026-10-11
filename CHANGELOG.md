@@ -1,11 +1,14 @@
 # 更新日志
 
-## Unreleased
+## 0.5.0 - 2026-10-11
 
 ### 新增
 
-- 记录未发布预览的 ChatLogin managed users 消费方接入：同一受邀账号和 `meeting_session` 可进入 `/user-management/users` 与 `/user-management/profile`，保留既有账号、会议、对话、录音、API token、guest 数据和业务 `owner_id`。
+- 发布 ChatLogin 0.2.0 managed users 消费方接入：同一受邀账号和 `meeting_session` 可进入 `/user-management/users` 与 `/user-management/profile`，OWNER/ADMIN 管理账号目录，普通成员管理本人资料。
+- 保留既有账号 ID、账号名、显示名、密码材料、Cookie、旧会话、会议、对话、录音、API token、guest 数据和业务 `owner_id`；角色、禁用、删除、改密和 owner 交接只影响账号目录与受影响会话。
+- 网页设置菜单为 OWNER/ADMIN 显示管理员入口，账号卡显示用户管理，所有登录成员显示个人账号；会议、录音、实时对话、会中助手和 Token 仍按 ChatVoice 原业务所有权与 scope 授权。
 - 新增 `CHATVOICE_PUBLIC_ORIGIN` 文档：由 typed `ChatVoiceConfig` 读取的受信任固定 origin，仅允许 scheme/host/port，不从请求 Host、凭据、path、query 或 fragment 推导。
+- 依赖改为公开发布的 `ChatLogin>=0.2.0,<0.3.0`，移除 `web` extra 中的临时 Git/VCS provider 固定。
 
 ## 0.4.1 - 2026-10-10
 

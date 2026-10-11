@@ -17,6 +17,40 @@ def test_public_fresh_install_examples_track_package_version():
         assert all(version == __version__ for version in versions), path
 
 
+def test_public_docs_describe_published_managed_user_release():
+    combined = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in (
+            ROOT / "README.md",
+            ROOT / "README.en.md",
+            ROOT / "CHANGELOG.md",
+            ROOT / "docs" / "api-access.md",
+            ROOT / "docs" / "api-access.en.md",
+            ROOT / "docs" / "capability-map.md",
+            ROOT / "docs" / "capability-map.en.md",
+            ROOT / "docs" / "interface-tree.md",
+            ROOT / "docs" / "interface-tree.en.md",
+            ROOT / "docs" / "quickstart.md",
+            ROOT / "docs" / "quickstart.en.md",
+            ROOT / "docs" / "user-management.md",
+            ROOT / "docs" / "user-management.en.md",
+        )
+    )
+    stale = (
+        "未发布预览",
+        "Unreleased preview",
+        "matching ChatLogin/ChatVoice candidate",
+        "候选 wheel",
+        "current source",
+        "当前源码",
+        "ChatLogin>=0.1.2,<0.2.0",
+        "ChatLogin>=0.1.6,<0.2.0",
+    )
+    assert "## 0.5.0 - 2026-10-11" in combined
+    assert "ChatLogin>=0.2.0,<0.3.0" in combined
+    assert all(fragment not in combined for fragment in stale)
+
+
 def test_public_docs_use_executable_asr_api_url_setting_name():
     for name in ("docs/quickstart.md", "docs/quickstart.en.md", "docs/configuration.md", "docs/configuration.en.md", "docs/deployment.md", "docs/deployment.en.md"):
         assert "CHATVOICE_ASR_API_URL" in text(name), name

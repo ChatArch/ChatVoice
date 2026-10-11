@@ -21,7 +21,7 @@ ChatVoice is the ChatArch Python package behind the Speakr recording and meeting
 Python 3.10+ is required. Use a dedicated virtual environment.
 
 ```bash
-python -m pip install "ChatVoice[web]==0.4.1"
+python -m pip install "ChatVoice[web]==0.5.0"
 chatvoice --version
 chatvoice --tree
 chatvoice serve app --dry-run --json
@@ -50,7 +50,7 @@ Account records use SQLite below `~/.chatarch/chatvoice`. Guest records remain i
 
 Clearing does not unlock a meeting route; a finished meeting needs a new meeting for more audio. Explicit clear/delete keeps existing cleanup semantics, while migration never deletes legacy audio. A database backup does not include recording bytes; back up the private audio directory together with the database when retention is used.
 
-Self-registration is disabled; operators provision invited accounts. The stable package reuses ChatLogin `ChatVoiceAuth`, existing accounts, sessions and CSRF. The unreleased preview can mount `/user-management` with a matching ChatLogin/ChatVoice candidate wheel pair, so OWNER/ADMIN users manage the directory and members manage their own profile. ChatVoice retains meeting ownership and token policy. Guest drafts must commit their IndexedDB transaction before login navigation.
+Self-registration is disabled; operators provision invited accounts. ChatVoice 0.5.0 reuses ChatLogin 0.2.0 `ChatVoiceAuth`, existing accounts, sessions and CSRF, and mounts `/user-management`: OWNER/ADMIN users manage the directory and members manage their own profile. ChatVoice retains meeting ownership and token policy. Guest drafts must commit their IndexedDB transaction before login navigation.
 
 ## Development
 
