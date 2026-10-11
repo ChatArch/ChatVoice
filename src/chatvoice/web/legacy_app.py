@@ -724,9 +724,8 @@ def index() -> FileResponse:
 
 @app.get("/copilot", response_class=HTMLResponse)
 def copilot_page() -> FileResponse:
-    if not COPILOT_ENABLED:
-        raise HTTPException(status_code=404, detail="会中助手未启用")
-    return FileResponse(STATIC_DIR / "index.html")
+    # Explicit beta API opt-in must not reopen a public web product.
+    raise HTTPException(status_code=404, detail="会中助手为内部 beta，暂不提供网页入口")
 
 
 @app.get("/assets/transcript-state.js")

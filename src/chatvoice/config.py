@@ -167,7 +167,7 @@ class ChatVoiceConfig(BaseEnvConfig):
     CHATVOICE_COPILOT_ENABLED = EnvField(
         "CHATVOICE_COPILOT_ENABLED",
         default="0",
-        desc="Enable the preview-only Speakr Copilot page and APIs.",
+        desc="Enable internal beta Copilot APIs only; no public web product entry.",
     )
     CHATVOICE_COPILOT_AUTO_PREPARE = EnvField(
         "CHATVOICE_COPILOT_AUTO_PREPARE",

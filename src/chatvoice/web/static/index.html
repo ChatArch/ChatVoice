@@ -767,7 +767,7 @@
         <button class="product-tab active" id="meeting-product-tab" data-product="meeting" type="button" role="tab" aria-selected="true">会议记录</button>
         <button class="product-tab" id="studio-product-tab" data-product="studio" type="button" role="tab" aria-selected="false">声音工作室</button>
         <button class="product-tab" id="conversation-product-tab" data-product="conversation" type="button" role="tab" aria-selected="false">实时对话</button>
-        <button class="product-tab" id="copilot-product-tab" data-product="copilot" type="button" role="tab" aria-selected="false">会中助手</button>
+
       </nav>
 
       <nav class="utility-actions" aria-label="录音工具">
@@ -1771,7 +1771,9 @@
     }
 
     function switchProductView(view) {
-      if (!['meeting', 'studio', 'conversation', 'copilot'].includes(view) || view === activeProductView) return true;
+      // Copilot is parked as an internal beta, not a public product view.
+      if (!['meeting', 'studio', 'conversation'].includes(view)) return false;
+      if (view === activeProductView) return true;
       if (meetingImportRunning && view !== 'meeting') { showToast('请先完成或取消音频导入'); return false; }
       if (view !== 'meeting' && ['connecting', 'recording', 'paused', 'finishing'].includes(recorderState)) {
         showToast('请先结束当前录音，再切换功能');
@@ -1789,7 +1791,7 @@
         button.classList.toggle('active', active);
         button.setAttribute('aria-selected', active ? 'true' : 'false');
       });
-      document.title = view === 'meeting' ? '声笺 · 实时会议记录' : view === 'studio' ? '声笺 · 声音工作室' : view === 'conversation' ? '声笺 · 实时对话' : '声笺 · 会中助手';
+      document.title = view === 'meeting' ? '声笺 · 实时会议记录' : view === 'studio' ? '声笺 · 声音工作室' : '声笺 · 实时对话';
       $('meeting-search').value = '';
       closeTagPicker();
       updateSidebarContext();
@@ -3961,7 +3963,7 @@
         if (storageMode && activeConversationId && await saveActiveConversation() === false) return;
         await Promise.all([meetingSaveChain, conversationSaveChain]);
         stopCopilotAudio();
-        location.assign('/login?next=' + encodeURIComponent(location.pathname === '/copilot' || activeProductView === 'copilot' ? '/copilot' : '/'));
+        location.assign('/login?next=' + encodeURIComponent('/'));
       } catch (error) {
         showToast(error.message || '当前记录尚未保存，请重试。');
       }
@@ -4002,11 +4004,9 @@
     }
 
     async function bootstrapAccess() {
-      if (location.pathname === '/copilot') switchProductView('copilot');
       updateAccountUi();
       if (new URLSearchParams(location.search).get('mode') === 'guest') {
         await activateStorageMode('guest');
-        if (location.pathname === '/copilot') await showCopilotPage();
         return;
       }
       try {
@@ -4014,7 +4014,6 @@
         const payload = await response.json();
         if (payload.authenticated) {
           await activateStorageMode('account', payload.user, payload.csrf_token || '');
-          if (location.pathname === '/copilot') await showCopilotPage();
           return;
         }
       } catch (_) {}

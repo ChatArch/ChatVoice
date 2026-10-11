@@ -95,9 +95,11 @@ def test_recent_long_line_keeps_tail():
     assert len(result) <= 100
 
 
-def test_copilot_serves_real_app(copilot_app):
-    response = copilot_app.copilot_page()
-    assert Path(response.path) == copilot_app.STATIC_DIR / "index.html"
+def test_copilot_beta_no_longer_serves_a_public_web_page(copilot_app):
+    from fastapi import HTTPException
+    with pytest.raises(HTTPException) as error:
+        copilot_app.copilot_page()
+    assert error.value.status_code == 404
 
 
 def test_upload_read_is_bounded(copilot_app, monkeypatch):

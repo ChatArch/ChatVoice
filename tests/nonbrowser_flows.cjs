@@ -674,8 +674,14 @@ const cases = {
       ]);
       throw new Error(`Unexpected request ${url}`);
     };
-    await app.run('showCopilotPage()');
-    assert.equal(app.run('activeProductView'), 'copilot');
+    assert.equal(await app.run('showCopilotPage()'), false);
+    assert.equal(app.run('activeProductView'), 'meeting');
+    assert.equal(app.requests.length, 0);
+    // Parked beta controller coverage is an internal harness state, not a
+    // public product-view entry or a served /copilot page.
+    app.run("activeProductView = 'copilot'");
+    await app.run('refreshCopilotStatus()');
+    await app.run('loadCopilotMaterials()');
     assert.equal(app.element('copilot-disabled').hidden, mode !== 'disabled');
     if (mode === 'disabled') return;
     assert.equal(app.element('copilot-submit').disabled, true);

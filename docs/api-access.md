@@ -83,13 +83,13 @@ app = create_app(login_ui=LoginUI(
 
 纪要修改流的 `delta.text` 使用画布/回复分隔标记；消费者必须等待明确 `done`，不能把连接断开当成完成。失败时保留当前正文。
 
-## 会中助手预览 {#copilot}
+## 会中助手内部 beta {#copilot}
 
-启用 `CHATVOICE_COPILOT_ENABLED=1` 后开放：
+网页入口已下线，`GET /copilot` 固定返回 404。以下仅是保留的内部 beta API；在隔离实验实例显式设置 `CHATVOICE_COPILOT_ENABLED=1` 后可测试，不会恢复正式网页导航：
 
 | 方法与路径 | 说明 |
 | --- | --- |
-| `GET /copilot` | 中文优先的会中助手页面 |
+| `GET /copilot` | 网页入口已退场，始终返回 404 |
 | `GET /api/copilot/status` | 启用状态、材料限制、后台准备策略 |
 | `GET /api/copilot/materials` | 当前账号材料列表 |
 | `POST /api/copilot/materials` | multipart `file`；支持 TXT/MD/PDF/DOCX，需 CSRF |

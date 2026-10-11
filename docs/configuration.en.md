@@ -10,7 +10,7 @@ Enable only the capabilities you need. This reference follows the released `Chat
 | System speech | TTS protocol, endpoint, key, model and voices | [TTS](tts-models.md) |
 | Voice cloning | VoiceClone URL | [Voice cloning](voice-cloning.md) |
 | Realtime | Legacy audio credentials and valid model entitlement | [Web guide](web-guide.md#realtime) |
-| Copilot preview | Feature flag, notes text model and ASR | [Web guide](web-guide.md#copilot) |
+| Internal Copilot beta | Off by default; no web entry | [Internal beta boundary](web-guide.md#copilot) |
 
 ## Use ChatEnv {#chatenv}
 
@@ -55,11 +55,11 @@ CHATVOICE_MEETING_TITLE_MODEL=title-model
 
 All example addresses, keys and model names are placeholders.
 
-## Copilot preview {#copilot}
+## Internal Copilot beta {#copilot}
 
 | Field | Default | Meaning |
 | --- | --- | --- |
-| `CHATVOICE_COPILOT_ENABLED` | `0` | Enables `/copilot`, app navigation and `/api/copilot/*` |
+| `CHATVOICE_COPILOT_ENABLED` | `0` | Enables internal beta `/api/copilot/*` in isolated instances only; no app navigation, `/copilot` always 404 |
 | `CHATVOICE_COPILOT_AUTO_PREPARE` | `0` | Allows speculative draft preparation; off by default, manual Submit remains available |
 | `CHATVOICE_COPILOT_THINKING_MODE` | `provider-default` | Fast-answer thinking policy: `provider-default` adds no vendor field; `ark-disabled` sends Volcengine Ark `thinking.type=disabled` only for the Copilot request; other values fail closed |
 | `CHATVOICE_ENV_PROFILE` | Empty | Load a named ChatEnv ChatVoice profile without changing the global active profile; missing names do not fall back to active |

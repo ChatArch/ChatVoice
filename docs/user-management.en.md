@@ -16,7 +16,7 @@ User management reuses the original Speakr invited-account login. After signing 
 | ADMIN | `/user-management/users`, `/user-management/profile` | Manage ordinary users and own profile; cannot grant admin or take over owner |
 | USER | `/user-management/profile` | View/update own profile and password |
 
-The top-right `...` settings menu shows "Admin page" for OWNER/ADMIN and opens `/user-management/users`; the account card also shows "User management". Every signed-in member sees "Profile". Meetings, recordings, realtime conversations, and Copilot keep their business authorization checks.
+The top-right `...` settings menu shows "Admin page" for OWNER/ADMIN and opens `/user-management/users`; the account card also shows "User management". Every signed-in member sees "Profile". Meetings, recordings and realtime conversations keep their business authorization checks; Copilot remains an internal beta without a web entry.
 
 ## Preservation and Permissions
 

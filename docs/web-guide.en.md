@@ -1,6 +1,6 @@
 # Web Guide
 
-Speakr has three top-level modes: **meeting recording, voice studio and realtime conversation**; preview deployments can also enable **Copilot**. Transcript, summary, note refinement and Todo are views of the same meeting.
+Speakr has three top-level modes: **meeting recording, voice studio and realtime conversation**. Copilot is parked as an internal beta without a web entry. Transcript, summary, note refinement and Todo are views of the same meeting.
 
 | Goal | Entry | Stored content |
 | --- | --- | --- |
@@ -10,7 +10,7 @@ Speakr has three top-level modes: **meeting recording, voice studio and realtime
 | Build an action plan | Convert to Todo below the summary | Markdown Todo and its conversation |
 | Synthesize speech | Voice studio | Temporary preview/download, not generation history |
 | Talk to an audio model | Realtime conversation | Conversation text |
-| Answer during a meeting | Copilot | Extracted material text and answer state |
+| Internal Copilot beta | No web entry | Code and materials retained for possible later development |
 
 ## Choose storage
 
@@ -62,10 +62,8 @@ Choose an allowed model and voice, then start the conversation. Saved text can b
 
 A listed model, a successful socket connection or a session-created event does not prove generation entitlement. Resolve quota/subscription errors explicitly; there is no implicit usage-billed fallback.
 
-## Copilot preview {#copilot}
+## Internal Copilot beta {#copilot}
 
-When enabled, **Copilot** appears in navigation and `/copilot` is available. The left column holds materials and pre-meeting instructions, the middle column reuses `/ws/asr/stream` for live transcript/current question state, and the right column shows fast answers, preparation state and evidence.
+Copilot has retired from the web: public navigation, post-login redirects and startup cannot enter the beta, and `/copilot` always returns 404. Enabling internal experimental APIs does not restore this page. Meeting recording, voice studio and realtime conversation remain available.
 
-Materials are local TXT, Markdown, PDF or DOCX files only; URL fetch is not supported. Scanned PDFs report OCR-not-supported. If the user selects "mic + browser tab" and the browser returns no tab audio track, the page reports an error and stops instead of silently recording only the user's mic. Stop, page teardown, reset and logout close mic tracks, audio graphs, WebSockets, timers and pending UI work.
-
-Answers use the existing meeting-notes text model settings. Evidence is retrieved context, not verified external citation; a human should still judge live answers. Background preparation is off by default. When enabled, drafts bind transcript revision, material revision, instructions and request ID; stale drafts do not overwrite newer questions.
+Backend/algorithm code, isolation/resource-safety regressions and existing materials remain, with the feature off by default. Future development requires a separate product decision. See the [internal API boundary](api-access.md#copilot); the beta flag is not a public web-launch switch.
