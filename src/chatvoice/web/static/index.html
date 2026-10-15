@@ -1683,6 +1683,7 @@
       try {
         recorder.start(1000);
         retainedRecorderStarted = true;
+        retainedCaptureRetryBlockedFor = activeMeetingId;
       } catch (error) {
         discardRetainedAudioCapture();
         throw error;
@@ -4391,12 +4392,13 @@
     function failRecordingConnection(message, streamToken = activeAsrSessionToken) {
       if (streamToken !== activeAsrSessionToken || !['connecting', 'recording', 'paused'].includes(recorderState)) return;
       const preserveRetainedAudio = retainedRecorderStarted && Boolean(retainedRecorder);
+      const retainedCaptureUsed = Boolean(activeMeetingId && retainedCaptureRetryBlockedFor === activeMeetingId);
       if (preserveRetainedAudio) {
         retainedCaptureRetryBlockedFor = activeMeetingId;
         finalizeRetainedAudioCapture();
       }
       interruptActiveRecording({ reason: 'asr-failure', preserveRetainedAudio });
-      updateRecorderUi('error', preserveRetainedAudio
+      updateRecorderUi('error', retainedCaptureUsed
         ? `${message}；请核对本段录音保存结果，再新建会议继续录音`
         : `${message}；请点击录音按钮重试`);
       scheduleMeetingSave(0);
@@ -4600,7 +4602,7 @@
       }
       if (!storageMode) { showEntryDialog(); return; }
       if (recorderState === 'error' && ((activeMeetingId && retainedCaptureRetryBlockedFor === activeMeetingId) || (audioRetentionMode === 'retain' && meetingAudioAssets.length))) {
-        showToast('本会议已有原始录音，请新建会议后继续'); return;
+        showToast('本会议录音已开始或保存异常，请核对后新建会议继续'); return;
       }
       const retryCapture = recorderState === 'error' && meetingCaptureState !== 'finished' && Boolean(meetingCaptureToken && activeMeetingId);
       if (meetingCaptureState !== 'blank' && !retryCapture) { showToast('此会议已经开始或结束，请新建会议后再录音'); return; }

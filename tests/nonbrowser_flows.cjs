@@ -688,6 +688,30 @@ const cases = {
     await app.element('record-toggle').click();
     assert.equal(app.sockets.length, 1, 'saving the first retained asset cannot unlock a second upload');
   },
+  async retentionAsyncDeviceFailure() {
+ const app=meeting();let uploads=0;
+ app.run("storageMode='guest';resetSession({persist:false});storageMode='account';authUser={id:'offline'};csrfToken='csrf';setAudioRetentionMode('retain',{persist:false,announce:false});");
+ app.respond=async(url,options={})=>{
+  if(url==='/api/heartbeat')return json({ok:true});
+  if(options.method==='PUT')return json({id:url.split('/').at(-1),...JSON.parse(options.body),audio_assets:[]});
+  if(url.endsWith('/capture/start'))return json({meeting:{capture_state:'started',mode_locked:true}});
+  if(url.endsWith('/capture/finish'))return json({meeting:{capture_state:'finished'}});
+  if(options.method==='POST'&&/\/audio$/.test(url)){uploads++;return json({audio:{id:'fixture-audio',stream_url:'/fixture',download_url:'/fixture',size_bytes:10,source:'recording'}});}
+  if(url==='/api/meeting-title')return json({title:'owned test'});
+  if(url==='/api/meeting-notes/polish')return json({content:'owned test'});
+  throw new Error('Unexpected fixture path '+url);
+ };
+ await app.element('record-toggle').click();await app.sockets[0].open();app.sockets[0].message({demo_event:'asr.stream.started'});
+ app.run("elapsedSeconds=7;retainedRecorder.ondataavailable({data:new Blob(['owned retained bytes'],{type:'audio/webm'})});retainedRecorder.onerror();");
+ app.sockets[0].onerror();await app.settle(()=>!app.run('retainedAudioSaving'));
+ await app.element('record-toggle').click();
+ assert.equal(app.sockets.length,1,'post-start recorder error then ASR error must not open a second capture socket');
+ assert.ok(uploads<=1,'same capture must never upload twice');
+ assert.match(app.element('status-message').textContent,/新建会议/,'post-start failure must explain the one-shot boundary');
+
+ assert.equal(app.run('elapsedSeconds'),7,'device and ASR failures must preserve elapsed time');
+
+  },
   async retentionDeviceStartRetry() {
     const app = meeting();
     app.run("storageMode = 'account'; authUser = {id: 'offline'}; csrfToken = 'csrf'; setAudioRetentionMode('retain', {persist: false, announce: false})");
