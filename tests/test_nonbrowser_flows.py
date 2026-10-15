@@ -23,6 +23,7 @@ CASES = (
     + [("recorderRetry", "accountRetain", "mic")]
     + [("retention", mode) for mode in ("default", "guest", "saved")]
     + [("retentionClear",), ("meetingCreation",), ("retentionSaveBoundary",)]
+    + [("retentionDeviceStartRetry",)]
     + [("retentionInterrupt", action) for action in ("reset", "new", "delete", "error")]
     + [("startCreationRace",), ("finishNewMeetingRace",), ("startOpenMeetingRace",)]
     + [("enableRecordingOnce",)]

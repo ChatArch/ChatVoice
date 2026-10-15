@@ -1338,6 +1338,7 @@
     let meetingAudioClearRunning = false;
     let retainedAudioSaving = false;
     let retainedRecorder = null;
+    let retainedRecorderStarted = false;
     let retainedRecorderChunks = [];
     let retainedRecordingEpoch = 0;
     let retainedFinalizePromise = null;
@@ -1642,6 +1643,7 @@
       retainedUploadController = null;
       const recorder = retainedRecorder;
       retainedRecorder = null;
+      retainedRecorderStarted = false;
       retainedRecorderChunks = [];
       retainedCaptureContext = null;
       retainedFinalizePromise = null;
@@ -1678,7 +1680,13 @@
         if (epoch !== retainedRecordingEpoch) return;
         discardRetainedAudioCapture(); retainedAudioError = '浏览器录音保存失败，本次语音识别仍可继续。'; updateAudioRetentionUi(); showToast(retainedAudioError);
       };
-      recorder.start(1000);
+      try {
+        recorder.start(1000);
+        retainedRecorderStarted = true;
+      } catch (error) {
+        discardRetainedAudioCapture();
+        throw error;
+      }
     }
 
     function pauseRetainedAudioCapture() {
@@ -1727,7 +1735,7 @@
         recorder.onstop = async () => {
           if (context.epoch !== retainedRecordingEpoch) { resolve(); return; }
           const chunks = retainedRecorderChunks;
-          retainedRecorder = null; retainedRecorderChunks = []; retainedCaptureContext = null;
+          retainedRecorder = null; retainedRecorderStarted = false; retainedRecorderChunks = []; retainedCaptureContext = null;
           try { await uploadRetainedMeetingAudio(new Blob(chunks, { type: recorder.mimeType || chunks[0]?.type || 'audio/webm' }), context); }
           catch (error) {
             if (context.epoch === retainedRecordingEpoch) { retainedAudioError = error.name === 'AbortError' ? '录音保存超时或取消，重新打开会议可检查保存状态。' : String(error.message || '原始录音保存失败'); updateAudioRetentionUi(); showToast(retainedAudioError); }
@@ -4382,7 +4390,7 @@
 
     function failRecordingConnection(message, streamToken = activeAsrSessionToken) {
       if (streamToken !== activeAsrSessionToken || !['connecting', 'recording', 'paused'].includes(recorderState)) return;
-      const preserveRetainedAudio = Boolean(retainedRecorder);
+      const preserveRetainedAudio = retainedRecorderStarted && Boolean(retainedRecorder);
       if (preserveRetainedAudio) {
         retainedCaptureRetryBlockedFor = activeMeetingId;
         finalizeRetainedAudioCapture();

@@ -688,6 +688,71 @@ const cases = {
     await app.element('record-toggle').click();
     assert.equal(app.sockets.length, 1, 'saving the first retained asset cannot unlock a second upload');
   },
+  async retentionDeviceStartRetry() {
+    const app = meeting();
+    app.run("storageMode = 'account'; authUser = {id: 'offline'}; csrfToken = 'csrf'; setAudioRetentionMode('retain', {persist: false, announce: false})");
+    const originalStart = app.context.MediaRecorder.prototype.start;
+    let startAttempts = 0;
+    app.context.MediaRecorder.prototype.start = function (...args) {
+      if (++startAttempts === 1) {
+        const error = new Error('device startup rejected');
+        error.name = 'NotSupportedError';
+        throw error;
+      }
+      return originalStart.apply(this, args);
+    };
+    const captureTokens = [];
+    let uploads = 0;
+    app.respond = async (url, options = {}) => {
+      if (options.method === 'PUT' && url.startsWith('/api/meetings/')) return json({id: url.split('/').at(-1), ...JSON.parse(options.body), audio_assets: []});
+      if (options.method === 'POST' && url.endsWith('/capture/start')) {
+        captureTokens.push(JSON.parse(options.body).capture_token);
+        if (captureTokens.length > 1) assert.equal(captureTokens[1], captureTokens[0]);
+        return json({meeting: {capture_state: 'started', mode_locked: true}, duplicate: captureTokens.length > 1});
+      }
+      if (options.method === 'POST' && url.endsWith('/capture/finish')) return json({meeting: {capture_state: 'finished'}});
+      if (options.method === 'POST' && /\/audio$/.test(url)) {
+        uploads += 1;
+        assert.equal(options.body.get('capture_token'), captureTokens[0]);
+        return json({audio: {id: 'saved_after_device_retry'}}, 201);
+      }
+      if (url === '/api/meeting-title') return json({title: 'Offline title'});
+      if (url === '/api/meeting-notes/polish') return json({content: 'Offline summary'});
+      throw new Error(`Unexpected request ${url}`);
+    };
+    const meetingId = app.run('activeMeetingId');
+    await app.element('record-toggle').click();
+    const captureToken = app.run('meetingCaptureToken');
+    const firstSocket = app.sockets[0];
+    await firstSocket.open();
+    assert.equal(app.run('recorderState'), 'error');
+    assert.equal(uploads, 0);
+    await app.element('record-toggle').click();
+    assert.equal(app.sockets.length, 2, 'pre-audio device start failure must permit same-meeting retry');
+    assert.equal(app.run('activeMeetingId'), meetingId);
+    assert.equal(app.run('meetingCaptureToken'), captureToken);
+    assert.equal(app.run('meetingCaptureState'), 'started');
+    assert.equal(app.run('retainedRecorder'), null);
+    assert.equal(app.run('retainedCaptureContext'), null);
+    assert.equal(app.run('retainedRecorderChunks.length'), 0);
+    assert.equal(app.run('retainedAudioSaving'), false);
+    assert.equal(app.recorders[0].state, 'inactive');
+    assert.equal(app.recorders[0].ondataavailable, null);
+    assert.ok(firstSocket.closed);
+    assert.ok(app.tracks.every(track => track.stopped));
+    assert.ok(app.graphs.every(graph => graph.closed));
+    assert.equal(app.run('timerId'), null);
+    const retrySocket = app.sockets[1];
+    await retrySocket.open();
+    retrySocket.message({demo_event: 'asr.stream.started'});
+    assert.equal(app.run('recorderState'), 'recording');
+    assert.equal(app.recorders[1].state, 'recording');
+    await app.element('finish-recording').click();
+    retrySocket.message({demo_event: 'asr.stream.done', final: true});
+    await app.settle(() => app.run('meetingCaptureState') === 'finished');
+    assert.equal(uploads, 1);
+    assert.match(app.element('meeting-audio-assets').innerHTML, /saved_after_device_retry/);
+  },
   async meetingCreation() {
     const app = meeting();
     const saving = deferred();
