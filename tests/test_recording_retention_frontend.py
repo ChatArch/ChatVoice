@@ -96,4 +96,7 @@ def test_retained_recorder_flushes_pause_and_tail_once_and_interrupt_discards():
     interrupt_body = _function_body(source, "interruptActiveRecording")
     assert "discardRetainedAudioCapture" in interrupt_body
     error_body = _function_body(source, "handleAsrEvent")
-    assert "discardRetainedAudioCapture" in error_body
+    assert "failRecordingConnection" in error_body
+    failure_body = _function_body(source, "failRecordingConnection")
+    assert "finalizeRetainedAudioCapture" in failure_body
+    assert "preserveRetainedAudio" in failure_body
