@@ -1,10 +1,10 @@
 # 用户管理
 
 ```bash
-python -m pip install "ChatVoice[web]==0.5.0"
+python -m pip install "ChatVoice[web]==0.5.1"
 ```
 
-ChatVoice 0.5.0 依赖公开发布的 `ChatLogin>=0.2.0,<0.3.0`，无需 Git 安装即可获得用户管理 provider。离线部署时固定同一公开版本范围内的 wheel。
+ChatVoice 0.5.x 依赖公开发布的 `ChatLogin>=0.2.0,<0.3.0`，无需 Git 安装即可获得用户管理 provider。离线部署时固定同一公开版本范围内的 wheel。
 
 用户管理复用原 Speakr 受邀账号登录。用户用同一个账号密码登录后，原 `meeting_session` Cookie 同时访问会议工作区、`/user-management/profile` 和按角色可见的 `/user-management/users`。不新增公开注册，不复制第二套用户库，也不迁移会议、对话、ASR、声音任务、API token 或访客 IndexedDB 数据。
 

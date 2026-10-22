@@ -1,10 +1,10 @@
 # User Management
 
 ```bash
-python -m pip install "ChatVoice[web]==0.5.0"
+python -m pip install "ChatVoice[web]==0.5.1"
 ```
 
-ChatVoice 0.5.0 depends on the published `ChatLogin>=0.2.0,<0.3.0` range, so user management needs no Git installation. For offline deployment, pin wheels inside that public release range.
+ChatVoice 0.5.x depends on the published `ChatLogin>=0.2.0,<0.3.0` range, so user management needs no Git installation. For offline deployment, pin wheels inside that public release range.
 
 User management reuses the original Speakr invited-account login. After signing in with the same account password, the original `meeting_session` cookie reaches the meeting workspace, `/user-management/profile`, and role-gated `/user-management/users`. There is no public signup, no second user database, and no migration of meetings, conversations, ASR state, voice jobs, API tokens, or guest IndexedDB data.
 
