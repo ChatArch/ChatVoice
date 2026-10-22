@@ -1398,9 +1398,9 @@
 
 
 <h1 id="user-management">User Management<a class="headerlink" href="#user-management" title="Permanent link">&para;</a></h1>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"ChatVoice[web]==0.5.0"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"ChatVoice[web]==0.5.1"</span>
 </code></pre></div>
-<p>ChatVoice 0.5.0 depends on the published <code>ChatLogin&gt;=0.2.0,&lt;0.3.0</code> range, so user management needs no Git installation. For offline deployment, pin wheels inside that public release range.</p>
+<p>ChatVoice 0.5.x depends on the published <code>ChatLogin&gt;=0.2.0,&lt;0.3.0</code> range, so user management needs no Git installation. For offline deployment, pin wheels inside that public release range.</p>
 <p>User management reuses the original Speakr invited-account login. After signing in with the same account password, the original <code>meeting_session</code> cookie reaches the meeting workspace, <code>/user-management/profile</code>, and role-gated <code>/user-management/users</code>. There is no public signup, no second user database, and no migration of meetings, conversations, ASR state, voice jobs, API tokens, or guest IndexedDB data.</p>
 <h2 id="entrypoints">Entrypoints<a class="headerlink" href="#entrypoints" title="Permanent link">&para;</a></h2>
 <table>

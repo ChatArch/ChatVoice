@@ -1398,9 +1398,9 @@
 
 
 <h1 id="_1">用户管理<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h1>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"ChatVoice[web]==0.5.0"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"ChatVoice[web]==0.5.1"</span>
 </code></pre></div>
-<p>ChatVoice 0.5.0 依赖公开发布的 <code>ChatLogin&gt;=0.2.0,&lt;0.3.0</code>，无需 Git 安装即可获得用户管理 provider。离线部署时固定同一公开版本范围内的 wheel。</p>
+<p>ChatVoice 0.5.x 依赖公开发布的 <code>ChatLogin&gt;=0.2.0,&lt;0.3.0</code>，无需 Git 安装即可获得用户管理 provider。离线部署时固定同一公开版本范围内的 wheel。</p>
 <p>用户管理复用原 Speakr 受邀账号登录。用户用同一个账号密码登录后，原 <code>meeting_session</code> Cookie 同时访问会议工作区、<code>/user-management/profile</code> 和按角色可见的 <code>/user-management/users</code>。不新增公开注册，不复制第二套用户库，也不迁移会议、对话、ASR、声音任务、API token 或访客 IndexedDB 数据。</p>
 <h2 id="_2">入口<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
 <table>
