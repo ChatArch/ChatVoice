@@ -1640,8 +1640,38 @@
 <tbody>
 <tr>
 <td><code>CHATVOICE_ASR_CHANNEL</code></td>
-<td>有 HTTP 地址时为 <code>api-server</code>，否则为 <code>stub-local</code></td>
-<td>可选 <code>api-server</code>、<code>funasr-gpu</code>、<code>funasr-cpu</code>、<code>stub-local</code></td>
+<td><code>auto</code></td>
+<td>服务端初始偏好；可选 <code>auto</code>、<code>volcengine-plan</code>、<code>api-server</code>、<code>funasr-gpu</code>、<code>funasr-cpu</code>、<code>stub-local</code></td>
+</tr>
+<tr>
+<td><code>CHATVOICE_ASR_PLAN_TRANSPORT</code></td>
+<td><code>volcengine-ws</code></td>
+<td>Agent Plan 原生双向 WebSocket 协议；仅允许此值</td>
+</tr>
+<tr>
+<td><code>CHATVOICE_ASR_PLAN_BASE</code></td>
+<td>官方 Agent Plan ASR WS 地址</td>
+<td>仅允许官方 <code>/api/v3/plan/sauc/bigmodel_async</code> 入口，不跟随重定向</td>
+</tr>
+<tr>
+<td><code>CHATVOICE_ASR_PLAN_API_KEY</code></td>
+<td>空</td>
+<td>独立的 Agent Plan ASR 密钥，不借用 TTS、文本或 HTTP ASR 密钥</td>
+</tr>
+<tr>
+<td><code>CHATVOICE_ASR_PLAN_MODEL</code></td>
+<td><code>bigmodel</code></td>
+<td>协议请求中的模型名</td>
+</tr>
+<tr>
+<td><code>CHATVOICE_ASR_PLAN_RESOURCE_ID</code></td>
+<td><code>volc.seedasr.sauc.duration</code></td>
+<td>Agent Plan 资源标识，与模型名分离</td>
+</tr>
+<tr>
+<td><code>CHATVOICE_ASR_PLAN_USER_AUDIO_ALLOWED</code></td>
+<td><code>0</code></td>
+<td>确认当前套餐有效、已开启 ASR 套餐抵扣、允许此服务处理用户音频且未开启超额后付费后，才设为 <code>1</code></td>
 </tr>
 <tr>
 <td><code>CHATVOICE_ASR_API_URL</code></td>
@@ -1666,6 +1696,7 @@
 </tbody>
 </table>
 <p>本地 FunASR 还读取进程变量 <code>FUNASR_MODEL</code>（默认 <code>iic/SenseVoiceSmall</code>）和 <code>FUNASR_GPU_DEVICE</code>（默认 <code>cuda:0</code>）。它们不是当前 ChatEnv 类型中的字段。CPU 通道使用 CPU；GPU 通道需要匹配的 PyTorch/CUDA/FunASR 环境。<code>stub-local</code> 不是真实识别。</p>
+<p>自动模式仅在 Agent Plan 配置完整、用户音频许可开关已启用且健康缓存未处于失败退避时尝试云端；缺配置、未许可或最近失败时使用持久 FunASR GPU，不使用 stub 或按量入口。固定通道失败会直接报错。公开 <code>GET /api/asr/health</code> 只读缓存与配置；登录、带 CSRF 且许可开关已启用的 <code>POST /api/asr/health/probe</code> 有每账号限频和 8 秒截止时间，会发送合成静音。有效终止推理回执只证明功能/权益，不能证明真实语音识别质量；真实识别成功才会标记语音已验证。状态区分未知、健康、不可用与过期。生产使用前还需单独确认个人套餐在多用户服务中的供应商许可。</p>
 <h2 id="tts">系统语音合成<a class="headerlink" href="#tts" title="Permanent link">&para;</a></h2>
 <table>
 <thead>

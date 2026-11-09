@@ -1640,8 +1640,38 @@
 <tbody>
 <tr>
 <td><code>CHATVOICE_ASR_CHANNEL</code></td>
-<td><code>api-server</code> when an endpoint exists; otherwise <code>stub-local</code></td>
-<td><code>api-server</code>, <code>funasr-gpu</code>, <code>funasr-cpu</code> or <code>stub-local</code></td>
+<td><code>auto</code></td>
+<td>Initial server preference: <code>auto</code>, <code>volcengine-plan</code>, <code>api-server</code>, <code>funasr-gpu</code>, <code>funasr-cpu</code> or <code>stub-local</code></td>
+</tr>
+<tr>
+<td><code>CHATVOICE_ASR_PLAN_TRANSPORT</code></td>
+<td><code>volcengine-ws</code></td>
+<td>Native bidirectional Agent Plan WebSocket transport; only this value is accepted</td>
+</tr>
+<tr>
+<td><code>CHATVOICE_ASR_PLAN_BASE</code></td>
+<td>Official Agent Plan ASR WS endpoint</td>
+<td>Only the official <code>/api/v3/plan/sauc/bigmodel_async</code> path is accepted; redirects are disabled</td>
+</tr>
+<tr>
+<td><code>CHATVOICE_ASR_PLAN_API_KEY</code></td>
+<td>Empty</td>
+<td>Dedicated Agent Plan ASR key; no borrowing from TTS, text or HTTP ASR</td>
+</tr>
+<tr>
+<td><code>CHATVOICE_ASR_PLAN_MODEL</code></td>
+<td><code>bigmodel</code></td>
+<td>Model name in the protocol request</td>
+</tr>
+<tr>
+<td><code>CHATVOICE_ASR_PLAN_RESOURCE_ID</code></td>
+<td><code>volc.seedasr.sauc.duration</code></td>
+<td>Agent Plan resource ID, separate from model</td>
+</tr>
+<tr>
+<td><code>CHATVOICE_ASR_PLAN_USER_AUDIO_ALLOWED</code></td>
+<td><code>0</code></td>
+<td>Set to <code>1</code> only after confirming entitlement, ASR package deduction is enabled, permission for this service's user audio, and that paid overage is disabled</td>
 </tr>
 <tr>
 <td><code>CHATVOICE_ASR_API_URL</code></td>
@@ -1666,6 +1696,7 @@
 </tbody>
 </table>
 <p>Local FunASR also reads process variables <code>FUNASR_MODEL</code> (default <code>iic/SenseVoiceSmall</code>) and <code>FUNASR_GPU_DEVICE</code> (default <code>cuda:0</code>). They are not fields in the current typed ChatEnv schema. CPU uses the CPU; GPU requires compatible PyTorch/CUDA/FunASR dependencies. The stub channel is not real recognition.</p>
+<p>Auto tries Agent Plan only when its configuration is complete, user-audio permission is enabled, and cached health is outside failure backoff. Otherwise it uses the persistent FunASR GPU, never a stub or usage-billed endpoint. A fixed channel reports its own failure. Public <code>GET /api/asr/health</code> reads cached/configuration state only. Signed-in, CSRF-protected <code>POST /api/asr/health/probe</code> also requires the permission switch, is rate limited and has an 8-second deadline; it sends synthetic silence. A valid terminal inference response verifies function/entitlement only, while successful real recognition separately verifies speech. Status distinguishes unknown, healthy, unavailable and stale. Confirm provider permission for using a personal Plan in a multi-user service before production use.</p>
 <h2 id="tts">System TTS<a class="headerlink" href="#tts" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
