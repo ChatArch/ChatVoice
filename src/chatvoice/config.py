@@ -54,8 +54,15 @@ class ChatVoiceConfig(BaseEnvConfig):
 
     CHATVOICE_ASR_CHANNEL = EnvField(
         "CHATVOICE_ASR_CHANNEL",
-        desc="ASR provider channel, usually api-server or stub-local",
+        default="auto",
+        desc="Default ASR preference: auto, volcengine-plan, funasr-gpu, funasr-cpu, api-server or stub-local.",
     )
+    CHATVOICE_ASR_PLAN_TRANSPORT = EnvField("CHATVOICE_ASR_PLAN_TRANSPORT", default="volcengine-ws", desc="Agent Plan ASR transport; only volcengine-ws is allowed.")
+    CHATVOICE_ASR_PLAN_BASE = EnvField("CHATVOICE_ASR_PLAN_BASE", default="wss://openspeech.bytedance.com/api/v3/plan/sauc/bigmodel_async", desc="Exact Agent Plan ASR WebSocket endpoint.")
+    CHATVOICE_ASR_PLAN_API_KEY = EnvField("CHATVOICE_ASR_PLAN_API_KEY", desc="Dedicated Agent Plan ASR API key.", is_sensitive=True)
+    CHATVOICE_ASR_PLAN_MODEL = EnvField("CHATVOICE_ASR_PLAN_MODEL", default="bigmodel", desc="Agent Plan ASR request model name.")
+    CHATVOICE_ASR_PLAN_RESOURCE_ID = EnvField("CHATVOICE_ASR_PLAN_RESOURCE_ID", default="volc.seedasr.sauc.duration", desc="Agent Plan ASR resource ID, separate from model.")
+    CHATVOICE_ASR_PLAN_USER_AUDIO_ALLOWED = EnvField("CHATVOICE_ASR_PLAN_USER_AUDIO_ALLOWED", default="0", desc="Set to 1 only after confirming entitlement and permission for user audio on this service.")
     CHATVOICE_ASR_API_URL = EnvField(
         "CHATVOICE_ASR_API_URL",
         desc="HTTP endpoint for managed or self-hosted ASR API server",

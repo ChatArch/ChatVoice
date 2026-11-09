@@ -21,10 +21,12 @@ Account and guest data do not automatically migrate between modes. Sending audio
 
 ## Record and transcribe {#recording}
 
-1. Create a meeting and check the ASR channel in settings.
+1. Create a meeting and select Auto (prefer Agent Plan) or a fixed channel in the existing Settings page. A browser with no saved preference uses the server default `auto`; explicit choices persist in that browser. Settings shows the actual channel, cached health and fallback reason. An active probe requires sign-in and a manual click; refresh does not run one.
 2. A blank meeting defaults to **recognition-only**, discarding source audio without replay. Signed-in users may click **Enable recording + recognition** once before start; activation immediately greys and disables the button and retains this meeting's audio. Starting recognition-only without activation also disables it. Guests are recognition-only. Grant microphone access over HTTPS remotely.
 3. Pause and let the current recognition window commit; resuming continues the same meeting.
 4. Starting locks the mode permanently for this meeting. Finish and wait for the last recognition result; in recording-and-transcription, also wait for the audio-save confirmation before replay/download.
+
+Before cloud text has been shown, Auto may recover bounded unconfirmed audio through local FunASR GPU. If cloud text has already been shown, an interruption keeps that text and instructs you to create a new meeting to continue; confirmed audio is never replayed. A fixed channel reports its own failure. Before Agent Plan use, an administrator must confirm active entitlement, disabled paid overage and provider permission for multi-user service use.
 
 Edit or refresh the title, add tags, and open saved history. Copying a transcript does not export raw audio. Clearing, creating or deleting an active meeting interrupts recording resources; confirm that you intend to discard the active state.
 

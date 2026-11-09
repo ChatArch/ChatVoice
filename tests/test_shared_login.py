@@ -35,8 +35,13 @@ def test_shared_login_page_assets_and_customization(host, monkeypatch):
         assert response.text == (files('chatlogin.web') / 'assets' / name).read_text()
     assert client.get('/assets/chatlogin/missing.js').status_code == 404
     assert '--cl-accent' in client.get('/assets/login-brand.css').text
-    monkeypatch.setattr(app.app.state, 'login_ui', LoginUI(title='Custom <Brand>'))
-    assert 'Custom &lt;Brand&gt;' in client.get('/login').text
+    original_ui = app.app.state.login_ui
+    with monkeypatch.context() as override:
+        # Starlette stores these dynamic attributes in its state mapping;
+        # patch the mapping so teardown restores the exact original value.
+        override.setitem(app.app.state._state, 'login_ui', LoginUI(title='Custom <Brand>'))
+        assert 'Custom &lt;Brand&gt;' in client.get('/login').text
+    assert app.app.state.login_ui is original_ui
 
 
 @pytest.mark.parametrize('next_path', ['https://evil.invalid/', '//evil.invalid', '/\\evil.invalid', '/%2f%2fevil.invalid', '/%0aevil', '/%255cevil'])

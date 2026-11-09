@@ -10,6 +10,7 @@ function harness(mutation) {
   const elements = [];
   const timers = new Map();
   const stores = new Map();
+  const localValues = new Map();
   const requests = [];
   const downloads = [];
   const tracks = [];
@@ -159,7 +160,7 @@ function harness(mutation) {
   const context = vm.createContext({ console, Blob, FormData, TextDecoder, TextEncoder, AbortController, Uint8Array, Float32Array, Int16Array, ArrayBuffer, Date, Intl, crypto: require('node:crypto').webcrypto,
     document, URLSearchParams, location: { protocol: 'https:', host: 'app.example.test', search: '' }, confirm: () => true,
     navigator: { clipboard: { async writeText(text) { clipboard = text; } }, mediaDevices: { async getUserMedia() { const track = { stop() { this.stopped = true; } }; tracks.push(track); return { getTracks: () => [track] }; } } },
-    localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
+    localStorage: { getItem: key => localValues.has(key) ? localValues.get(key) : null, setItem(key, value) { localValues.set(key, String(value)); }, removeItem(key) { localValues.delete(key); } },
     indexedDB: { open() { const pending = {}; queueMicrotask(() => { pending.result = database; pending.onupgradeneeded?.(); pending.onsuccess?.(); }); return pending; } },
     WebSocket: Socket, AudioContext: AudioGraph, MediaRecorder: Recorder,
     URL: { createObjectURL: () => `blob:offline-${++serial}`, revokeObjectURL: value => revoked.push(value) },
@@ -169,7 +170,7 @@ function harness(mutation) {
     addEventListener() {}, matchMedia: () => ({ matches: false }), innerWidth: 1200,
   });
   context.window = context; context.globalThis = context;
-  const api = { context, document, timers, stores, requests, downloads, tracks, graphs, recorders, sockets, revoked, transactions, transactionControl,
+  const api = { context, document, timers, stores, localValues, requests, downloads, tracks, graphs, recorders, sockets, revoked, transactions, transactionControl,
     get clipboard() { return clipboard; },
     respond: async url => { throw new Error(`Unexpected offline request: ${url}`); },
     run: code => vm.runInContext(code, context),

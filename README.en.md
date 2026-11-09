@@ -21,7 +21,7 @@ ChatVoice is the ChatArch Python package behind the Speakr recording and meeting
 Python 3.10+ is required. Use a dedicated virtual environment.
 
 ```bash
-python -m pip install "ChatVoice[web]==0.5.1"
+python -m pip install "ChatVoice[web]==0.5.2"
 chatvoice --version
 chatvoice --tree
 chatvoice serve app --dry-run --json
