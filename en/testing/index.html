@@ -1445,12 +1445,14 @@
 <li>Source preservation, persistence, undo and late-result isolation for notes/Todo.</li>
 <li>TTS protocol/format/voice settings and clone upload/state/download/cleanup.</li>
 <li>Real stream completion markers; an unresolved Promise is not a passing test.</li>
+<li>Multi-channel ASR: run <code>python -m pytest tests/test_asr_plan_routing.py -q</code> and <code>node tests/nonbrowser_asr_settings.cjs</code> offline for default/fixed selection, binary frames, send-once audio, fallback, probe authorization and rate limits. Public health reads must not call upstream; a silence probe does not verify spoken-word recognition.</li>
 </ul>
 <h2 id="real-service">Real service<a class="headerlink" href="#real-service" title="Permanent link">&para;</a></h2>
 <p>The source distribution includes a separate verifier; inspect its current options first:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>python<span class="w"> </span>scripts/verify_service.py<span class="w"> </span>--help
 </code></pre></div>
 <p>Use disposable accounts, authorized/synthetic reference audio and short text. Distinguish PASS, FAIL, BLOCKED and NOT_RUN. Keep per-case responses, visible results and cleanup evidence. Do not change billing policy or swap unrelated models simply to make a test pass.</p>
+<p>Real Agent Plan checks require separate confirmation of entitlement, disabled paid overage and multi-user permission. Offline GREEN with a fake provider does not establish current subscription readiness. Inspect fixed-channel failures and auto fallback for duplicate visible text and incomplete uploads.</p>
 <p>After deployment, verify version/process, database, warm ASR and text/audio outputs at the real public entry. Cloning needs a real job and decodable audio; health alone establishes reachability.</p>
 <p><a href="../deployment/">Deployment</a> · <a href="../troubleshooting/">Troubleshooting</a></p>
 
