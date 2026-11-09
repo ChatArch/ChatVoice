@@ -40,6 +40,8 @@ from starlette.datastructures import UploadFile as StarletteUploadFile
 from chatvoice import __version__
 from chatvoice import todo_markdown
 from chatvoice import text_api, tts_api
+from chatvoice.asr_routing import AsrRouter, PlanSettings, PLAN_CHANNEL
+from chatvoice.volc_plan_asr import PlanError, PlanStream
 from chatvoice.copilot import context as copilot_context
 from chatvoice.copilot.materials import MaterialParseError, parse_material_bytes
 from chatvoice.config import ChatVoiceConfig
@@ -124,7 +126,15 @@ ASR_API_TIMEOUT_SECONDS = float(_env_value("CHATVOICE_ASR_API_TIMEOUT_SECONDS", 
 VOICECLONE_API_URL = _env_value("CHATVOICE_VOICECLONE_URL", "VOICECLONE_API_URL").strip().rstrip("/")
 VOICECLONE_API_TIMEOUT_SECONDS = float(_env_value("CHATVOICE_VOICECLONE_TIMEOUT_SECONDS", default="180"))
 MAX_VOICECLONE_REFERENCE_BYTES = int(_env_value("CHATVOICE_VOICECLONE_MAX_REFERENCE_BYTES", default=str(50 * 1024 * 1024)))
-DEFAULT_ASR_CHANNEL = _env_value("CHATVOICE_ASR_CHANNEL", "DEFAULT_ASR_CHANNEL").strip() or ("api-server" if ASR_API_URL else "stub-local")
+DEFAULT_ASR_CHANNEL = _env_value("CHATVOICE_ASR_CHANNEL", "DEFAULT_ASR_CHANNEL").strip() or "auto"
+_ASR_ROUTER = AsrRouter(PlanSettings.from_mapping({
+    name: _env_value(name) for name in (
+        "CHATVOICE_ASR_PLAN_TRANSPORT", "CHATVOICE_ASR_PLAN_BASE", "CHATVOICE_ASR_PLAN_API_KEY",
+        "CHATVOICE_ASR_PLAN_MODEL", "CHATVOICE_ASR_PLAN_RESOURCE_ID", "CHATVOICE_ASR_PLAN_USER_AUDIO_ALLOWED",
+    )
+}))
+_ASR_PROBE_LOCK = threading.Lock()
+_ASR_PROBE_LAST: dict[str, float] = {}
 MEETING_NOTES_MODEL = _env_value("CHATVOICE_MEETING_NOTES_MODEL", "CHATVOICE_OPENAI_API_MODEL", default="qwen3.7-plus")
 MEETING_TITLE_MODEL = _env_value("CHATVOICE_MEETING_TITLE_MODEL", default="qwen3.6-flash")
 MEETING_NOTES_PROVIDER = _env_value("CHATVOICE_MEETING_NOTES_PROVIDER", default="token-plan-chat-completions").strip().lower()
@@ -145,6 +155,8 @@ MAX_ASR_STREAM_CHUNKS_PER_CONNECTION = 20_000
 SERVICE_STARTED_AT = time.time()
 SERVICE_STARTED_MONOTONIC = time.monotonic()
 ASR_CHANNELS: dict[str, dict[str, Any]] = {
+    "auto": {"label": "自动（优先 Agent Plan）", "engine": "router", "status": "ready"},
+    PLAN_CHANNEL: {"label": "火山 Agent Plan", "engine": "volcengine-ws", "status": "configured" if _ASR_ROUTER.settings.configured else "needs-config", "api_key_configured": bool(_ASR_ROUTER.settings.key), "user_audio_allowed": _ASR_ROUTER.settings.user_audio_allowed},
     "api-server": {
         "label": "ASR API Server / managed API",
         "engine": "api",
@@ -158,7 +170,7 @@ ASR_CHANNELS: dict[str, dict[str, Any]] = {
         "label": "FunASR GPU（CUDA PyTorch + SenseVoiceSmall）",
         "engine": "funasr",
         "device": FUNASR_GPU_DEVICE,
-        "status": "persistent-prewarm" if DEFAULT_ASR_CHANNEL == "funasr-gpu" and ASR_PREWARM else "persistent-required",
+        "status": "persistent-prewarm" if DEFAULT_ASR_CHANNEL in {"auto", "funasr-gpu"} and ASR_PREWARM else "persistent-required",
         "notes": "真实 ASR 通道；生产要求 FunASR 在 ChatVoice 主服务进程内持久加载并启动预热。短命 subprocess worker 默认禁用。",
     },
     "funasr-cpu": {
@@ -513,7 +525,7 @@ def _record_asr_error(channel: str, exc: Exception) -> None:
         _ASR_HEALTH["last_error_at"] = _utc_timestamp()
         _ASR_HEALTH["last_channel"] = channel
         _ASR_HEALTH["last_error_type"] = type(exc).__name__
-        _ASR_HEALTH["last_error_message"] = str(exc)[:220]
+        _ASR_HEALTH["last_error_message"] = "识别通道失败；请检查配置或稍后重试。"
 
 
 def _asr_health_summary() -> dict[str, Any]:
@@ -538,6 +550,7 @@ def _asr_health_summary() -> dict[str, Any]:
         "warm_models": warm_models,
         "recent": recent,
         "channels": ASR_CHANNELS,
+        "routing": _ASR_ROUTER.status(DEFAULT_ASR_CHANNEL),
         "user_message": (
             "ASR is currently processing audio. First GPU model warm-up can take about a minute."
             if status == "processing"
@@ -3035,9 +3048,9 @@ def _prewarm_asr_if_configured() -> dict[str, Any]:
 
     if not ASR_PREWARM:
         return {"prewarmed": False, "reason": "CHATVOICE_ASR_PREWARM disabled"}
-    if DEFAULT_ASR_CHANNEL not in {"funasr-gpu", "funasr-cpu"}:
+    if DEFAULT_ASR_CHANNEL not in {"auto", "funasr-gpu", "funasr-cpu"}:
         return {"prewarmed": False, "reason": f"channel={DEFAULT_ASR_CHANNEL}"}
-    device = FUNASR_GPU_DEVICE if DEFAULT_ASR_CHANNEL == "funasr-gpu" else "cpu"
+    device = FUNASR_GPU_DEVICE if DEFAULT_ASR_CHANNEL in {"auto", "funasr-gpu"} else "cpu"
     started = time.monotonic()
     _get_cached_funasr_model(FUNASR_MODEL, device)
     elapsed_ms = round((time.monotonic() - started) * 1000)
@@ -3053,7 +3066,7 @@ def _startup_prewarm_asr() -> None:
             logger.info("ASR persistent model prewarmed: %s", result)
     except Exception as exc:
         logger.exception("ASR persistent model prewarm failed: %s", type(exc).__name__)
-        if DEFAULT_ASR_CHANNEL in {"funasr-gpu", "funasr-cpu"} and not ALLOW_FUNASR_SUBPROCESS_WORKER:
+        if DEFAULT_ASR_CHANNEL in {"auto", "funasr-gpu", "funasr-cpu"} and not ALLOW_FUNASR_SUBPROCESS_WORKER:
             raise
 
 
@@ -3177,13 +3190,15 @@ def _api_server_asr(audio_bytes: bytes, filename: str) -> dict[str, Any]:
         headers["Authorization"] = f"Bearer {ASR_API_KEY}"
     request = urllib.request.Request(ASR_API_URL, data=body, headers=headers, method="POST")
     started = time.time()
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, request, fp, code, msg, headers, newurl):
+            return None
     try:
-        with urllib.request.urlopen(request, timeout=ASR_API_TIMEOUT_SECONDS) as response:
+        with urllib.request.build_opener(NoRedirect).open(request, timeout=ASR_API_TIMEOUT_SECONDS) as response:
             payload = json.loads(response.read(5_000_000).decode("utf-8"))
             status_code = response.status
     except urllib.error.HTTPError as exc:
-        detail = exc.read(2000).decode("utf-8", errors="replace")
-        raise RuntimeError(f"ASR API server returned HTTP {exc.code}: {detail[:700]}") from exc
+        raise RuntimeError(f"ASR API server returned HTTP {exc.code}") from None
     raw_text, corrected_text = _extract_api_asr_text(payload)
     meta = {
         "engine": "api",
@@ -3216,14 +3231,67 @@ def _transcribe_large_audio(channel: str, audio_bytes: bytes, filename: str, cor
         raise ASRTemporaryStorageError("large audio temporary copy failed") from None
     try:
         chunk_meta: dict[str, Any] = {}
+        channels_used: list[str] = []
         def provider(data: bytes, index: int):
             result = transcribe_audio_bytes(channel, data, f"chunk-{index}.wav", correct)
             chunk_meta.update(result.get("meta") or {})
+            actual = str((result.get("meta") or {}).get("actual_channel") or result.get("channel") or channel)
+            if actual not in channels_used:
+                channels_used.append(actual)
             return result
         result = transcribe_file(source, provider, cancelled=cancelled, max_seconds=MEETING_IMPORT_TIMEOUT_SECONDS)
-        return normalize_asr_result(channel, result["raw_text"], result["corrected_text"], {
+        chunk_meta["channels_used"] = channels_used
+        if len(channels_used) > 1:
+            chunk_meta["actual_channel"] = "mixed"
+        return normalize_asr_result(str(chunk_meta.get("actual_channel") or channel), result["raw_text"], result["corrected_text"], {
             **chunk_meta, "chunked": True, "chunks": result["chunks"], "seconds": result["seconds"],
         })
+    finally:
+        _cleanup_asr_temp_file(source)
+
+
+async def _recognize_plan_pcm(pcm: bytes, sample_rate: int = 16000, *, verify_speech: bool = True) -> str:
+    stream = PlanStream(_ASR_ROUTER.settings, sample_rate=sample_rate)
+    latest = ""
+    try:
+        first = await stream.start()
+        if first.text:
+            latest = first.text
+        await stream.send_pcm(pcm)
+        await stream.finish()
+        deadline = time.monotonic() + 60
+        while time.monotonic() < deadline:
+            response = await stream.receive(timeout=min(10, max(0.1, deadline - time.monotonic())))
+            if response.text:
+                latest = response.text
+            if response.terminal:
+                if not response.valid_terminal:
+                    raise PlanError("protocol")
+                _ASR_ROUTER.mark_available(speech_verified=verify_speech and bool(latest.strip()))
+                return latest
+        raise PlanError("timeout")
+    finally:
+        await stream.close()
+
+
+def _plan_asr(audio_bytes: bytes, filename: str) -> dict[str, Any]:
+    # Existing upload limits still apply. Decode only a bounded WAV window here;
+    # other containers use the existing sequential ffmpeg splitter.
+    try:
+        with wave.open(io.BytesIO(audio_bytes), "rb") as decoded:
+            if decoded.getnchannels() == 1 and decoded.getsampwidth() == 2 and decoded.getframerate() in ALLOWED_ASR_STREAM_SAMPLE_RATES:
+                pcm = decoded.readframes(decoded.getnframes())
+                if len(pcm) > ASR_SINGLE_REQUEST_BYTES:
+                    raise ValueError("Plan window exceeds ASR limit")
+                text = asyncio.run(_recognize_plan_pcm(pcm, decoded.getframerate()))
+                return normalize_asr_result(PLAN_CHANNEL, text, text, {"engine": "volcengine-ws"})
+    except (wave.Error, EOFError):
+        pass
+    from chatvoice.asr_chunks import transcribe_file
+    source = _write_upload_to_temp(audio_bytes, filename)
+    try:
+        result = transcribe_file(source, lambda chunk, index: _plan_asr(chunk, f"plan-{index}.wav"))
+        return normalize_asr_result(PLAN_CHANNEL, result["raw_text"], result["corrected_text"], {"engine": "volcengine-ws", "chunks": result["chunks"]})
     finally:
         _cleanup_asr_temp_file(source)
 
@@ -3237,16 +3305,31 @@ def transcribe_audio_bytes(channel: str, audio_bytes: bytes, filename: str, corr
         raise ValueError(f"unknown ASR channel: {channel}")
     if len(audio_bytes) > ASR_SINGLE_REQUEST_BYTES:
         return _transcribe_large_audio(channel, audio_bytes, filename, correct)
-    if channel == "stub-local":
-        return _stub_asr(audio_bytes, filename)
-    if channel == "api-server":
+    route = _ASR_ROUTER.resolve(channel)
+    actual = route.actual
+    fallback_reason = route.fallback_reason
+    if actual == PLAN_CHANNEL:
+        try:
+            result = _plan_asr(audio_bytes, filename)
+        except PlanError as exc:
+            _ASR_ROUTER.mark_failure(exc.reason)
+            if route.selected != "auto":
+                raise
+            actual, fallback_reason = "funasr-gpu", exc.reason
+        else:
+            result["meta"].update({"selected_channel": route.selected, "actual_channel": actual, "fallback_reason": None})
+            return result
+    if actual == "stub-local":
+        result = _stub_asr(audio_bytes, filename)
+    elif actual == "api-server":
         result = _api_server_asr(audio_bytes, filename)
-    elif channel == "funasr-gpu":
+    elif actual == "funasr-gpu":
         result = _funasr_gpu_asr(audio_bytes, filename)
-    elif channel == "funasr-cpu":
+    elif actual == "funasr-cpu":
         result = _funasr_cpu_asr(audio_bytes, filename)
     else:
-        raise ValueError(f"unknown ASR channel: {channel}")
+        raise ValueError("unknown ASR channel")
+    result.setdefault("meta", {}).update({"selected_channel": route.selected, "actual_channel": actual, "fallback_reason": fallback_reason})
     if not correct:
         result["corrected_text"] = result["raw_text"]
         result["board_event"]["text"] = result["raw_text"]
@@ -3272,6 +3355,8 @@ class AsrStreamSession:
         max_connection_seconds: int = GUEST_ASR_STREAM_SECONDS,
     ) -> None:
         self.channel = self._validate_channel(channel or DEFAULT_ASR_CHANNEL)
+        self.selected_channel = channel or DEFAULT_ASR_CHANNEL
+        self.fallback_reason: str | None = None
         self.sample_rate = self._validate_sample_rate(16000 if sample_rate is None else sample_rate)
         self.chunk_seconds = self._validate_chunk_seconds(chunk_seconds)
         self.max_connection_seconds = max(GUEST_ASR_STREAM_SECONDS, int(max_connection_seconds))
@@ -3285,7 +3370,7 @@ class AsrStreamSession:
     @staticmethod
     def _validate_channel(channel: str) -> str:
         if channel not in ASR_CHANNELS:
-            raise ValueError("unknown ASR channel; choose api-server, funasr-gpu, funasr-cpu, or stub-local")
+            raise ValueError("unknown ASR channel")
         return channel
 
     @staticmethod
@@ -3471,6 +3556,11 @@ async def _send_asr_stream_result(client: WebSocket, session: AsrStreamSession, 
         "sample_rate": session.sample_rate,
         "window_index": session.window_index,
     }
+    result.setdefault("meta", {}).update({
+        "selected_channel": session.selected_channel,
+        "actual_channel": result.get("channel", session.channel),
+        "fallback_reason": session.fallback_reason or result.get("meta", {}).get("fallback_reason"),
+    })
     result["board_event"]["phase"] = "final" if final else "partial"
     result["board_event"]["source_type"] = f"asr.stream.{session.channel}"
     result["board_event"]["item_id"] = f"asr-stream-{index}"
@@ -3502,6 +3592,201 @@ async def _finish_asr_stream_at_limit(client: WebSocket, session: AsrStreamSessi
         "limit_reached": True,
         "max_connection_seconds": session.max_connection_seconds,
     })
+
+
+async def _run_plan_stream(client: WebSocket, session: AsrStreamSession, selected: str) -> AsrStreamSession | None:
+    """Serve one live Plan route, returning a local session only before cloud text is shown."""
+    plan: PlanStream | None = None
+    incoming: asyncio.Task | None = None
+    upstream: asyncio.Task | None = None
+    accepted_text = False
+    current_text = ""
+    closing: str | None = None
+    limit_reached = False
+    queued = bytearray()
+    window_bytes = 0
+    result_index = 0
+    started = time.monotonic()
+
+    async def open_window() -> None:
+        nonlocal plan, upstream, started
+        plan = PlanStream(_ASR_ROUTER.settings, sample_rate=session.sample_rate)
+        first = await plan.start()
+        if first.terminal:
+            raise PlanError("protocol")
+        started = time.monotonic()
+        _record_asr_started(PLAN_CHANNEL)
+        upstream = asyncio.create_task(plan.receive(timeout=15))
+
+    async def emit(text: str, *, final: bool) -> None:
+        nonlocal accepted_text, current_text, result_index
+        if text:
+            current_text = text
+            accepted_text = True
+            session.history.clear()
+        elif not final:
+            return
+        result_index += 1
+        result = normalize_asr_result(PLAN_CHANNEL, current_text, current_text, {
+            "engine": "volcengine-ws", "selected_channel": selected,
+            "actual_channel": PLAN_CHANNEL, "fallback_reason": None,
+        })
+        result["stream"] = {
+            "chunk_index": result_index, "revision": result_index,
+            "revision_scope": "window", "replace": True, "final": final,
+            "sample_rate": session.sample_rate, "window_index": session.window_index,
+        }
+        result["board_event"].update({"phase": "final" if final else "partial", "source_type": "asr.stream.volcengine-plan", "item_id": f"asr-plan-{session.window_index}"})
+        await client.send_json({"demo_event": "asr.stream.result", "result": result, "board_event": result["board_event"]})
+
+    try:
+        incoming = asyncio.create_task(client.receive())
+        while True:
+            active = {task for task in (incoming, upstream) if task is not None}
+            done, _ = await asyncio.wait(active, return_when=asyncio.FIRST_COMPLETED)
+            if upstream in done:
+                response = upstream.result()
+                upstream = None
+                if response.text or response.terminal:
+                    await emit(response.text, final=response.terminal)
+                if response.terminal:
+                    if not closing or not response.valid_terminal:
+                        raise PlanError("protocol")
+                    _ASR_ROUTER.mark_available(speech_verified=bool(current_text.strip()))
+                    _record_asr_success(PLAN_CHANNEL, round((time.monotonic() - started) * 1000), len(current_text))
+                    await plan.close()
+                    plan = None
+                    if closing == "finish":
+                        await client.send_json({"demo_event": "asr.stream.done", "final": True, "limit_reached": limit_reached,
+                                                "max_connection_seconds": session.max_connection_seconds, "window_index": session.window_index})
+                        return None
+                    session.rotate_window()
+                    window_bytes = 0
+                    current_text = ""
+                    closing = None
+                    await client.send_json({"demo_event": "asr.stream.done", "final": False, "rollover": True, "window_index": session.window_index})
+                    if queued:
+                        pending = bytes(queued)
+                        queued.clear()
+                        await open_window()
+                        for offset in range(0, len(pending), MAX_ASR_STREAM_FRAME_BYTES):
+                            piece = pending[offset:offset + MAX_ASR_STREAM_FRAME_BYTES]
+                            session.append_pcm16(piece)
+                            session.buffer.clear()
+                            window_bytes += len(piece)
+                            await plan.send_pcm(piece)
+                else:
+                    upstream = asyncio.create_task(plan.receive(timeout=15))
+            if incoming in done:
+                message = incoming.result()
+                if message.get("type") == "websocket.disconnect":
+                    return None
+                incoming = asyncio.create_task(client.receive())
+                data: bytes | None = None
+                if message.get("bytes") is not None:
+                    data = message["bytes"]
+                elif message.get("text") is not None:
+                    if len(message["text"]) > MAX_ASR_STREAM_JSON_FRAME_BYTES:
+                        raise ValueError("JSON frame too large")
+                    try:
+                        payload = json.loads(message["text"])
+                    except (TypeError, ValueError):
+                        raise ValueError("invalid ASR JSON") from None
+                    if not isinstance(payload, dict):
+                        raise ValueError("invalid ASR JSON")
+                    kind = payload.get("type")
+                    if kind == "asr.stream.append":
+                        audio_b64 = payload.get("audio")
+                        if not isinstance(audio_b64, str) or len(audio_b64) > MAX_ASR_STREAM_JSON_FRAME_BYTES:
+                            raise ValueError("invalid ASR audio frame")
+                        try:
+                            data = base64.b64decode(audio_b64, validate=True)
+                        except (binascii.Error, ValueError):
+                            raise ValueError("invalid ASR audio frame") from None
+                    elif kind in {"asr.stream.commit", "asr.stream.finish"}:
+                        if closing:
+                            raise ValueError("ASR commit already pending")
+                        closing = "finish" if kind == "asr.stream.finish" else "commit"
+                        if plan is None:
+                            if closing == "finish":
+                                await client.send_json({"demo_event": "asr.stream.done", "final": True, "window_index": session.window_index})
+                                return None
+                            session.rotate_window()
+                            closing = None
+                            await client.send_json({"demo_event": "asr.stream.done", "final": False, "rollover": True, "window_index": session.window_index})
+                        else:
+                            await plan.finish()
+                    else:
+                        raise ValueError("unknown ASR stream message type")
+                if data is not None:
+                    if len(data) > MAX_ASR_STREAM_FRAME_BYTES or len(data) % 2:
+                        raise ValueError("invalid PCM16 frame")
+                    if not data:
+                        continue
+                    if session.total_pcm_bytes + len(queued) + len(data) > session.max_total_bytes:
+                        if plan is not None and not closing:
+                            closing = "finish"
+                            limit_reached = True
+                            await plan.finish()
+                            continue
+                        raise ValueError("recording segment reached its limit")
+                    if closing:
+                        if len(queued) + len(data) > session.max_buffer_bytes:
+                            raise PlanError("timeout")
+                        queued.extend(data)
+                    else:
+                        if not accepted_text and len(session.history) + len(data) > session.max_buffer_bytes:
+                            raise PlanError("timeout")
+                        session.append_pcm16(data)
+                        session.buffer.clear()
+                        if accepted_text:
+                            session.history.clear()
+                        if plan is None:
+                            await open_window()
+                        await plan.send_pcm(data)
+                        window_bytes += len(data)
+                        if window_bytes >= session.context_bytes:
+                            closing = "commit"
+                            await plan.finish()
+    except ValueError:
+        await client.send_json({"demo_event": "asr.stream.error", "message": "音频帧或录音时长超出限制；请新建会议继续。"})
+        return None
+    except PlanError as exc:
+        reason = exc.reason
+        _ASR_ROUTER.mark_failure(reason)
+        _record_asr_error(PLAN_CHANNEL, PlanError(reason))
+        if selected == "auto" and not accepted_text:
+            local = AsrStreamSession(channel="funasr-gpu", sample_rate=session.sample_rate,
+                                     chunk_seconds=session.chunk_seconds, max_connection_seconds=session.max_connection_seconds)
+            local.total_pcm_bytes = session.total_pcm_bytes + len(queued)
+            local.window_index = session.window_index
+            local.selected_channel = "auto"
+            local.fallback_reason = reason
+            recovery = bytes(session.history) + bytes(queued)
+            if recovery:
+                await _send_asr_stream_result(client, local, local._next_chunk_index(), pcm16_to_wav_bytes(recovery, session.sample_rate), final=True)
+            if closing == "finish":
+                await client.send_json({"demo_event": "asr.stream.done", "final": True, "limit_reached": limit_reached,
+                                        "max_connection_seconds": session.max_connection_seconds, "window_index": local.window_index})
+                return None
+            if recovery:
+                local.window_index += 1
+                await client.send_json({"demo_event": "asr.stream.done", "final": False, "rollover": True, "window_index": local.window_index})
+            await client.send_json({"demo_event": "asr.stream.started", "channel": "funasr-gpu", "selected_channel": "auto", "fallback_reason": reason,
+                                    "sample_rate": session.sample_rate, "chunk_seconds": session.chunk_seconds,
+                                    "max_connection_seconds": session.max_connection_seconds})
+            return local
+        await client.send_json({"demo_event": "asr.stream.error", "channel": PLAN_CHANNEL, "fallback_reason": reason,
+                                "message": "云端识别中断；已显示的文字已保留。请新建会议继续录音或选择本地通道重试。"})
+        return None
+    finally:
+        pending_tasks = [task for task in (incoming, upstream) if task is not None]
+        for task in pending_tasks:
+            task.cancel()
+        if pending_tasks:
+            await asyncio.gather(*pending_tasks, return_exceptions=True)
+        if plan is not None:
+            await plan.close()
 
 
 @app.websocket("/ws/asr/stream")
@@ -3546,12 +3831,15 @@ async def asr_stream(client: WebSocket) -> None:
                 msg_type = payload.get("type")
                 if msg_type == "asr.stream.start":
                     try:
+                        route = _ASR_ROUTER.resolve(str(payload.get("channel") or DEFAULT_ASR_CHANNEL))
                         session = AsrStreamSession(
-                            channel=str(payload.get("channel") or DEFAULT_ASR_CHANNEL),
+                            channel=route.actual,
                             sample_rate=payload.get("sample_rate", 16000),
                             chunk_seconds=payload.get("chunk_seconds", 4.0),
                             max_connection_seconds=max_connection_seconds,
                         )
+                        session.selected_channel = route.selected
+                        session.fallback_reason = route.fallback_reason
                     except (TypeError, ValueError) as exc:
                         await _close_asr_stream_policy(client, str(exc), 1008)
                         break
@@ -3564,12 +3852,19 @@ async def asr_stream(client: WebSocket) -> None:
                     await client.send_json({
                         "demo_event": "asr.stream.started",
                         "channel": session.channel,
+                        "selected_channel": session.selected_channel,
+                        "fallback_reason": session.fallback_reason,
                         "sample_rate": session.sample_rate,
                         "chunk_seconds": session.chunk_seconds,
                         "stream_mode": stream_mode,
                         "max_connection_seconds": max_connection_seconds,
                         "context_seconds": ASR_STREAM_CONTEXT_SECONDS,
                     })
+                    if session.channel == PLAN_CHANNEL:
+                        replacement = await _run_plan_stream(client, session, route.selected)
+                        if replacement is None:
+                            break
+                        session = replacement
                     continue
                 if msg_type == "asr.stream.append":
                     try:
@@ -3639,6 +3934,7 @@ def asr_channels(request: Request) -> JSONResponse:
     return JSONResponse({
         "default": DEFAULT_ASR_CHANNEL,
         "channels": ASR_CHANNELS,
+        "routing": _ASR_ROUTER.status(DEFAULT_ASR_CHANNEL),
         "stream_policy": {
             "mode": "account" if authenticated else "guest",
             "max_connection_seconds": ACCOUNT_ASR_STREAM_SECONDS if authenticated else GUEST_ASR_STREAM_SECONDS,
@@ -3647,6 +3943,56 @@ def asr_channels(request: Request) -> JSONResponse:
             "can_continue_existing_meeting": False,
         },
     })
+
+
+@app.get("/api/asr/health")
+async def asr_health(selected: str = "auto") -> JSONResponse:
+    """Read cached/configured status only; never contacts the upstream service."""
+    if selected not in ASR_CHANNELS:
+        raise HTTPException(status_code=400, detail="请选择有效的语音识别通道")
+    return JSONResponse(_ASR_ROUTER.status(selected))
+
+
+async def _probe_plan_asr() -> dict[str, bool]:
+    # An explicit short silence request verifies terminal inference/entitlement.
+    # It cannot prove that speech recognition is functional for spoken words.
+    await _recognize_plan_pcm(b"\0\0" * 3200, verify_speech=False)
+    return {"functional": True, "speech_verified": False}
+
+
+@app.post("/api/asr/health/probe")
+async def probe_asr_health(request: Request) -> JSONResponse:
+    auth = _auth_row(request)
+    _require_csrf(request, auth)
+    owner = str(auth["user_id"])
+    now = time.monotonic()
+    with _ASR_PROBE_LOCK:
+        for stale_owner, checked in list(_ASR_PROBE_LAST.items()):
+            if now - checked >= 60:
+                del _ASR_PROBE_LAST[stale_owner]
+        if now - _ASR_PROBE_LAST.get(owner, -1000) < 60:
+            raise HTTPException(status_code=429, detail="探测过于频繁，请稍后再试")
+        _ASR_PROBE_LAST[owner] = now
+    if not _ASR_ROUTER.settings.configured:
+        _ASR_ROUTER.mark_failure("configuration")
+        return JSONResponse({**_ASR_ROUTER.status(DEFAULT_ASR_CHANNEL), "probe": {"functional": False, "speech_verified": False}})
+    if not _ASR_ROUTER.settings.user_audio_allowed:
+        raise HTTPException(status_code=403, detail="尚未确认套餐计费与使用许可，主动探测未启用")
+    try:
+        result = await asyncio.wait_for(_probe_plan_asr(), timeout=8)
+        if not result.get("functional"):
+            raise PlanError("protocol")
+        _ASR_ROUTER.mark_available(speech_verified=False)
+    except asyncio.TimeoutError:
+        _ASR_ROUTER.mark_failure("timeout")
+        result = {"functional": False, "speech_verified": False}
+    except PlanError as exc:
+        _ASR_ROUTER.mark_failure(exc.reason)
+        result = {"functional": False, "speech_verified": False}
+    except Exception:
+        _ASR_ROUTER.mark_failure("protocol")
+        result = {"functional": False, "speech_verified": False}
+    return JSONResponse({**_ASR_ROUTER.status(DEFAULT_ASR_CHANNEL), "probe": result})
 
 
 @app.post("/api/meetings/{meeting_id}/import")
@@ -3727,7 +4073,7 @@ async def import_meeting_audio(
             _record_asr_error(channel, RuntimeError("meeting audio import returned no text"))
             raise HTTPException(status_code=502, detail="音频未识别出文字，未建立会议")
         text = text.strip()
-        _record_asr_success(channel, round((time.monotonic() - started) * 1000), len(text))
+        _record_asr_success(str(result.get("channel") or channel), round((time.monotonic() - started) * 1000), len(text))
         now = _iso_utc()
         filename = re.split(r"[\\/]", file.filename or "导入录音")[-1]
         title = Path(filename).stem.strip()[:100] or "导入录音"
@@ -3770,7 +4116,10 @@ async def import_meeting_audio(
                 raise
             row = connection.execute("SELECT * FROM meeting_records WHERE owner_id = ? AND meeting_id = ?", (owner_id, record_id)).fetchone()
             assets = _meeting_audio_rows(connection, owner_id, record_id)
-        return JSONResponse({"meeting": _meeting_row_payload(row, True, audio_assets=assets), "duplicate": False}, status_code=201)
+        asr_meta = result.get("meta") or {}
+        safe_asr = {"selected_channel": channel, "actual_channel": result.get("channel"),
+                    "fallback_reason": asr_meta.get("fallback_reason")}
+        return JSONResponse({"meeting": _meeting_row_payload(row, True, audio_assets=assets), "asr": safe_asr, "duplicate": False}, status_code=201)
     except BaseException as exc:
         if not committed:
             with _MEETING_DB_LOCK, closing(_meeting_db()) as connection:
@@ -3832,8 +4181,9 @@ async def asr_upload(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         _record_asr_error(channel, exc)
-        raise HTTPException(status_code=502, detail={"error_type": type(exc).__name__, "message": str(exc)[:700]}) from exc
-    _record_asr_success(channel, round((time.monotonic() - started) * 1000), len(str(result.get("corrected_text") or "")))
+        logger.warning("ASR upload failed type=%s", type(exc).__name__)
+        raise HTTPException(status_code=502, detail={"error_type": type(exc).__name__, "message": "识别服务失败；请检查通道配置或稍后重试"}) from None
+    _record_asr_success(str(result.get("channel") or channel), round((time.monotonic() - started) * 1000), len(str(result.get("corrected_text") or "")))
     return JSONResponse(result)
 
 

@@ -75,13 +75,21 @@ Copilot explicitly requests `max_tokens=384` and checks SSE line/event/aggregate
 
 | Field | Default | Meaning |
 | --- | --- | --- |
-| `CHATVOICE_ASR_CHANNEL` | `api-server` when an endpoint exists; otherwise `stub-local` | `api-server`, `funasr-gpu`, `funasr-cpu` or `stub-local` |
+| `CHATVOICE_ASR_CHANNEL` | `auto` | Initial server preference: `auto`, `volcengine-plan`, `api-server`, `funasr-gpu`, `funasr-cpu` or `stub-local` |
+| `CHATVOICE_ASR_PLAN_TRANSPORT` | `volcengine-ws` | Native bidirectional Agent Plan WebSocket transport; only this value is accepted |
+| `CHATVOICE_ASR_PLAN_BASE` | Official Agent Plan ASR WS endpoint | Only the official `/api/v3/plan/sauc/bigmodel_async` path is accepted; redirects are disabled |
+| `CHATVOICE_ASR_PLAN_API_KEY` | Empty | Dedicated Agent Plan ASR key; no borrowing from TTS, text or HTTP ASR |
+| `CHATVOICE_ASR_PLAN_MODEL` | `bigmodel` | Model name in the protocol request |
+| `CHATVOICE_ASR_PLAN_RESOURCE_ID` | `volc.seedasr.sauc.duration` | Agent Plan resource ID, separate from model |
+| `CHATVOICE_ASR_PLAN_USER_AUDIO_ALLOWED` | `0` | Set to `1` only after confirming entitlement, permission for this service's user audio, and that paid overage is disabled |
 | `CHATVOICE_ASR_API_URL` | Empty | Complete transcription endpoint |
 | `CHATVOICE_ASR_API_KEY` | Empty | Optional sensitive Bearer credential |
 | `CHATVOICE_ASR_PREWARM` | `1` | Prewarm the selected persistent local FunASR channel |
 | `CHATVOICE_FUNASR_ALLOW_SUBPROCESS_WORKER` | `0` | Debug compatibility only; short-lived workers reload models per request |
 
 Local FunASR also reads process variables `FUNASR_MODEL` (default `iic/SenseVoiceSmall`) and `FUNASR_GPU_DEVICE` (default `cuda:0`). They are not fields in the current typed ChatEnv schema. CPU uses the CPU; GPU requires compatible PyTorch/CUDA/FunASR dependencies. The stub channel is not real recognition.
+
+Auto tries Agent Plan only when its configuration is complete, user-audio permission is enabled, and cached health is outside failure backoff. Otherwise it uses the persistent FunASR GPU, never a stub or usage-billed endpoint. A fixed channel reports its own failure. Public `GET /api/asr/health` reads cached/configuration state only. Signed-in, CSRF-protected `POST /api/asr/health/probe` also requires the permission switch, is rate limited and has an 8-second deadline; it sends synthetic silence. A valid terminal inference response verifies function/entitlement only, while successful real recognition separately verifies speech. Status distinguishes unknown, healthy, unavailable and stale. Confirm provider permission for using a personal Plan in a multi-user service before production use.
 
 ## System TTS {#tts}
 

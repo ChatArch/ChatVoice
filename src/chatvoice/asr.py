@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 from urllib.parse import urlparse
 
+from chatvoice.asr_routing import PlanSettings
+
 
 def _bool_env(name: str) -> bool:
     return bool(os.getenv(name, "").strip())
@@ -22,7 +24,7 @@ def default_asr_channel() -> str:
     explicit = os.getenv("CHATVOICE_ASR_CHANNEL", os.getenv("DEFAULT_ASR_CHANNEL", "")).strip()
     if explicit:
         return explicit
-    return "api-server" if configured_api_endpoint() else "stub-local"
+    return "auto"
 
 
 def get_asr_channels() -> dict[str, object]:
@@ -35,9 +37,12 @@ def get_asr_channels() -> dict[str, object]:
 
     endpoint = configured_api_endpoint()
     host = urlparse(endpoint).netloc if endpoint else ""
+    plan = PlanSettings.from_mapping(os.environ)
     return {
         "default": default_asr_channel(),
         "channels": {
+            "auto": {"label": "Auto (prefer Agent Plan)", "engine": "router", "status": "configured"},
+            "volcengine-plan": {"label": "Volcengine Agent Plan", "engine": "volcengine-ws", "status": "configured" if plan.configured else "needs-config", "api_key_configured": bool(plan.key), "user_audio_allowed": plan.user_audio_allowed},
             "api-server": {
                 "label": "ASR API Server / managed API",
                 "engine": "api",

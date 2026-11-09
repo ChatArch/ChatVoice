@@ -31,6 +31,7 @@ Tests isolate accounts and databases. Do not inject production HOME, database pa
 - Source preservation, persistence, undo and late-result isolation for notes/Todo.
 - TTS protocol/format/voice settings and clone upload/state/download/cleanup.
 - Real stream completion markers; an unresolved Promise is not a passing test.
+- Multi-channel ASR: run `python -m pytest tests/test_asr_plan_routing.py -q` and `node tests/nonbrowser_asr_settings.cjs` offline for default/fixed selection, binary frames, send-once audio, fallback, probe authorization and rate limits. Public health reads must not call upstream; a silence probe does not verify spoken-word recognition.
 
 ## Real service
 
@@ -41,6 +42,8 @@ python scripts/verify_service.py --help
 ```
 
 Use disposable accounts, authorized/synthetic reference audio and short text. Distinguish PASS, FAIL, BLOCKED and NOT_RUN. Keep per-case responses, visible results and cleanup evidence. Do not change billing policy or swap unrelated models simply to make a test pass.
+
+Real Agent Plan checks require separate confirmation of entitlement, disabled paid overage and multi-user permission. Offline GREEN with a fake provider does not establish current subscription readiness. Inspect fixed-channel failures and auto fallback for duplicate visible text and incomplete uploads.
 
 After deployment, verify version/process, database, warm ASR and text/audio outputs at the real public entry. Cloning needs a real job and decodable audio; health alone establishes reachability.
 

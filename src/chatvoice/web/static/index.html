@@ -1191,8 +1191,10 @@
     <form class="settings-card" method="dialog">
       <header><h2>识别设置</h2><button class="close-dialog" value="close" aria-label="关闭">×</button></header>
       <label for="asr-channel">实时转写通道</label>
-      <select id="asr-channel"><option value="funasr-gpu">读取服务端配置中…</option></select>
-      <p>页面始终使用统一转写协议。未来接入阿里、火山、讯飞或 Whisper 服务时，录音页不需要改变。</p>
+      <select id="asr-channel"><option value="auto">读取服务端配置中…</option></select>
+      <p id="asr-route-status" role="status">正在读取实际识别通道…</p>
+      <button id="probe-asr-plan" type="button">主动探测 Agent Plan</button>
+      <p>自动模式优先尝试已获使用许可的 Agent Plan；不可用时使用本地 FunASR GPU。主动探测会发送一小段合成静音，仅能验证套餐功能回执，不能验证真实语音识别质量。</p>
       <section class="api-key-config" aria-labelledby="api-key-config-title">
         <h3 id="api-key-config-title">服务端 API Key</h3>
         <p>这里显示密钥配置状态，不在浏览器保存或提交密钥明文。服务端配置统一走 ChatEnv：ASR 使用 <code>CHATVOICE_ASR_API_KEY</code>；独立系统音色使用 <code>CHATVOICE_TTS_API_KEY</code> 和完整 TTS 配置；旧 TTS 与 realtime 使用 ChatVoice Token Plan <code>CHATVOICE_OPENAI_API_KEY</code>（必须是 <code>sk-sp...</code>）；summarize/polish 可单独使用 CRS <code>CHATVOICE_MEETING_NOTES_PROVIDER</code> / <code>CHATVOICE_MEETING_NOTES_CRS_PROFILE</code>。</p>
@@ -1534,7 +1536,7 @@
         if (epoch !== meetingImportEpoch) return;
         const form = new FormData();
         form.append('file', file, file.name || 'audio.wav');
-        form.append('channel', $('asr-channel').value || 'funasr-gpu');
+        form.append('channel', $('asr-channel').value || 'auto');
         let record;
         if (context.mode === 'account') {
           form.append('import_token', context.token);
@@ -4409,6 +4411,10 @@
       if (payload.demo_event === 'asr.stream.ready' || payload.demo_event === 'asr.stream.started') {
         if (storageMode === 'guest' && Number(payload.max_connection_seconds) > 0) asrPassLimitSeconds = Number(payload.max_connection_seconds);
         updateRecordingLimitUi();
+        if (payload.demo_event === 'asr.stream.started' && payload.channel) {
+          $('channel-label').textContent = payload.channel;
+          if (payload.fallback_reason) $('asr-route-status').textContent = `所选 ${payload.selected_channel || 'auto'}；实际 ${payload.channel}；回退原因 ${payload.fallback_reason}。请检查 Agent Plan 套餐、权限或网络。`;
+        }
       } else if (payload.demo_event === 'asr.stream.result') {
         const boardEvent = payload.board_event || (payload.result && payload.result.board_event) || {};
         const text = boardEvent.text || (payload.result && payload.result.corrected_text) || '';
@@ -4666,7 +4672,7 @@
       asrStreamWs.onopen = async () => {
         if (streamToken !== activeAsrSessionToken) return;
         try {
-          asrStreamWs.send(JSON.stringify({ type: 'asr.stream.start', channel: $('asr-channel').value || 'funasr-gpu', sample_rate: 16000, chunk_seconds: 3 }));
+          asrStreamWs.send(JSON.stringify({ type: 'asr.stream.start', channel: $('asr-channel').value || 'auto', sample_rate: 16000, chunk_seconds: 3 }));
           if (!await startMicrophoneCapture(streamToken)) return;
           sendingAudio = true;
           startRetainedAudioCapture(microphoneStream);
@@ -4979,6 +4985,47 @@
       generateSummary();
     }
 
+    const asrPreferenceKey = 'speakr.asr.channel.v1';
+
+    function renderAsrRouteStatus(route) {
+      const selected = $('asr-channel').value || 'auto';
+      const actual = route.actual || selected;
+      const reason = route.fallback_reason;
+      const state = route.plan && route.plan.state ? route.plan.state : 'unknown';
+      const configured = route.plan && route.plan.configured ? '配置齐全' : '等待配置';
+      const explanation = reason ? `；原因 ${reason}。请检查 Agent Plan 套餐、权限或网络，或选择固定本地通道。` : '';
+      $('asr-route-status').textContent = `所选 ${selected}；实际 ${actual}；Agent Plan ${configured}、${state}${explanation}`;
+      $('channel-label').textContent = actual;
+    }
+
+    async function refreshAsrRouteStatus() {
+      const selected = $('asr-channel').value || 'auto';
+      try {
+        const response = await fetch(`/api/asr/health?selected=${encodeURIComponent(selected)}`);
+        if (!response.ok) throw new Error('status unavailable');
+        renderAsrRouteStatus(await response.json());
+      } catch (_) {
+        $('asr-route-status').textContent = '识别通道状态暂不可用；请稍后刷新。';
+      }
+    }
+
+    async function probeAsrPlan() {
+      const button = $('probe-asr-plan');
+      button.disabled = true;
+      $('asr-route-status').textContent = '正在主动探测 Agent Plan，最长 8 秒…';
+      try {
+        const response = await fetch('/api/asr/health/probe', { method: 'POST', headers: { 'X-CSRF-Token': csrfToken || '' } });
+        if (!response.ok) throw new Error(response.status === 429 ? '探测过于频繁，请稍后再试。' : '请登录后重试主动探测。');
+        const route = await response.json();
+        renderAsrRouteStatus(route);
+        if (route.probe && route.probe.functional) $('asr-route-status').textContent += '；静音推理功能已验证，真实语音识别尚未由此验证。';
+      } catch (error) {
+        $('asr-route-status').textContent = error.message || '探测失败';
+      } finally {
+        button.disabled = false;
+      }
+    }
+
     async function refreshStatus() {
       try {
         const response = await fetch('/api/status');
@@ -5001,9 +5048,13 @@
           option.textContent = channel.label || id;
           select.appendChild(option);
         });
-        select.value = channelsData.default || status.asr_default_channel || 'funasr-gpu';
+        let saved = null;
+        try { saved = localStorage.getItem(asrPreferenceKey); } catch (_) {}
+        const available = new Set([...select.options].map(option => option.value));
+        select.value = saved && available.has(saved) ? saved : (channelsData.default || status.asr_default_channel || 'auto');
         const selected = select.options[select.selectedIndex];
         $('channel-label').textContent = selected ? selected.textContent.replace(/（.*?）/g, '').trim() : '自动选择识别服务';
+        await refreshAsrRouteStatus();
         $('service-state').className = 'service-state ready';
         $('service-state').querySelector('span').textContent = '识别服务已连接';
       } catch (_) {
@@ -5183,9 +5234,12 @@
       if (button) revokeApiToken(button.dataset.revokeToken);
     });
     $('asr-channel').addEventListener('change', () => {
+      try { localStorage.setItem(asrPreferenceKey, $('asr-channel').value); } catch (_) {}
       const option = $('asr-channel').options[$('asr-channel').selectedIndex];
       $('channel-label').textContent = option ? option.textContent.replace(/（.*?）/g, '').trim() : '自动选择识别服务';
+      refreshAsrRouteStatus();
     });
+    $('probe-asr-plan').addEventListener('click', probeAsrPlan);
     $('copilot-upload').addEventListener('click', uploadCopilotMaterial);
     $('copilot-material-file').addEventListener('change', uploadCopilotMaterial);
     $('copilot-material-list').addEventListener('click', (event) => {

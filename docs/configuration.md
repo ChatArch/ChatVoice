@@ -75,13 +75,21 @@ PDF 使用 `pypdf>=6.19,<7.0`，先验证直接长度流、名称转义和解码
 
 | 字段 | 默认值 | 用途 |
 | --- | --- | --- |
-| `CHATVOICE_ASR_CHANNEL` | 有 HTTP 地址时为 `api-server`，否则为 `stub-local` | 可选 `api-server`、`funasr-gpu`、`funasr-cpu`、`stub-local` |
+| `CHATVOICE_ASR_CHANNEL` | `auto` | 服务端初始偏好；可选 `auto`、`volcengine-plan`、`api-server`、`funasr-gpu`、`funasr-cpu`、`stub-local` |
+| `CHATVOICE_ASR_PLAN_TRANSPORT` | `volcengine-ws` | Agent Plan 原生双向 WebSocket 协议；仅允许此值 |
+| `CHATVOICE_ASR_PLAN_BASE` | 官方 Agent Plan ASR WS 地址 | 仅允许官方 `/api/v3/plan/sauc/bigmodel_async` 入口，不跟随重定向 |
+| `CHATVOICE_ASR_PLAN_API_KEY` | 空 | 独立的 Agent Plan ASR 密钥，不借用 TTS、文本或 HTTP ASR 密钥 |
+| `CHATVOICE_ASR_PLAN_MODEL` | `bigmodel` | 协议请求中的模型名 |
+| `CHATVOICE_ASR_PLAN_RESOURCE_ID` | `volc.seedasr.sauc.duration` | Agent Plan 资源标识，与模型名分离 |
+| `CHATVOICE_ASR_PLAN_USER_AUDIO_ALLOWED` | `0` | 确认当前套餐有效、允许此服务处理用户音频且未开启超额后付费后，才设为 `1` |
 | `CHATVOICE_ASR_API_URL` | 空 | `api-server` 的完整转写地址 |
 | `CHATVOICE_ASR_API_KEY` | 空 | 可选 Bearer 密钥，敏感；按 ASR 服务要求配置 |
 | `CHATVOICE_ASR_PREWARM` | `1` | 启动时预热当前本地 FunASR 通道 |
 | `CHATVOICE_FUNASR_ALLOW_SUBPROCESS_WORKER` | `0` | 调试兼容开关；允许短命子进程反复加载模型，不建议生产启用 |
 
 本地 FunASR 还读取进程变量 `FUNASR_MODEL`（默认 `iic/SenseVoiceSmall`）和 `FUNASR_GPU_DEVICE`（默认 `cuda:0`）。它们不是当前 ChatEnv 类型中的字段。CPU 通道使用 CPU；GPU 通道需要匹配的 PyTorch/CUDA/FunASR 环境。`stub-local` 不是真实识别。
+
+自动模式仅在 Agent Plan 配置完整、用户音频许可开关已启用且健康缓存未处于失败退避时尝试云端；缺配置、未许可或最近失败时使用持久 FunASR GPU，不使用 stub 或按量入口。固定通道失败会直接报错。公开 `GET /api/asr/health` 只读缓存与配置；登录、带 CSRF 且许可开关已启用的 `POST /api/asr/health/probe` 有每账号限频和 8 秒截止时间，会发送合成静音。有效终止推理回执只证明功能/权益，不能证明真实语音识别质量；真实识别成功才会标记语音已验证。状态区分未知、健康、不可用与过期。生产使用前还需单独确认个人套餐在多用户服务中的供应商许可。
 
 ## 系统语音合成 {#tts}
 

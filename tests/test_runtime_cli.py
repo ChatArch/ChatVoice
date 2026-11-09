@@ -33,7 +33,8 @@ def test_asr_channels_include_api_server_provider(monkeypatch):
 
     channels = get_asr_channels()
 
-    assert channels["default"] == "api-server"
+    assert channels["default"] == "auto"
+    assert channels["channels"]["volcengine-plan"]["engine"] == "volcengine-ws"
     assert channels["channels"]["api-server"]["engine"] == "api"
     assert channels["channels"]["api-server"]["url_configured"] is True
     assert channels["channels"]["api-server"]["api_key_configured"] is True
@@ -50,7 +51,9 @@ def test_service_plan_is_importable_and_safe(monkeypatch, tmp_path):
     assert plan["command"][1:3] == ["serve", "app"]
     assert plan["host"] == "127.0.0.1"
     assert plan["port"] == 18087
-    assert plan["asr"]["default"] == "api-server"
+    assert plan["asr"]["default"] == "auto"
+    assert plan["asr"]["channels"]["api-server"]["status"] == "ready"
+    assert plan["asr"]["channels"]["api-server"]["url_configured"] is True
     assert plan["database"]["backend"] == "sqlite"
     assert plan["database"]["backup_unit"] == "single-sqlite-file"
     assert plan["database"]["concurrency"] == "single-node-wal"
