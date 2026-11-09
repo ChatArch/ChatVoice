@@ -125,7 +125,7 @@ def parse_response(frame: bytes) -> PlanResponse:
     if not isinstance(text, str) or len(text) > MAX_DECODED_JSON:
         raise ValueError("invalid ASR text")
     terminal = bool(flags & 2)
-    description = body.get("message") or body.get("msg") or ""
+    description = body.get("message") or body.get("msg") or body.get("error") or ""
     success = message_type == 9 and code in {0, 20000000}
     reason = None if success else classify_failure(code, description=str(description)[:512])
     return PlanResponse(sequence, terminal, text, code, terminal and success and isinstance(result, dict), reason)
@@ -135,7 +135,7 @@ def classify_failure(code: int = 0, status: int = 0, description: str = "") -> s
     lowered = description.lower()
     if any(word in lowered for word in ("quota", "exhaust", "余额", "额度")):
         return "quota"
-    if any(word in lowered for word in ("expired", "subscription", "purchase", "套餐", "订阅", "未购买")):
+    if any(word in lowered for word in ("expired", "subscription", "purchase", "deduction", "套餐", "订阅", "未购买", "抵扣")):
         return "entitlement"
     if any(word in lowered for word in ("authentication", "permission", "api key", "鉴权", "权限")):
         return "authentication"

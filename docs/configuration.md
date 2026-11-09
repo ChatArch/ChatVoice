@@ -81,7 +81,7 @@ PDF 使用 `pypdf>=6.19,<7.0`，先验证直接长度流、名称转义和解码
 | `CHATVOICE_ASR_PLAN_API_KEY` | 空 | 独立的 Agent Plan ASR 密钥，不借用 TTS、文本或 HTTP ASR 密钥 |
 | `CHATVOICE_ASR_PLAN_MODEL` | `bigmodel` | 协议请求中的模型名 |
 | `CHATVOICE_ASR_PLAN_RESOURCE_ID` | `volc.seedasr.sauc.duration` | Agent Plan 资源标识，与模型名分离 |
-| `CHATVOICE_ASR_PLAN_USER_AUDIO_ALLOWED` | `0` | 确认当前套餐有效、允许此服务处理用户音频且未开启超额后付费后，才设为 `1` |
+| `CHATVOICE_ASR_PLAN_USER_AUDIO_ALLOWED` | `0` | 确认当前套餐有效、已开启 ASR 套餐抵扣、允许此服务处理用户音频且未开启超额后付费后，才设为 `1` |
 | `CHATVOICE_ASR_API_URL` | 空 | `api-server` 的完整转写地址 |
 | `CHATVOICE_ASR_API_KEY` | 空 | 可选 Bearer 密钥，敏感；按 ASR 服务要求配置 |
 | `CHATVOICE_ASR_PREWARM` | `1` | 启动时预热当前本地 FunASR 通道 |

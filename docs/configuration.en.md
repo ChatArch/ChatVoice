@@ -81,7 +81,7 @@ Copilot explicitly requests `max_tokens=384` and checks SSE line/event/aggregate
 | `CHATVOICE_ASR_PLAN_API_KEY` | Empty | Dedicated Agent Plan ASR key; no borrowing from TTS, text or HTTP ASR |
 | `CHATVOICE_ASR_PLAN_MODEL` | `bigmodel` | Model name in the protocol request |
 | `CHATVOICE_ASR_PLAN_RESOURCE_ID` | `volc.seedasr.sauc.duration` | Agent Plan resource ID, separate from model |
-| `CHATVOICE_ASR_PLAN_USER_AUDIO_ALLOWED` | `0` | Set to `1` only after confirming entitlement, permission for this service's user audio, and that paid overage is disabled |
+| `CHATVOICE_ASR_PLAN_USER_AUDIO_ALLOWED` | `0` | Set to `1` only after confirming entitlement, ASR package deduction is enabled, permission for this service's user audio, and that paid overage is disabled |
 | `CHATVOICE_ASR_API_URL` | Empty | Complete transcription endpoint |
 | `CHATVOICE_ASR_API_KEY` | Empty | Optional sensitive Bearer credential |
 | `CHATVOICE_ASR_PREWARM` | `1` | Prewarm the selected persistent local FunASR channel |
