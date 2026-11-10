@@ -568,7 +568,7 @@
     .api-key-config h3 { margin: 0 0 8px; font-size: 11px; }
     .api-key-status-list { display: grid; gap: 6px; margin-top: 9px; }
     .api-key-status-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 8px; border-radius: 9px; background: #fff; color: #666871; font-size: 9px; list-style: none; }
-    .api-key-status-list b { color: #a35b00; }
+    .api-key-status-list b { color: #a35b00; flex-shrink: 0; white-space: nowrap; }
     .api-key-status-list b.ready { color: #22824f; }
     .asr-health-message { margin: 6px 0 0; color: var(--muted); font-size: 9px; line-height: 1.55; }
 
@@ -1193,13 +1193,14 @@
       <label for="asr-channel">实时转写通道</label>
       <select id="asr-channel"><option value="auto">读取服务端配置中…</option></select>
       <p id="asr-route-status" role="status">正在读取实际识别通道…</p>
-      <button id="probe-asr-plan" type="button">主动探测 Agent Plan</button>
+      <button class="token-button" id="probe-asr-plan" type="button">主动探测 Agent Plan</button>
       <p>自动模式优先尝试已获使用许可的 Agent Plan；不可用时使用本地 FunASR GPU。主动探测会发送一小段合成静音，仅能验证套餐功能回执，不能验证真实语音识别质量。</p>
       <section class="api-key-config" aria-labelledby="api-key-config-title">
         <h3 id="api-key-config-title">服务端 API Key</h3>
-        <p>这里显示密钥配置状态，不在浏览器保存或提交密钥明文。服务端配置统一走 ChatEnv：ASR 使用 <code>CHATVOICE_ASR_API_KEY</code>；独立系统音色使用 <code>CHATVOICE_TTS_API_KEY</code> 和完整 TTS 配置；旧 TTS 与 realtime 使用 ChatVoice Token Plan <code>CHATVOICE_OPENAI_API_KEY</code>（必须是 <code>sk-sp...</code>）；summarize/polish 可单独使用 CRS <code>CHATVOICE_MEETING_NOTES_PROVIDER</code> / <code>CHATVOICE_MEETING_NOTES_CRS_PROFILE</code>。</p>
+        <p>这里显示密钥配置状态，不在浏览器保存或提交密钥明文。服务端配置统一走 ChatEnv：Agent Plan ASR 使用 <code>CHATVOICE_ASR_PLAN_API_KEY</code>，HTTP ASR 使用 <code>CHATVOICE_ASR_API_KEY</code>，两者分别配置；独立系统音色使用 <code>CHATVOICE_TTS_API_KEY</code> 和完整 TTS 配置；旧 TTS 与 realtime 使用 ChatVoice Token Plan <code>CHATVOICE_OPENAI_API_KEY</code>（必须是 <code>sk-sp...</code>）；summarize/polish 可单独使用 CRS <code>CHATVOICE_MEETING_NOTES_PROVIDER</code> / <code>CHATVOICE_MEETING_NOTES_CRS_PROFILE</code>。</p>
         <ul class="api-key-status-list" id="api-key-status-list">
-          <li><span>ASR API Key</span><b>读取中…</b></li>
+          <li><span>Agent Plan ASR Key</span><b>读取中…</b></li>
+          <li><span>HTTP ASR API Key</span><b>读取中…</b></li>
           <li><span>系统 TTS</span><b>读取中…</b></li>
           <li><span>Token Plan CHATVOICE_OPENAI_API_KEY</span><b>读取中…</b></li>
           <li><span>Summarize / Polish CRS</span><b>读取中…</b></li>
@@ -2627,10 +2628,12 @@
       status = status || {};
       const keys = status.api_keys || {};
       const asr = status.asr_api || {};
+      const plan = status.asr_channels?.['volcengine-plan'] || {};
       const notes = status.meeting_notes || {};
       const voiceclone = status.voiceclone_api || {};
       const rows = [
-        ['ASR API Key', keys.asr_api_key_configured || asr.api_key_configured, asr.url_configured ? `已配置 endpoint：${asr.endpoint_host || 'server'}` : '等待 CHATVOICE_ASR_API_URL'],
+        ['Agent Plan ASR Key', plan.api_key_configured, 'CHATVOICE_ASR_PLAN_API_KEY · 套餐专用'],
+        ['HTTP ASR API Key', keys.asr_api_key_configured || asr.api_key_configured, asr.url_configured ? `已配置 endpoint：${asr.endpoint_host || 'server'}` : '可选通道 · 等待 CHATVOICE_ASR_API_URL'],
         ['系统 TTS', status.tts?.configured, status.tts?.configured ? `${status.tts.provider} · ${status.tts.model}` : '等待服务端 TTS 配置'],
         ['Token Plan CHATVOICE_OPENAI_API_KEY', keys.model_api_key_configured && keys.model_api_key_is_token_plan, keys.model_api_key_is_token_plan ? 'realtime / 旧 TTS · ChatEnv ChatVoice profile · sk-sp' : '等待 ChatEnv ChatVoice profile 的 sk-sp key'],
         ['Summarize / Polish CRS', notes.provider === 'crs-chat-completions' && notes.key_configured, notes.provider ? `${notes.provider} · ${notes.base_host || notes.crs_profile || 'CRS'}` : '等待 CHATVOICE_MEETING_NOTES_PROVIDER'],
@@ -4578,6 +4581,7 @@
       closeSettingsMenu();
       $('settings-dialog').showModal();
       loadApiTokens();
+      refreshAsrRouteStatus();
       if (targetId) {
         requestAnimationFrame(() => {
           const target = $(targetId);
@@ -4986,12 +4990,14 @@
     }
 
     const asrPreferenceKey = 'speakr.asr.channel.v1';
+    let asrRouteRequestVersion = 0;
 
     function renderAsrRouteStatus(route) {
       const selected = $('asr-channel').value || 'auto';
       const actual = route.actual || selected;
       const reason = route.fallback_reason;
-      const state = route.plan && route.plan.state ? route.plan.state : 'unknown';
+      const states = { unknown: '尚未探测', healthy: '可用', unavailable: '暂不可用', stale: '缓存待刷新' };
+      const state = states[route.plan?.state] || '状态未知';
       const configured = route.plan && route.plan.configured ? '配置齐全' : '等待配置';
       const explanation = reason ? `；原因 ${reason}。请检查 Agent Plan 套餐、权限或网络，或选择固定本地通道。` : '';
       $('asr-route-status').textContent = `所选 ${selected}；实际 ${actual}；Agent Plan ${configured}、${state}${explanation}`;
@@ -5000,27 +5006,38 @@
 
     async function refreshAsrRouteStatus() {
       const selected = $('asr-channel').value || 'auto';
+      const requestVersion = ++asrRouteRequestVersion;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 5000);
       try {
-        const response = await fetch(`/api/asr/health?selected=${encodeURIComponent(selected)}`);
+        const response = await fetch(`/api/asr/health?selected=${encodeURIComponent(selected)}`, { cache: 'no-store', signal: controller.signal });
         if (!response.ok) throw new Error('status unavailable');
-        renderAsrRouteStatus(await response.json());
+        const route = await response.json();
+        if (requestVersion !== asrRouteRequestVersion || selected !== ($('asr-channel').value || 'auto')) return null;
+        renderAsrRouteStatus(route);
+        return route;
       } catch (_) {
-        $('asr-route-status').textContent = '识别通道状态暂不可用；请稍后刷新。';
-      }
+        if (requestVersion === asrRouteRequestVersion && selected === ($('asr-channel').value || 'auto')) $('asr-route-status').textContent = '识别通道状态暂不可用；请稍后刷新。';
+        return null;
+      } finally { clearTimeout(timer); }
     }
 
     async function probeAsrPlan() {
       const button = $('probe-asr-plan');
+      const selected = $('asr-channel').value || 'auto';
+      const requestVersion = ++asrRouteRequestVersion;
       button.disabled = true;
-      $('asr-route-status').textContent = '正在主动探测 Agent Plan，最长 8 秒…';
+      $('asr-route-status').textContent = '正在主动探测 Agent Plan 并读取最新状态…';
       try {
         const response = await fetch('/api/asr/health/probe', { method: 'POST', headers: { 'X-CSRF-Token': csrfToken || '' } });
         if (!response.ok) throw new Error(response.status === 429 ? '探测过于频繁，请稍后再试。' : '请登录后重试主动探测。');
         const route = await response.json();
-        renderAsrRouteStatus(route);
-        if (route.probe && route.probe.functional) $('asr-route-status').textContent += '；静音推理功能已验证，真实语音识别尚未由此验证。';
+        // A completed probe updates shared provider health. Reread the current
+        // choice even if Settings was reopened or changed while POST ran.
+        const current = await refreshAsrRouteStatus();
+        if (current && route.probe?.functional) $('asr-route-status').textContent += '；静音推理功能已验证，真实语音识别尚未由此验证。';
       } catch (error) {
-        $('asr-route-status').textContent = error.message || '探测失败';
+        if (requestVersion === asrRouteRequestVersion && selected === ($('asr-channel').value || 'auto')) $('asr-route-status').textContent = error.message || '探测失败';
       } finally {
         button.disabled = false;
       }
