@@ -1,7 +1,7 @@
 # User Management
 
 ```bash
-python -m pip install "ChatVoice[web]==0.5.2"
+python -m pip install "ChatVoice[web]==0.5.3"
 ```
 
 ChatVoice 0.5.x depends on the published `ChatLogin>=0.2.0,<0.3.0` range, so user management needs no Git installation. For offline deployment, pin wheels inside that public release range.

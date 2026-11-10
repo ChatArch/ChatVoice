@@ -17,5 +17,5 @@ def test_asr_settings_controller_completes_under_normal_suite():
     # node:test rejects event-loop-completed pending promises; require its full
     # terminal summary as well as exit zero, not a partial controller assertion.
     lines = result.stdout.splitlines()
-    for marker in ('# tests 1', '# pass 1', '# fail 0', '# cancelled 0'):
+    for marker in ('# tests 8', '# pass 8', '# fail 0', '# cancelled 0'):
         assert lines.count(marker) == 1, result.stdout + result.stderr
